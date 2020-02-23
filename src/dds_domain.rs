@@ -9,6 +9,9 @@ use crate::error::DDSError;
 struct DdsDomain(dds_entity_t);
 
 impl DdsDomain {
+
+
+    ///Create a domain with a specified domain id
     pub fn create(domain: dds_domainid_t, config: Option<&str>) -> Result<Self,DDSError> {
         unsafe {
             if let Some(cfg) = config {
@@ -56,13 +59,14 @@ mod dds_domain_tests {
     use super::*;
 
     #[test]
-    fn test_create_default_domain() {
-        let dom = DdsDomain::create(0, None);
-        let entity: dds_entity_t = dds_entity_t::from(dom.unwrap());
-    }
-
-    #[test]
     fn test_create_domain_with_bad_config() {
         assert_ne!(Err(DDSError::DdsOk), DdsDomain::create(0, Some("blah")));
     }
+
+    #[test]
+    fn test_create_domain_with_id() {
+        let dom = DdsDomain::create(10, None);
+        let entity: dds_entity_t = dds_entity_t::from(dom.unwrap());
+    }
+
 }
