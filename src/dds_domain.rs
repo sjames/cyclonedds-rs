@@ -3,12 +3,13 @@
 use cyclonedds_sys::{dds_entity_t, *};
 use std::convert::From;
 use std::ffi::CString;
+use crate::error::DDSError;
 
 #[derive(Debug)]
 struct DdsDomain(dds_entity_t);
 
 impl DdsDomain {
-    pub fn create(domain: dds_domainid_t, config: Option<&str>) -> Option<Self> {
+    pub fn create(domain: dds_domainid_t, config: Option<&str>) -> Result<Self,DDSError> {
         unsafe {
             if let Some(cfg) = config {
                 let d = cyclonedds_sys::dds_create_domain(
@@ -19,17 +20,17 @@ impl DdsDomain {
                 );
                 // negative return value signify an error
                 if d > 0 {
-                    Some(DdsDomain(d))
+                    Ok(DdsDomain(d))
                 } else {
-                    None
+                    Err(DDSError::from(d))
                 }
             } else {
                 let d = cyclonedds_sys::dds_create_domain(domain, std::ptr::null());
 
                 if d > 0 {
-                    Some(DdsDomain(d))
+                    Ok(DdsDomain(d))
                 } else {
-                    None
+                    Err(DDSError::from(d))
                 }
             }
         }
@@ -62,6 +63,6 @@ mod dds_domain_tests {
 
     #[test]
     fn test_create_domain_with_bad_config() {
-        assert_eq!(None, DdsDomain::create(0, Some("blah")));
+        assert_ne!(Err(DDSError::DdsOk), DdsDomain::create(0, Some("blah")));
     }
 }

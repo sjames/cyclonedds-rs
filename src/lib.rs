@@ -1,3 +1,4 @@
+pub mod error;
 pub mod dds_domain;
 pub mod dds_participant;
 
