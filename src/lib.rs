@@ -1,6 +1,8 @@
-pub mod error;
 pub mod dds_domain;
+pub mod dds_listener;
 pub mod dds_participant;
+pub mod dds_qos;
+pub mod error;
 
 #[cfg(test)]
 mod tests {

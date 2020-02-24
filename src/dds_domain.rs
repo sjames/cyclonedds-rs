@@ -1,18 +1,16 @@
+use crate::error::DDSError;
 /// Rust wrapper for DDS Domain
 ///
 use cyclonedds_sys::{dds_entity_t, *};
 use std::convert::From;
 use std::ffi::CString;
-use crate::error::DDSError;
 
 #[derive(Debug)]
-struct DdsDomain(dds_entity_t);
+pub struct DdsDomain(dds_entity_t);
 
 impl DdsDomain {
-
-
     ///Create a domain with a specified domain id
-    pub fn create(domain: dds_domainid_t, config: Option<&str>) -> Result<Self,DDSError> {
+    pub fn create(domain: dds_domainid_t, config: Option<&str>) -> Result<Self, DDSError> {
         unsafe {
             if let Some(cfg) = config {
                 let d = cyclonedds_sys::dds_create_domain(
@@ -47,7 +45,7 @@ impl From<DdsDomain> for dds_entity_t {
 }
 
 impl PartialEq for DdsDomain {
-    fn eq(&self, other:&Self) -> bool {
+    fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }

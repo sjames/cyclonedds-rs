@@ -1,8 +1,8 @@
 use std::{error::Error, fmt};
 
-use cyclonedds_sys::{dds_entity_t};
+use cyclonedds_sys::dds_entity_t;
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum DDSError {
     DdsOk,
     DdsError,
@@ -23,22 +23,22 @@ pub enum DDSError {
 impl Error for DDSError {}
 
 impl fmt::Display for DDSError {
-    fn fmt(&self, f:&mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            DDSError::DdsOk => write!(f,"OK"),
-            DDSError::DdsError => write!(f,"Unspecified Error"),
-            DDSError::Unsupported => write!(f,"Unsupported"),
-            DDSError::BadParameter => write!(f,"Bad parameter"),
-            DDSError::PreconditionNotMet => write!(f,"Preconditions not met"),
-            DDSError::OutOfResources => write!(f,"Out of resources"),
-            DDSError::NotEnabled => write!(f,"Not enabled"),
-            DDSError::ImmutablePolicy => write!(f,"Immutable policy"),
-            DDSError::InconsistentPolicy => write!(f,"Inconsistent polocy"),
-            DDSError::AlreadyDeleted => write!(f,"Already deleted"),
-            DDSError::Timeout => write!(f,"Timeout"),
-            DDSError::NoData => write!(f,"No Data"),
-            DDSError::IllegalOperation => write!(f,"Illegal operation"),
-            DDSError::NotAllowedBySecurity => write!(f,"Not allowed by security"),
+            DDSError::DdsOk => write!(f, "OK"),
+            DDSError::DdsError => write!(f, "Unspecified Error"),
+            DDSError::Unsupported => write!(f, "Unsupported"),
+            DDSError::BadParameter => write!(f, "Bad parameter"),
+            DDSError::PreconditionNotMet => write!(f, "Preconditions not met"),
+            DDSError::OutOfResources => write!(f, "Out of resources"),
+            DDSError::NotEnabled => write!(f, "Not enabled"),
+            DDSError::ImmutablePolicy => write!(f, "Immutable policy"),
+            DDSError::InconsistentPolicy => write!(f, "Inconsistent polocy"),
+            DDSError::AlreadyDeleted => write!(f, "Already deleted"),
+            DDSError::Timeout => write!(f, "Timeout"),
+            DDSError::NoData => write!(f, "No Data"),
+            DDSError::IllegalOperation => write!(f, "Illegal operation"),
+            DDSError::NotAllowedBySecurity => write!(f, "Not allowed by security"),
         }
     }
 }
@@ -47,7 +47,7 @@ impl fmt::Display for DDSError {
 /// and hence they are redefined here.DDSError
 /// Bad things will happen if these go out of sync
 impl From<dds_entity_t> for DDSError {
-    fn from(entity : dds_entity_t) -> Self {
+    fn from(entity: dds_entity_t) -> Self {
         match Some(entity) {
             Some(0) => DDSError::DdsOk,
             Some(-1) => DDSError::DdsError,
