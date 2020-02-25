@@ -5,7 +5,7 @@ use crate::{
 use std::marker::PhantomData;
 
 use std::convert::From;
-use std::ffi::{CString, CStr};
+use std::ffi::{CString};
 
 use cyclonedds_sys::dds_create_topic;
 pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t, dds_topic_descriptor_t};
@@ -17,7 +17,7 @@ where
     T: std::marker::Sized,
 {
     pub fn create(
-        participant: DdsParticipant,
+        participant: &DdsParticipant,
         descriptor: *const dds_topic_descriptor_t,
         name: &str,
         maybe_qos: Option<DdsQos>,
@@ -44,6 +44,12 @@ where
 
 impl<T> From<DdsTopic<T>> for dds_entity_t {
     fn from(domain: DdsTopic<T>) -> Self {
+        domain.0
+    }
+}
+
+impl<T> From<&DdsTopic<T>> for dds_entity_t {
+    fn from(domain: &DdsTopic<T>) -> Self {
         domain.0
     }
 }

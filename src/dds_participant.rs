@@ -36,6 +36,13 @@ impl From<DdsParticipant> for dds_entity_t {
     }
 }
 
+impl From<&DdsParticipant> for dds_entity_t {
+    fn from(domain: &DdsParticipant) -> Self {
+        domain.0
+    }
+}
+
+
 #[cfg(test)]
 mod dds_participant_tests {
     use super::*;

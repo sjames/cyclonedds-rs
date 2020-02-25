@@ -15,3 +15,8 @@ impl From<DdsPublisher> for dds_entity_t {
         publisher.0
     }
 }
+impl From<&DdsPublisher> for dds_entity_t {
+    fn from(publisher: &DdsPublisher) -> Self {
+        publisher.0
+    }
+}

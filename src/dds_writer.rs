@@ -19,8 +19,8 @@ where
     T: Sized,
 {
     pub fn create(
-        entity: Either<DdsParticipant, DdsPublisher>,
-        topic: DdsTopic<T>,
+        entity: Either<&DdsParticipant, &DdsPublisher>,
+        topic: &DdsTopic<T>,
         maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener>,
     ) -> Result<Self, DDSError> {
