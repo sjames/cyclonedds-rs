@@ -1,7 +1,6 @@
 use crate::error::DDSError;
-use cyclonedds_sys::*;
+//use cyclonedds_sys::*;
 use std::convert::From;
-use std::ffi::CString;
 
 pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t};
 
@@ -30,6 +29,12 @@ impl DdsParticipant {
     }
 }
 
+impl From<DdsParticipant> for dds_entity_t {
+    fn from(domain: DdsParticipant) -> Self {
+        domain.0
+    }
+}
+
 #[cfg(test)]
 mod dds_participant_tests {
     use super::*;
@@ -38,6 +43,6 @@ mod dds_participant_tests {
     fn test_create() {
         let mut qos = DdsQos::create().unwrap();
         qos.set_lifespan(1000);
-        let par = DdsParticipant::create(None, Some(qos), None);
+        let _par = DdsParticipant::create(None, Some(qos), None);
     }
 }

@@ -64,7 +64,7 @@ mod dds_domain_tests {
     #[test]
     fn test_create_domain_with_id() {
         let dom = DdsDomain::create(10, None);
-        let entity: dds_entity_t = dds_entity_t::from(dom.unwrap());
+        let _entity: dds_entity_t = dds_entity_t::from(dom.unwrap());
     }
 
 }

@@ -8,4 +8,6 @@ edition = "2018"
 
 [dependencies]
 cyclonedds-sys = { path = "../cyclonedds-sys" }
+either = "1.5"
+bit_field = "0.10"
 
