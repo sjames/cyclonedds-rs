@@ -17,22 +17,9 @@ impl DdsParticipant {
     ) -> Result<Self, DDSError> {
         unsafe {
             let p = cyclonedds_sys::dds_create_participant(
-                if let Some(domain) = maybe_domain {
-                    domain
-                } else {
-                    // Default domain if domain is not set
-                    0xFFFF_FFFF
-                },
-                if let Some(qos) = maybe_qos {
-                    qos.into()
-                } else {
-                    std::ptr::null()
-                },
-                if let Some(listener) = maybe_listener {
-                    listener.into()
-                } else {
-                    std::ptr::null()
-                },
+                maybe_domain.unwrap_or(0xFFFF_FFFF),
+                maybe_qos.map_or(std::ptr::null(), |d| d.into()),
+                maybe_listener.map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
                 Ok(DdsParticipant(p))
