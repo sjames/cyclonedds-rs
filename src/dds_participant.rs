@@ -6,6 +6,7 @@ pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t};
 
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos};
 
+#[derive(Clone)]
 pub struct DdsParticipant(dds_entity_t);
 
 impl DdsParticipant {

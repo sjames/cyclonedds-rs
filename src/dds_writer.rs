@@ -45,7 +45,7 @@ where
             // Yikes! I don't fully understand this. But it
             // seems to work.
             // Read more: https://stackoverflow.com/questions/24191249/working-with-c-void-in-an-ffi
-            let voidp: *const c_void = &msg as *const _ as *const c_void;
+            let voidp: *const c_void = msg as *const _ as *const c_void;
             dds_write(self.0, voidp);
         }
     }

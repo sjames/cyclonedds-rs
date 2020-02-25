@@ -5,6 +5,7 @@ use crate::{
 use std::marker::PhantomData;
 
 use std::convert::From;
+use std::ffi::{CString, CStr};
 
 use cyclonedds_sys::dds_create_topic;
 pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t, dds_topic_descriptor_t};
@@ -23,11 +24,11 @@ where
         maybe_listener: Option<DdsListener>,
     ) -> Result<Self, DDSError> {
         unsafe {
-            let strname = name.as_ptr();
+            let strname =  CString::new(name).expect("CString::new failed");
             let topic = dds_create_topic(
                 participant.into(),
                 descriptor,
-                strname as *const i8,
+                strname.as_ptr(),
                 maybe_qos.map_or(std::ptr::null(), |q| q.into()),
                 maybe_listener.map_or(std::ptr::null(), |l| l.into()),
             );
