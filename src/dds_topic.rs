@@ -18,7 +18,7 @@ where
 {
     pub fn create(
         participant: &DdsParticipant,
-        descriptor: *const dds_topic_descriptor_t,
+        descriptor: &'static dds_topic_descriptor_t,
         name: &str,
         maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener>,
