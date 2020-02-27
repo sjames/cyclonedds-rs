@@ -33,7 +33,7 @@ where
                 maybe_listener.map_or(std::ptr::null(), |l| l.into()),
             );
 
-            if topic > 0 {
+            if topic >= 0 {
                 Ok(DdsTopic(topic, PhantomData))
             } else {
                 Err(DDSError::from(topic))
@@ -51,5 +51,24 @@ impl<T> From<DdsTopic<T>> for dds_entity_t {
 impl<T> From<&DdsTopic<T>> for dds_entity_t {
     fn from(domain: &DdsTopic<T>) -> Self {
         domain.0
+    }
+}
+
+#[macro_export]
+macro_rules! type_descriptor {
+    ($ddstype:ident) => {
+        unsafe {
+             paste::expr!{ &[<$ddstype _desc>] as &'static dds_topic_descriptor_t}
+        }
+    };
+}
+
+/// Create a topic given the topic type and the topic name.
+/// Example:
+///     let topic = create_topic!(participant,HelloWorldData_Msg,"HelloWorldData_Msg", None, None).unwrap();
+#[macro_export]
+macro_rules! create_topic {
+    ($participant:ident,$ddstype:ident,$topic_name:expr,$maybe_qos:expr,$maybe_listener:expr) => {
+        DdsTopic::<$ddstype>::create(&$participant, type_descriptor!($ddstype) , $topic_name, $maybe_qos, $maybe_listener)
     }
 }

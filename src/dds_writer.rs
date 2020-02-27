@@ -32,7 +32,7 @@ where
                 maybe_listener.map_or(std::ptr::null(), |l| l.into()),
             );
 
-            if w > 0 {
+            if w >= 0 {
                 Ok(DdsWriter(w, PhantomData))
             } else {
                 Err(DDSError::from(w))
@@ -40,19 +40,28 @@ where
         }
     }
 
-    pub fn write(&mut self, msg: &T) {
+    pub fn write(&mut self, msg: &T) -> Result<(), DDSError> {
         unsafe {
-            // Yikes! I don't fully understand this. But it
-            // seems to work.
             // Read more: https://stackoverflow.com/questions/24191249/working-with-c-void-in-an-ffi
             let voidp: *const c_void = msg as *const _ as *const c_void;
-            dds_write(self.0, voidp);
+            let ret = dds_write(self.0, voidp);
+            if ret >= 0 {
+                Ok(())
+            } else {
+                Err(DDSError::from(ret))
+            }
         }
     }
 }
 
 impl<T> From<DdsWriter<T>> for dds_entity_t {
     fn from(writer: DdsWriter<T>) -> Self {
+        writer.0
+    }
+}
+
+impl<T> From<&DdsWriter<T>> for dds_entity_t {
+    fn from(writer: &DdsWriter<T>) -> Self {
         writer.0
     }
 }
