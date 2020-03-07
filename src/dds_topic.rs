@@ -6,15 +6,16 @@ use std::marker::PhantomData;
 
 use std::convert::From;
 use std::ffi::{CString};
+use std::mem::MaybeUninit;
 
 use cyclonedds_sys::dds_create_topic;
-pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t, dds_topic_descriptor_t};
+pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t, dds_topic_descriptor_t, DdsAllocator};
 
-pub struct DdsTopic<T: Sized>(dds_entity_t, PhantomData<*const T>);
+pub struct DdsTopic<T: Sized + DdsAllocator>(dds_entity_t, PhantomData<*const T>);
 
 impl<T> DdsTopic<T>
 where
-    T: std::marker::Sized,
+    T: std::marker::Sized + DdsAllocator
 {
     pub fn create(
         participant: &DdsParticipant,
@@ -42,13 +43,15 @@ where
     }
 }
 
-impl<T> From<DdsTopic<T>> for dds_entity_t {
+impl<T> From<DdsTopic<T>> for dds_entity_t where
+    T: std::marker::Sized + DdsAllocator {
     fn from(domain: DdsTopic<T>) -> Self {
         domain.0
     }
 }
 
-impl<T> From<&DdsTopic<T>> for dds_entity_t {
+impl<T> From<&DdsTopic<T>> for dds_entity_t where
+    T: std::marker::Sized + DdsAllocator{
     fn from(domain: &DdsTopic<T>) -> Self {
         domain.0
     }
@@ -70,5 +73,27 @@ macro_rules! type_descriptor {
 macro_rules! create_topic {
     ($participant:ident,$ddstype:ident,$topic_name:expr,$maybe_qos:expr,$maybe_listener:expr) => {
         DdsTopic::<$ddstype>::create(&$participant, type_descriptor!($ddstype) , $topic_name, $maybe_qos, $maybe_listener)
+    }
+}
+
+#[macro_export]
+macro_rules! create_constructors {
+    ($ddstype:ident) => {
+        impl $ddstype {
+            pub fn new() -> $ddstype {
+                unsafe {
+                    let mut t : MaybeUninit<$ddstype> = MaybeUninit::uninit();
+                    t.as_mut_ptr() = paste::expr!{ &[<$ddstype __alloc>] };
+                }
+            }
+        }
+
+        impl Drop for $ddstype {
+            fn drop(&mut self) {
+                unsafe {
+                    // Call the dds_free api
+                }
+            }
+        }
     }
 }

@@ -51,7 +51,9 @@ impl From<DdsStatus> for u32 {
 pub fn dds_set_status_mask<T>(
     writer: &DdsWriter<T>,
     status_mask: DdsStatus,
-) -> Result<(), DDSError> {
+) -> Result<(), DDSError> 
+where
+    T: Sized + DdsAllocator {
     unsafe {
         let err = cyclonedds_sys::dds_set_status_mask(writer.into(), status_mask.into());
 
@@ -63,7 +65,8 @@ pub fn dds_set_status_mask<T>(
     }
 }
 
-pub fn dds_get_status_changes<T>(writer: &DdsWriter<T>) -> Result<DdsStatus, DDSError> {
+pub fn dds_get_status_changes<T>(writer: &DdsWriter<T>) -> Result<DdsStatus, DDSError> where
+    T: Sized + DdsAllocator {
     unsafe {
         let mut status = DdsStatus::default();
         let err = cyclonedds_sys::dds_get_status_changes(writer.into(), &mut status.0);
