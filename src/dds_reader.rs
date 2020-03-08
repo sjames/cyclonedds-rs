@@ -2,22 +2,21 @@ use crate::error::DDSError;
 use cyclonedds_sys::*;
 use std::convert::From;
 use std::os::raw::c_void;
-use std::mem::MaybeUninit;
 
-pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t,dds_sample_info, DdsAllocator};
+pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t, dds_sample_info, DDSGenType};
 pub use either::Either;
 use std::marker::PhantomData;
 
 use crate::{
-    dds_listener::DdsListener, dds_participant::DdsParticipant, dds_subscriber::DdsSubscriber,
-    dds_qos::DdsQos, dds_topic::DdsTopic,
+    dds_listener::DdsListener, dds_participant::DdsParticipant, dds_qos::DdsQos,
+    dds_subscriber::DdsSubscriber, dds_topic::DdsTopic,
 };
 
-pub struct DdsReader<T: Sized + DdsAllocator>(dds_entity_t, PhantomData<*const T>);
+pub struct DdsReader<T: Sized + DDSGenType>(dds_entity_t, PhantomData<*const T>);
 
 impl<T> DdsReader<T>
 where
-    T: Sized + DdsAllocator
+    T: Sized + DDSGenType,
 {
     pub fn create(
         entity: Either<&DdsParticipant, &DdsSubscriber>,
@@ -41,13 +40,13 @@ where
         }
     }
 
-/*
+    /*
 
         pub fn read(&mut self) -> Result<T, DDSError> {
         unsafe {
              let mut info: dds_sample_info = dds_sample_info::default();
              let mut msg : T = T::new();
-             
+
             // Read more: https://stackoverflow.com/questions/24191249/working-with-c-void-in-an-ffi
             let voidp: *mut *mut c_void = msg as *mut _ as *mut *mut c_void;
             let ret = dds_read(self.0, voidp, &mut info as *mut _ ,1, 1);
@@ -57,6 +56,6 @@ where
                 Err(DDSError::from(ret))
             }
         }
-        
+
     }*/
 }

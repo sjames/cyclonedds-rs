@@ -2,26 +2,25 @@ use bit_field::BitField;
 use std::convert::From;
 
 use crate::error::DDSError;
-use cyclonedds_sys::{*};
+use cyclonedds_sys::*;
 
 use crate::dds_writer::DdsWriter;
 pub use cyclonedds_sys::dds_status_id;
 
 // re-export constants
+pub use cyclonedds_sys::dds_status_id_DDS_DATA_AVAILABLE_STATUS_ID as DDS_DATA_AVAILABLE_STATUS_ID;
+pub use cyclonedds_sys::dds_status_id_DDS_DATA_ON_READERS_STATUS_ID as DDS_DATA_ON_READERS_STATUS_ID;
 pub use cyclonedds_sys::dds_status_id_DDS_INCONSISTENT_TOPIC_STATUS_ID as DDS_INCONSISTENT_TOPIC_STATUS_ID;
+pub use cyclonedds_sys::dds_status_id_DDS_LIVELINESS_CHANGED_STATUS_ID as DDS_LIVELINESS_CHANGED_STATUS_ID;
+pub use cyclonedds_sys::dds_status_id_DDS_LIVELINESS_LOST_STATUS_ID as DDS_LIVELINESS_LOST_STATUS_ID;
 pub use cyclonedds_sys::dds_status_id_DDS_OFFERED_DEADLINE_MISSED_STATUS_ID as DDS_OFFERED_DEADLINE_MISSED_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_REQUESTED_DEADLINE_MISSED_STATUS_ID as DDS_REQUESTED_DEADLINE_MISSED_STATUS_ID;
 pub use cyclonedds_sys::dds_status_id_DDS_OFFERED_INCOMPATIBLE_QOS_STATUS_ID as DDS_OFFERED_INCOMPATIBLE_QOS_STATUS_ID;
+pub use cyclonedds_sys::dds_status_id_DDS_PUBLICATION_MATCHED_STATUS_ID as DDS_PUBLICATION_MATCHED_STATUS_ID;
+pub use cyclonedds_sys::dds_status_id_DDS_REQUESTED_DEADLINE_MISSED_STATUS_ID as DDS_REQUESTED_DEADLINE_MISSED_STATUS_ID;
 pub use cyclonedds_sys::dds_status_id_DDS_REQUESTED_INCOMPATIBLE_QOS_STATUS_ID as DDS_REQUESTED_INCOMPATIBLE_QOS_STATUS_ID;
 pub use cyclonedds_sys::dds_status_id_DDS_SAMPLE_LOST_STATUS_ID as DDS_SAMPLE_LOST_STATUS_ID;
 pub use cyclonedds_sys::dds_status_id_DDS_SAMPLE_REJECTED_STATUS_ID as DDS_SAMPLE_REJECTED_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_DATA_ON_READERS_STATUS_ID as DDS_DATA_ON_READERS_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_DATA_AVAILABLE_STATUS_ID as DDS_DATA_AVAILABLE_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_LIVELINESS_LOST_STATUS_ID as DDS_LIVELINESS_LOST_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_LIVELINESS_CHANGED_STATUS_ID as DDS_LIVELINESS_CHANGED_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_PUBLICATION_MATCHED_STATUS_ID as DDS_PUBLICATION_MATCHED_STATUS_ID;
 pub use cyclonedds_sys::dds_status_id_DDS_SUBSCRIPTION_MATCHED_STATUS_ID as DDS_SUBSCRIPTION_MATCHED_STATUS_ID;
-
 
 pub struct DdsStatus(u32);
 
@@ -48,12 +47,10 @@ impl From<DdsStatus> for u32 {
     }
 }
 
-pub fn dds_set_status_mask<T>(
-    writer: &DdsWriter<T>,
-    status_mask: DdsStatus,
-) -> Result<(), DDSError> 
+pub fn dds_set_status_mask<T>(writer: &DdsWriter<T>, status_mask: DdsStatus) -> Result<(), DDSError>
 where
-    T: Sized + DdsAllocator {
+    T: Sized + DDSGenType,
+{
     unsafe {
         let err = cyclonedds_sys::dds_set_status_mask(writer.into(), status_mask.into());
 
@@ -65,8 +62,10 @@ where
     }
 }
 
-pub fn dds_get_status_changes<T>(writer: &DdsWriter<T>) -> Result<DdsStatus, DDSError> where
-    T: Sized + DdsAllocator {
+pub fn dds_get_status_changes<T>(writer: &DdsWriter<T>) -> Result<DdsStatus, DDSError>
+where
+    T: Sized + DDSGenType,
+{
     unsafe {
         let mut status = DdsStatus::default();
         let err = cyclonedds_sys::dds_get_status_changes(writer.into(), &mut status.0);

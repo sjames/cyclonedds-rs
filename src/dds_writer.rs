@@ -1,7 +1,6 @@
 use crate::error::DDSError;
 use cyclonedds_sys::*;
 use std::convert::From;
-use std::os::raw::c_void;
 
 pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t};
 pub use either::Either;
@@ -12,11 +11,11 @@ use crate::{
     dds_qos::DdsQos, dds_topic::DdsTopic,
 };
 
-pub struct DdsWriter<T: Sized + DdsAllocator>(dds_entity_t, PhantomData<*const T>);
+pub struct DdsWriter<T: Sized + DDSGenType>(dds_entity_t, PhantomData<*const T>);
 
 impl<T> DdsWriter<T>
 where
-    T: Sized + DdsAllocator
+    T: Sized + DDSGenType,
 {
     pub fn create(
         entity: Either<&DdsParticipant, &DdsPublisher>,
@@ -42,9 +41,7 @@ where
 
     pub fn write(&mut self, msg: &T) -> Result<(), DDSError> {
         unsafe {
-            // Read more: https://stackoverflow.com/questions/24191249/working-with-c-void-in-an-ffi
-            let voidp: *const c_void = msg as *const _ as *const c_void;
-            let ret = dds_write(self.0, voidp);
+            let ret = dds_write(self.0, msg.get_raw_ptr());
             if ret >= 0 {
                 Ok(())
             } else {
@@ -54,15 +51,19 @@ where
     }
 }
 
-impl<T> From<DdsWriter<T>> for dds_entity_t where
-    T: Sized + DdsAllocator {
+impl<T> From<DdsWriter<T>> for dds_entity_t
+where
+    T: Sized + DDSGenType,
+{
     fn from(writer: DdsWriter<T>) -> Self {
         writer.0
     }
 }
 
-impl<T> From<&DdsWriter<T>> for dds_entity_t where
-    T: Sized + DdsAllocator {
+impl<T> From<&DdsWriter<T>> for dds_entity_t
+where
+    T: Sized + DDSGenType,
+{
     fn from(writer: &DdsWriter<T>) -> Self {
         writer.0
     }
