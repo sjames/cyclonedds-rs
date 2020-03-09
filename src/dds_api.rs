@@ -5,7 +5,7 @@ use crate::error::DDSError;
 use cyclonedds_sys::*;
 
 use crate::dds_writer::DdsWriter;
-pub use cyclonedds_sys::dds_status_id;
+pub use cyclonedds_sys::{dds_status_id, DDSBox};
 
 // re-export constants
 pub use cyclonedds_sys::dds_status_id_DDS_DATA_AVAILABLE_STATUS_ID as DDS_DATA_AVAILABLE_STATUS_ID;

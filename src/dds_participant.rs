@@ -42,7 +42,6 @@ impl From<&DdsParticipant> for dds_entity_t {
     }
 }
 
-
 #[cfg(test)]
 mod dds_participant_tests {
     use super::*;

@@ -2,7 +2,7 @@ use crate::error::DDSError;
 use cyclonedds_sys::*;
 use std::convert::From;
 
-pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t};
+pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t, DDSBox};
 pub use either::Either;
 use std::marker::PhantomData;
 
@@ -39,9 +39,9 @@ where
         }
     }
 
-    pub fn write(&mut self, msg: &T) -> Result<(), DDSError> {
+    pub fn write(&mut self, msg: &DDSBox<T>) -> Result<(), DDSError> {
         unsafe {
-            let ret = dds_write(self.0, msg.get_raw_ptr());
+            let ret = dds_write(self.0, msg.get_raw_mut_ptr());
             if ret >= 0 {
                 Ok(())
             } else {
