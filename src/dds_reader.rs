@@ -3,7 +3,7 @@ use cyclonedds_sys::*;
 use std::convert::From;
 use std::os::raw::c_void;
 
-pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t, dds_sample_info, DDSGenType};
+pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t, dds_sample_info, DDSBox, DDSGenType};
 pub use either::Either;
 use std::marker::PhantomData;
 
@@ -40,22 +40,27 @@ where
         }
     }
 
-    /*
-
-        pub fn read(&mut self) -> Result<T, DDSError> {
+    pub fn read(&mut self) -> Result<DDSBox<T>, DDSError> {
         unsafe {
-             let mut info: dds_sample_info = dds_sample_info::default();
-             let mut msg : T = T::new();
+            let mut info: dds_sample_info = dds_sample_info::default();
 
-            // Read more: https://stackoverflow.com/questions/24191249/working-with-c-void-in-an-ffi
-            let voidp: *mut *mut c_void = msg as *mut _ as *mut *mut c_void;
-            let ret = dds_read(self.0, voidp, &mut info as *mut _ ,1, 1);
+            // set to null pointer to ask cyclone to allocate the buffer. All received
+            // data will need to be allocated by cyclone
+            let mut voidp: *mut c_void = std::ptr::null::<T>() as *mut c_void;
+            let voidpp: *mut *mut c_void = &mut voidp;
+
+            let ret = dds_read(self.0, voidpp, &mut info as *mut _, 1, 1);
+
             if ret >= 0 {
-                Ok(())
+                if !voidp.is_null() {
+                    let buf = DDSBox::<T>::new_from_cyclone_allocated_struct(voidp as *mut T);
+                    Ok(buf)
+                } else {
+                    Err(DDSError::OutOfResources)
+                }
             } else {
                 Err(DDSError::from(ret))
             }
         }
-
-    }*/
+    }
 }
