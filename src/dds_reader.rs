@@ -52,7 +52,7 @@ where
             let ret = dds_read(self.0, voidpp, &mut info as *mut _, 1, 1);
 
             if ret >= 0 {
-                if !voidp.is_null() {
+                if !voidp.is_null() && info.valid_data {
                     let buf = DDSBox::<T>::new_from_cyclone_allocated_struct(voidp as *mut T);
                     Ok(buf)
                 } else {
