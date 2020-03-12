@@ -9,3 +9,9 @@ impl From<DdsListener> for *const dds_listener_t {
         listener.0
     }
 }
+
+impl From<&DdsListener> for *const dds_listener_t {
+    fn from(listener: &DdsListener) -> Self {
+        listener.0
+    }
+}
