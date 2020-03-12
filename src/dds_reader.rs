@@ -12,11 +12,12 @@ use crate::{
     dds_subscriber::DdsSubscriber, dds_topic::DdsTopic,
 };
 
-pub struct DdsReader<T: Sized + DDSGenType>(
-    dds_entity_t,
-    Option<*mut dds_listener_t>,
-    PhantomData<*const T>,
-);
+pub struct DdsReader<T: Sized + DDSGenType> {
+    entity: dds_entity_t,
+    listener: Option<*mut dds_listener_t>,
+    _phantom: PhantomData<*const T>,
+    
+}
 
 impl<T> DdsReader<T>
 where
@@ -37,7 +38,7 @@ where
             );
 
             if w >= 0 {
-                Ok(DdsReader(w, None, PhantomData))
+                Ok(DdsReader {entity: w, listener: None, _phantom: PhantomData})
             } else {
                 Err(DDSError::from(w))
             }
@@ -52,7 +53,7 @@ where
             let mut voidp: *mut c_void = std::ptr::null::<T>() as *mut c_void;
             let voidpp: *mut *mut c_void = &mut voidp;
 
-            let ret = dds_read(self.0, voidpp, &mut info as *mut _, 1, 1);
+            let ret = dds_read(self.entity, voidpp, &mut info as *mut _, 1, 1);
 
             if ret >= 0 {
                 if !voidp.is_null() && info.valid_data {
@@ -73,7 +74,7 @@ where
     T: Sized + DDSGenType,
 {
     fn from(reader: DdsReader<T>) -> Self {
-        reader.0
+        reader.entity
     }
 }
 
@@ -82,7 +83,7 @@ where
     T: Sized + DDSGenType,
 {
     fn from(reader: &DdsReader<T>) -> Self {
-        reader.0
+        reader.entity
     }
 }
 
@@ -98,19 +99,19 @@ typedef void (*dds_on_subscription_matched_fn) (dds_entity_t reader, const dds_s
 
 pub fn on_sample_lost<F, T>(reader: &mut DdsReader<T>, callback: F)
 where
-    F: FnMut(dds_sample_lost_status_t) + 'static,
+    F: FnMut(dds_sample_lost_status_t),
     T: Sized + DDSGenType,
 {
     unsafe {
-        if let Some(reader) = reader.1 {
-            dds_lset_sample_lost(reader, Some(call_sample_lost_closure::<F>));
+        if let Some(listener) = reader.listener {
+            dds_lset_sample_lost(listener, Some(call_sample_lost_closure::<F>));
         }
     }
 }
 
 unsafe extern "C" fn call_sample_lost_closure<F>(
     reader: dds_entity_t,
-    status : dds_sample_lost_status_t,
+    status: dds_sample_lost_status_t,
     data: *mut std::ffi::c_void,
 ) where
     F: FnMut(dds_sample_lost_status_t),
@@ -120,7 +121,7 @@ unsafe extern "C" fn call_sample_lost_closure<F>(
 
 pub fn on_data_available<F, T>(reader: &mut DdsReader<T>, callback: F)
 where
-    F: FnMut(dds_entity_t) + 'static,
+    F: FnMut(dds_entity_t),
     T: Sized + DDSGenType,
 {
 
