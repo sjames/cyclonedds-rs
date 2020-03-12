@@ -40,10 +40,9 @@ where
         }
     }
 
-    pub fn read(&mut self) -> Result<DDSBox<T>, DDSError> {
+    pub fn read(&self) -> Result<DDSBox<T>, DDSError> {
         unsafe {
             let mut info: dds_sample_info = dds_sample_info::default();
-
             // set to null pointer to ask cyclone to allocate the buffer. All received
             // data will need to be allocated by cyclone
             let mut voidp: *mut c_void = std::ptr::null::<T>() as *mut c_void;
@@ -62,5 +61,24 @@ where
                 Err(DDSError::from(ret))
             }
         }
+    }
+}
+
+
+impl<T> From<DdsReader<T>> for dds_entity_t
+where
+    T: Sized + DDSGenType,
+{
+    fn from(reader: DdsReader<T>) -> Self {
+        reader.0
+    }
+}
+
+impl<T> From<&DdsReader<T>> for dds_entity_t
+where
+    T: Sized + DDSGenType,
+{
+    fn from(reader: &DdsReader<T>) -> Self {
+        reader.0
     }
 }

@@ -47,12 +47,10 @@ impl From<DdsStatus> for u32 {
     }
 }
 
-pub fn dds_set_status_mask<T>(writer: &DdsWriter<T>, status_mask: DdsStatus) -> Result<(), DDSError>
-where
-    T: Sized + DDSGenType,
+pub fn dds_set_status_mask(entity : dds_entity_t, status_mask: DdsStatus) -> Result<(), DDSError>
 {
     unsafe {
-        let err = cyclonedds_sys::dds_set_status_mask(writer.into(), status_mask.into());
+        let err = cyclonedds_sys::dds_set_status_mask(entity, status_mask.into());
 
         if err < 0 {
             Err(DDSError::from(err))
@@ -62,13 +60,11 @@ where
     }
 }
 
-pub fn dds_get_status_changes<T>(writer: &DdsWriter<T>) -> Result<DdsStatus, DDSError>
-where
-    T: Sized + DDSGenType,
+pub fn dds_get_status_changes(entity : dds_entity_t) -> Result<DdsStatus, DDSError>
 {
     unsafe {
         let mut status = DdsStatus::default();
-        let err = cyclonedds_sys::dds_get_status_changes(writer.into(), &mut status.0);
+        let err = cyclonedds_sys::dds_get_status_changes(entity, &mut status.0);
 
         if err < 0 {
             Err(DDSError::from(err))
