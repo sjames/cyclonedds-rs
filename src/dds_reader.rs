@@ -14,9 +14,9 @@ use crate::{
 
 pub struct DdsReader<T: Sized + DDSGenType> {
     entity: dds_entity_t,
-    listener: Option<*mut dds_listener_t>,
+    listener: Option<DdsListener>,
     _phantom: PhantomData<*const T>,
-    
+    // The callback closures that can be attached to a reader
 }
 
 impl<T> DdsReader<T>
@@ -34,11 +34,17 @@ where
                 entity.either(|l| l.into(), |r| r.into()),
                 topic.into(),
                 maybe_qos.map_or(std::ptr::null(), |q| q.into()),
-                maybe_listener.map_or(std::ptr::null(), |l| l.into()),
+                maybe_listener
+                    .as_ref()
+                    .map_or(std::ptr::null(), |l| l.into()),
             );
 
             if w >= 0 {
-                Ok(DdsReader {entity: w, listener: None, _phantom: PhantomData})
+                Ok(DdsReader {
+                    entity: w,
+                    listener: maybe_listener,
+                    _phantom: PhantomData,
+                })
             } else {
                 Err(DDSError::from(w))
             }
@@ -85,84 +91,4 @@ where
     fn from(reader: &DdsReader<T>) -> Self {
         reader.entity
     }
-}
-
-/*
-typedef void (*dds_on_sample_lost_fn) (dds_entity_t reader, const dds_sample_lost_status_t status, void* arg);
-typedef void (*dds_on_data_available_fn) (dds_entity_t reader, void* arg);
-typedef void (*dds_on_sample_rejected_fn) (dds_entity_t reader, const dds_sample_rejected_status_t status, void* arg);
-typedef void (*dds_on_liveliness_changed_fn) (dds_entity_t reader, const dds_liveliness_changed_status_t status, void* arg);
-typedef void (*dds_on_requested_deadline_missed_fn) (dds_entity_t reader, const dds_requested_deadline_missed_status_t status, void* arg);
-typedef void (*dds_on_requested_incompatible_qos_fn) (dds_entity_t reader, const dds_requested_incompatible_qos_status_t status, void* arg);
-typedef void (*dds_on_subscription_matched_fn) (dds_entity_t reader, const dds_subscription_matched_status_t  status, void* arg);
-*/
-
-pub fn on_sample_lost<F, T>(reader: &mut DdsReader<T>, callback: F)
-where
-    F: FnMut(dds_sample_lost_status_t),
-    T: Sized + DDSGenType,
-{
-    unsafe {
-        if let Some(listener) = reader.listener {
-            dds_lset_sample_lost(listener, Some(call_sample_lost_closure::<F>));
-        }
-    }
-}
-
-unsafe extern "C" fn call_sample_lost_closure<F>(
-    reader: dds_entity_t,
-    status: dds_sample_lost_status_t,
-    data: *mut std::ffi::c_void,
-) where
-    F: FnMut(dds_sample_lost_status_t),
-{
-
-}
-
-pub fn on_data_available<F, T>(reader: &mut DdsReader<T>, callback: F)
-where
-    F: FnMut(dds_entity_t),
-    T: Sized + DDSGenType,
-{
-
-}
-
-pub fn on_sample_rejected<F, T>(reader: &mut DdsReader<T>, callback: F)
-where
-    F: FnMut(dds_entity_t, dds_sample_rejected_status_t) + 'static,
-    T: Sized + DDSGenType,
-{
-
-}
-
-pub fn on_liveliness_changed<F, T>(reader: &mut DdsReader<T>, callback: F)
-where
-    F: FnMut(dds_entity_t, dds_liveliness_changed_status_t) + 'static,
-    T: Sized + DDSGenType,
-{
-
-}
-
-pub fn on_requested_deadline_missed<F, T>(reader: &mut DdsReader<T>, callback: F)
-where
-    F: FnMut(dds_entity_t, dds_requested_deadline_missed_status_t) + 'static,
-    T: Sized + DDSGenType,
-{
-
-}
-
-pub fn on_requested_incompatible_qos<F, T>(reader: &mut DdsReader<T>, callback: F)
-where
-    F: FnMut(dds_entity_t, dds_requested_incompatible_qos_status_t) + 'static,
-    T: Sized + DDSGenType,
-{
-
-}
-
-pub fn on_subscription_matched<F, T>(reader: &mut DdsReader<T>, callback: F)
-where
-    F: FnMut(dds_entity_t, dds_subscription_matched_status_t) + 'static,
-    T: Sized + DDSGenType,
-{
-
 }
