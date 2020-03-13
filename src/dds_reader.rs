@@ -51,6 +51,44 @@ where
         }
     }
 
+    pub fn set_listener(&mut self, listener: DdsListener) -> Result<(), DDSError> {
+        unsafe {
+            let refl = &listener;
+            let rc = dds_set_listener(self.entity, refl.into());
+            if rc == 0 {
+                self.listener = Some(listener);
+                Ok(())
+            } else {
+                Err(DDSError::from(rc))
+            }
+        }
+    }
+
+    /// Read a buffer give a dds_entity_t.  This is useful when you want to read data
+    /// within a closure.
+    pub fn read_from_entity(entity: dds_entity_t) -> Result<DDSBox<T>, DDSError> {
+        unsafe {
+            let mut info: dds_sample_info = dds_sample_info::default();
+            // set to null pointer to ask cyclone to allocate the buffer. All received
+            // data will need to be allocated by cyclone
+            let mut voidp: *mut c_void = std::ptr::null::<T>() as *mut c_void;
+            let voidpp: *mut *mut c_void = &mut voidp;
+
+            let ret = dds_read(entity, voidpp, &mut info as *mut _, 1, 1);
+
+            if ret >= 0 {
+                if !voidp.is_null() && info.valid_data {
+                    let buf = DDSBox::<T>::new_from_cyclone_allocated_struct(voidp as *mut T);
+                    Ok(buf)
+                } else {
+                    Err(DDSError::OutOfResources)
+                }
+            } else {
+                Err(DDSError::from(ret))
+            }
+        }
+    }
+
     pub fn read(&self) -> Result<DDSBox<T>, DDSError> {
         unsafe {
             let mut info: dds_sample_info = dds_sample_info::default();
