@@ -11,6 +11,14 @@ pub mod dds_topic;
 pub mod dds_writer;
 pub mod error;
 
+pub use dds_listener::DdsListener;
+pub use dds_participant::DdsParticipant;
+pub use dds_reader::DdsReader;
+pub use dds_topic::{DdsTopic};
+pub use dds_writer::DdsWriter;
+pub use dds_api::*;
+
+
 #[cfg(test)]
 mod tests {
     #[test]
