@@ -11,7 +11,7 @@ use crate::{
     dds_qos::DdsQos, dds_topic::DdsTopic,
 };
 
-pub struct DdsWriter<T: Sized + DDSGenType>(dds_entity_t, PhantomData<*const T>);
+pub struct DdsWriter<T: Sized + DDSGenType>(dds_entity_t, Option<DdsListener>, PhantomData<*const T>);
 
 impl<T> DdsWriter<T>
 where
@@ -28,13 +28,24 @@ where
                 entity.either(|l| l.into(), |r| r.into()),
                 topic.into(),
                 maybe_qos.map_or(std::ptr::null(), |q| q.into()),
-                maybe_listener.map_or(std::ptr::null(), |l| l.into()),
+                maybe_listener.as_ref().map_or(std::ptr::null(), |l| l.into()),
             );
 
             if w >= 0 {
-                Ok(DdsWriter(w, PhantomData))
+                Ok(DdsWriter(w, maybe_listener, PhantomData))
             } else {
                 Err(DDSError::from(w))
+            }
+        }
+    }
+
+    pub fn write_to_entity(entity: dds_entity_t, msg: &DDSBox<T>) -> Result<(), DDSError> {
+        unsafe {
+            let ret = dds_write(entity, msg.get_raw_mut_ptr());
+            if ret >= 0 {
+                Ok(())
+            } else {
+                Err(DDSError::from(ret))
             }
         }
     }
@@ -46,6 +57,19 @@ where
                 Ok(())
             } else {
                 Err(DDSError::from(ret))
+            }
+        }
+    }
+
+    pub fn set_listener(&mut self, listener: DdsListener) -> Result<(), DDSError> {
+        unsafe {
+            let refl = &listener;
+            let rc = dds_set_listener(self.0, refl.into());
+            if rc == 0 {
+                self.1 = Some(listener);
+                Ok(())
+            } else {
+                Err(DDSError::from(rc))
             }
         }
     }
