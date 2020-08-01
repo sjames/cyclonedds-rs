@@ -1,8 +1,7 @@
-use crate::error::DDSError;
 use cyclonedds_sys::*;
 use std::convert::From;
 
-pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t, DDSBox};
+pub use cyclonedds_sys::{DDSBox, DdsEntity};
 pub use either::Either;
 use std::marker::PhantomData;
 
@@ -11,7 +10,12 @@ use crate::{
     dds_qos::DdsQos, dds_topic::DdsTopic,
 };
 
-pub struct DdsWriter<T: Sized + DDSGenType>(dds_entity_t, Option<DdsListener>, PhantomData<*const T>);
+pub struct DdsWriter<T: Sized + DDSGenType>(DdsEntity, Option<DdsListener>, PhantomData<*const T>);
+
+pub enum WritableEntity<'a> {
+    Participant(&'a DdsParticipant),
+    Publisher(&'a DdsPublisher),
+}
 
 impl<T> DdsWriter<T>
 where
@@ -28,7 +32,9 @@ where
                 entity.either(|l| l.into(), |r| r.into()),
                 topic.into(),
                 maybe_qos.map_or(std::ptr::null(), |q| q.into()),
-                maybe_listener.as_ref().map_or(std::ptr::null(), |l| l.into()),
+                maybe_listener
+                    .as_ref()
+                    .map_or(std::ptr::null(), |l| l.into()),
             );
 
             if w >= 0 {
@@ -75,7 +81,7 @@ where
     }
 }
 
-impl<T> From<DdsWriter<T>> for dds_entity_t
+impl<T> From<DdsWriter<T>> for DdsEntity
 where
     T: Sized + DDSGenType,
 {
@@ -84,11 +90,25 @@ where
     }
 }
 
-impl<T> From<&DdsWriter<T>> for dds_entity_t
+impl<T> From<&DdsWriter<T>> for DdsEntity
 where
     T: Sized + DDSGenType,
 {
     fn from(writer: &DdsWriter<T>) -> Self {
         writer.0
+    }
+}
+
+impl<T> Drop for DdsWriter<T>
+where
+    T: std::marker::Sized + DDSGenType,
+{
+    fn drop(&mut self) {
+        unsafe {
+            let ret: DDSError = cyclonedds_sys::dds_delete(self.0).into();
+            if DDSError::DdsOk != ret && DDSError::AlreadyDeleted != ret {
+                panic!("cannot delete Writer: {}", ret);
+            }
+        }
     }
 }

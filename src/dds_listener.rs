@@ -1,4 +1,3 @@
-use crate::error::DDSError;
 use cyclonedds_sys::dds_listener_t;
 use cyclonedds_sys::*;
 use std::convert::From;

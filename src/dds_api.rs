@@ -1,12 +1,11 @@
 use bit_field::BitField;
 use std::convert::From;
 
-use crate::error::DDSError;
-use cyclonedds_sys::*;
+use cyclonedds_sys::dds_error::DDSError;
+use cyclonedds_sys::DdsEntity;
 
-use crate::dds_writer::DdsWriter;
+//use crate::dds_writer::DdsWriter;
 pub use cyclonedds_sys::{dds_status_id, DDSBox};
-pub use crate::dds_topic::dds_topic_descriptor_t;
 
 // re-export constants
 pub use cyclonedds_sys::dds_status_id_DDS_DATA_AVAILABLE_STATUS_ID as DDS_DATA_AVAILABLE_STATUS_ID;
@@ -48,7 +47,7 @@ impl From<DdsStatus> for u32 {
     }
 }
 
-pub fn dds_set_status_mask(entity: dds_entity_t, status_mask: DdsStatus) -> Result<(), DDSError> {
+pub fn dds_set_status_mask(entity: DdsEntity, status_mask: DdsStatus) -> Result<(), DDSError> {
     unsafe {
         let err = cyclonedds_sys::dds_set_status_mask(entity, status_mask.into());
 
@@ -60,7 +59,7 @@ pub fn dds_set_status_mask(entity: dds_entity_t, status_mask: DdsStatus) -> Resu
     }
 }
 
-pub fn dds_get_status_changes(entity: dds_entity_t) -> Result<DdsStatus, DDSError> {
+pub fn dds_get_status_changes(entity: DdsEntity) -> Result<DdsStatus, DDSError> {
     unsafe {
         let mut status = DdsStatus::default();
         let err = cyclonedds_sys::dds_get_status_changes(entity, &mut status.0);
@@ -81,26 +80,13 @@ mod dds_qos_tests {
         let status = DdsStatus::default();
         assert_eq!(false, status.is_set(0));
         let status = status
-            .set(dds_status_id_DDS_INCONSISTENT_TOPIC_STATUS_ID)
-            .set(dds_status_id_DDS_OFFERED_DEADLINE_MISSED_STATUS_ID)
-            .set(dds_status_id_DDS_SUBSCRIPTION_MATCHED_STATUS_ID);
+            .set(DDS_INCONSISTENT_TOPIC_STATUS_ID)
+            .set(DDS_OFFERED_DEADLINE_MISSED_STATUS_ID)
+            .set(DDS_SUBSCRIPTION_MATCHED_STATUS_ID);
 
-        assert_eq!(
-            true,
-            status.is_set(dds_status_id_DDS_INCONSISTENT_TOPIC_STATUS_ID)
-        );
-        assert_eq!(
-            true,
-            status.is_set(dds_status_id_DDS_OFFERED_DEADLINE_MISSED_STATUS_ID)
-        );
-        assert_eq!(
-            true,
-            status.is_set(dds_status_id_DDS_SUBSCRIPTION_MATCHED_STATUS_ID)
-        );
-        assert_eq!(
-            false,
-            status.is_set(dds_status_id_DDS_SAMPLE_REJECTED_STATUS_ID)
-        );
+        assert_eq!(true, status.is_set(DDS_INCONSISTENT_TOPIC_STATUS_ID));
+        assert_eq!(true, status.is_set(DDS_OFFERED_DEADLINE_MISSED_STATUS_ID));
+        assert_eq!(true, status.is_set(DDS_SUBSCRIPTION_MATCHED_STATUS_ID));
+        assert_eq!(false, status.is_set(DDS_SAMPLE_REJECTED_STATUS_ID));
     }
-
 }

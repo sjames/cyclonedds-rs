@@ -1,4 +1,3 @@
-use crate::error::DDSError;
 use cyclonedds_sys::{dds_qos_t, *};
 use std::clone::Clone;
 use std::convert::From;
@@ -105,10 +104,6 @@ impl DdsQos {
             dds_qset_time_based_filter(self.0, minimum_separation);
         }
     }
-
-    // I don't know how to do this in rust yet. Double pointers.
-    //pub fn set_partition(qos: *mut dds_qos_t, n: u32, ps: *mut *const ::std::os::raw::c_char);
-    //pub fn dds_qset_partition1(qos: *mut dds_qos_t, name: *const ::std::os::raw::c_char);
 
     pub fn set_reliability(
         &mut self,
@@ -226,7 +221,6 @@ mod dds_qos_tests {
     #[test]
     fn test_create_qos() {
         if let Ok(_qos) = DdsQos::create() {
-
         } else {
             assert!(false);
         }
@@ -280,5 +274,4 @@ mod dds_qos_tests {
             assert!(false);
         }
     }
-
 }

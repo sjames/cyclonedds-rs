@@ -1,16 +1,12 @@
-use crate::{
-    dds_listener::DdsListener, dds_participant::DdsParticipant, dds_qos::DdsQos, error::DDSError,
-};
-
-use std::marker::PhantomData;
+use crate::{dds_listener::DdsListener, dds_participant::DdsParticipant, dds_qos::DdsQos};
 
 use std::convert::From;
 use std::ffi::CString;
+use std::marker::PhantomData;
 
-use cyclonedds_sys::dds_create_topic;
-pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t, dds_topic_descriptor_t, DDSGenType};
+pub use cyclonedds_sys::{DDSError, DDSGenType, DdsEntity};
 
-pub struct DdsTopic<T: Sized + DDSGenType>(dds_entity_t, PhantomData<*const T>);
+pub struct DdsTopic<T: Sized + DDSGenType>(DdsEntity, PhantomData<*const T>);
 
 impl<T> DdsTopic<T>
 where
@@ -24,7 +20,7 @@ where
     ) -> Result<Self, DDSError> {
         unsafe {
             let strname = CString::new(name).expect("CString::new failed");
-            let topic = dds_create_topic(
+            let topic = cyclonedds_sys::dds_create_topic(
                 participant.into(),
                 T::get_descriptor(),
                 strname.as_ptr(),
@@ -41,7 +37,7 @@ where
     }
 }
 
-impl<T> From<DdsTopic<T>> for dds_entity_t
+impl<T> From<DdsTopic<T>> for DdsEntity
 where
     T: std::marker::Sized + DDSGenType,
 {
@@ -50,7 +46,7 @@ where
     }
 }
 
-impl<T> From<&DdsTopic<T>> for dds_entity_t
+impl<T> From<&DdsTopic<T>> for DdsEntity
 where
     T: std::marker::Sized + DDSGenType,
 {
@@ -59,21 +55,16 @@ where
     }
 }
 
-#[macro_export]
-macro_rules! type_descriptor {
-    ($ddstype:ident) => {
+impl<T> Drop for DdsTopic<T>
+where
+    T: std::marker::Sized + DDSGenType,
+{
+    fn drop(&mut self) {
         unsafe {
-            paste::expr! { &[<$ddstype _desc>] as &'static dds_topic_descriptor_t}
+            let ret: DDSError = cyclonedds_sys::dds_delete(self.0).into();
+            if DDSError::DdsOk != ret {
+                panic!("cannot delete Topic: {}", ret);
+            }
         }
-    };
-}
-
-/// Create a topic given the topic type and the topic name.
-/// Example:
-///     let topic = create_topic!(participant,HelloWorldData_Msg,"HelloWorldData_Msg", None, None).unwrap();
-#[macro_export]
-macro_rules! create_topic {
-    ($participant:ident,$ddstype:ident,$topic_name:expr,$maybe_qos:expr,$maybe_listener:expr) => {
-        DdsTopic::<$ddstype>::create(&$participant, $topic_name, $maybe_qos, $maybe_listener)
-    };
+    }
 }

@@ -1,16 +1,16 @@
-use crate::error::DDSError;
+//use crate::error::DDSError;
 /// Rust wrapper for DDS Domain
 ///
-use cyclonedds_sys::{dds_entity_t, *};
+use cyclonedds_sys::{dds_error::DDSError, DdsDomainId, DdsEntity};
 use std::convert::From;
 use std::ffi::CString;
 
 #[derive(Debug)]
-pub struct DdsDomain(dds_entity_t);
+pub struct DdsDomain(DdsEntity);
 
 impl DdsDomain {
     ///Create a domain with a specified domain id
-    pub fn create(domain: dds_domainid_t, config: Option<&str>) -> Result<Self, DDSError> {
+    pub fn create(domain: DdsDomainId, config: Option<&str>) -> Result<Self, DDSError> {
         unsafe {
             if let Some(cfg) = config {
                 let d = cyclonedds_sys::dds_create_domain(
@@ -38,7 +38,7 @@ impl DdsDomain {
     }
 }
 
-impl From<DdsDomain> for dds_entity_t {
+impl From<DdsDomain> for DdsEntity {
     fn from(domain: DdsDomain) -> Self {
         domain.0
     }
@@ -52,6 +52,17 @@ impl PartialEq for DdsDomain {
 
 impl Eq for DdsDomain {}
 
+impl Drop for DdsDomain {
+    fn drop(&mut self) {
+        unsafe {
+            let ret: DDSError = cyclonedds_sys::dds_delete(self.0).into();
+            if DDSError::DdsOk != ret {
+                panic!("cannot delete domain: {}", ret);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod dds_domain_tests {
     use super::*;
@@ -64,7 +75,6 @@ mod dds_domain_tests {
     #[test]
     fn test_create_domain_with_id() {
         let dom = DdsDomain::create(10, None);
-        let _entity: dds_entity_t = dds_entity_t::from(dom.unwrap());
+        let _entity: DdsEntity = DdsEntity::from(dom.unwrap());
     }
-
 }

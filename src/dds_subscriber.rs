@@ -1,19 +1,14 @@
-use crate::error::DDSError;
+pub use cyclonedds_sys::DdsEntity;
 use std::convert::From;
 
-pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t};
-pub use either::Either;
+pub struct DdsSubscriber(DdsEntity);
 
-use crate::{dds_participant::DdsParticipant, dds_qos::DdsQos};
-
-pub struct DdsSubscriber(dds_entity_t);
-
-impl From<DdsSubscriber> for dds_entity_t {
+impl From<DdsSubscriber> for DdsEntity {
     fn from(subscriber: DdsSubscriber) -> Self {
         subscriber.0
     }
 }
-impl From<&DdsSubscriber> for dds_entity_t {
+impl From<&DdsSubscriber> for DdsEntity {
     fn from(subscriber: &DdsSubscriber) -> Self {
         subscriber.0
     }

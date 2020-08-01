@@ -1,9 +1,9 @@
-use crate::error::DDSError;
 use cyclonedds_sys::*;
 use std::convert::From;
 use std::os::raw::c_void;
 
-pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t, dds_sample_info, DDSBox, DDSGenType};
+pub use cyclonedds_sys::{DDSBox, DDSGenType, DdsDomainId, DdsEntity};
+
 pub use either::Either;
 use std::marker::PhantomData;
 
@@ -64,11 +64,11 @@ where
         }
     }
 
-    /// Read a buffer give a dds_entity_t.  This is useful when you want to read data
+    /// Read a buffer given a dds_entity_t.  This is useful when you want to read data
     /// within a closure.
-    pub fn read_from_entity(entity: dds_entity_t) -> Result<DDSBox<T>, DDSError> {
+    pub fn read_from_entity(entity: DdsEntity) -> Result<DDSBox<T>, DDSError> {
         unsafe {
-            let mut info: dds_sample_info = dds_sample_info::default();
+            let mut info = cyclonedds_sys::dds_sample_info::default();
             // set to null pointer to ask cyclone to allocate the buffer. All received
             // data will need to be allocated by cyclone
             let mut voidp: *mut c_void = std::ptr::null::<T>() as *mut c_void;

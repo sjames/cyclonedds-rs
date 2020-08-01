@@ -1,17 +1,15 @@
-use crate::error::DDSError;
-//use cyclonedds_sys::*;
 use std::convert::From;
 
-pub use cyclonedds_sys::{dds_domainid_t, dds_entity_t};
+pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos};
 
 #[derive(Clone)]
-pub struct DdsParticipant(dds_entity_t);
+pub struct DdsParticipant(DdsEntity);
 
 impl DdsParticipant {
     pub fn create(
-        maybe_domain: Option<dds_domainid_t>,
+        maybe_domain: Option<DdsDomainId>,
         maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener>,
     ) -> Result<Self, DDSError> {
@@ -30,15 +28,26 @@ impl DdsParticipant {
     }
 }
 
-impl From<DdsParticipant> for dds_entity_t {
+impl From<DdsParticipant> for DdsEntity {
     fn from(domain: DdsParticipant) -> Self {
         domain.0
     }
 }
 
-impl From<&DdsParticipant> for dds_entity_t {
+impl From<&DdsParticipant> for DdsEntity {
     fn from(domain: &DdsParticipant) -> Self {
         domain.0
+    }
+}
+
+impl Drop for DdsParticipant {
+    fn drop(&mut self) {
+        unsafe {
+            let ret: DDSError = cyclonedds_sys::dds_delete(self.0).into();
+            if DDSError::DdsOk != ret {
+                panic!("cannot delete participant: {}", ret);
+            }
+        }
     }
 }
 
