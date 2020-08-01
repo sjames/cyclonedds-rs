@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cyclonedds-sys = { path = "../cyclonedds-sys" }
+cyclonedds-sys = { git = "ssh://git@github.com/sjames/cyclonedds-sys.git" }
 either = "1.5"
 bit_field = "0.10"
 
