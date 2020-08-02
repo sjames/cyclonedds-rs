@@ -2,7 +2,7 @@ use cyclonedds_sys::*;
 use std::convert::From;
 use std::os::raw::c_void;
 
-pub use cyclonedds_sys::{DDSBox, DDSGenType, DdsDomainId, DdsEntity};
+pub use cyclonedds_sys::{DDSBox, DDSGenType, DdsDomainId, DdsEntity, DdsLoanedData};
 
 use std::marker::PhantomData;
 
@@ -88,7 +88,7 @@ where
         }
     }
 
-    pub fn read(&self) -> Result<&T, DDSError> {
+    pub fn read(&self) -> Result<DdsLoanedData<T>, DDSError> {
         unsafe {
             let mut info: dds_sample_info = dds_sample_info::default();
             // set to null pointer to ask cyclone to allocate the buffer. All received
@@ -98,10 +98,13 @@ where
 
             let ret = dds_read(self.entity, voidpp, &mut info as *mut _, 1, 1);
 
+            println!("Read returns pointer {:?}",voidpp);
+
             if ret >= 0 {
                 if !voidp.is_null() && info.valid_data {
-                    let ref_t = voidp as *const T;
-                    Ok(&*ref_t)
+                    let ptr_to_ts : *const *const T = voidpp as *const *const T;
+                    let data = DdsLoanedData::new(ptr_to_ts,self.entity,1);
+                    Ok(data)
                 } else {
                     Err(DDSError::OutOfResources)
                 }
@@ -111,7 +114,7 @@ where
         }
     }
 
-    pub fn take(&self) -> Result<&T, DDSError> {
+    pub fn take(&self) -> Result<DdsLoanedData<T>, DDSError> {
         unsafe {
             let mut info: dds_sample_info = dds_sample_info::default();
             // set to null pointer to ask cyclone to allocate the buffer. All received
@@ -121,10 +124,13 @@ where
 
             let ret = dds_take(self.entity, voidpp, &mut info as *mut _, 1, 1);
 
+            //println!("Read returns pointer {:?}",voidpp);
+
             if ret >= 0 {
                 if !voidp.is_null() && info.valid_data {
-                    let ref_t = voidp as *const T;
-                    Ok(&*ref_t)
+                    let ptr_to_ts : *const *const T = voidpp as *const *const T;
+                    let data = DdsLoanedData::new(ptr_to_ts,self.entity,1);
+                    Ok(data)
                 } else {
                     Err(DDSError::OutOfResources)
                 }
