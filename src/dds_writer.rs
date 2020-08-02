@@ -2,34 +2,25 @@ use cyclonedds_sys::*;
 use std::convert::From;
 
 pub use cyclonedds_sys::{DDSBox, DdsEntity};
-pub use either::Either;
 use std::marker::PhantomData;
 
-use crate::{
-    dds_listener::DdsListener, dds_participant::DdsParticipant, dds_publisher::DdsPublisher,
-    dds_qos::DdsQos, dds_topic::DdsTopic,
-};
+use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsWritable};
 
 pub struct DdsWriter<T: Sized + DDSGenType>(DdsEntity, Option<DdsListener>, PhantomData<*const T>);
-
-pub enum WritableEntity<'a> {
-    Participant(&'a DdsParticipant),
-    Publisher(&'a DdsPublisher),
-}
 
 impl<T> DdsWriter<T>
 where
     T: Sized + DDSGenType,
 {
     pub fn create(
-        entity: Either<&DdsParticipant, &DdsPublisher>,
+        entity: &dyn DdsWritable,
         topic: &DdsTopic<T>,
         maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener>,
     ) -> Result<Self, DDSError> {
         unsafe {
             let w = dds_create_writer(
-                entity.either(|l| l.into(), |r| r.into()),
+                entity.entity(),
                 topic.into(),
                 maybe_qos.map_or(std::ptr::null(), |q| q.into()),
                 maybe_listener
@@ -45,7 +36,7 @@ where
         }
     }
 
-    pub fn write_to_entity(entity: dds_entity_t, msg: &DDSBox<T>) -> Result<(), DDSError> {
+    pub fn write_to_entity(entity: DdsEntity, msg: &DDSBox<T>) -> Result<(), DDSError> {
         unsafe {
             let ret = dds_write(entity, msg.get_raw_mut_ptr());
             if ret >= 0 {
@@ -56,9 +47,9 @@ where
         }
     }
 
-    pub fn write(&mut self, msg: &DDSBox<T>) -> Result<(), DDSError> {
+    pub fn write(&mut self, msg: &T) -> Result<(), DDSError> {
         unsafe {
-            let ret = dds_write(self.0, msg.get_raw_mut_ptr());
+            let ret = dds_write(self.0, msg as *const T as *const std::ffi::c_void);
             if ret >= 0 {
                 Ok(())
             } else {
@@ -78,6 +69,10 @@ where
                 Err(DDSError::from(rc))
             }
         }
+    }
+
+    pub fn entity(&self) -> DdsEntity {
+        self.into()
     }
 }
 

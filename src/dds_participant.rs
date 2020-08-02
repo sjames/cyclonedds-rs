@@ -2,7 +2,7 @@ use std::convert::From;
 
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 
-use crate::{dds_listener::DdsListener, dds_qos::DdsQos};
+use crate::{dds_listener::DdsListener, dds_qos::DdsQos, DdsReadable, DdsWritable};
 
 #[derive(Clone)]
 pub struct DdsParticipant(DdsEntity);
@@ -46,8 +46,22 @@ impl Drop for DdsParticipant {
             let ret: DDSError = cyclonedds_sys::dds_delete(self.0).into();
             if DDSError::DdsOk != ret {
                 panic!("cannot delete participant: {}", ret);
+            } else {
+                //println!("Participant dropped");
             }
         }
+    }
+}
+
+impl DdsWritable for DdsParticipant {
+    fn entity(&self) -> DdsEntity {
+        self.into()
+    }
+}
+
+impl DdsReadable for DdsParticipant {
+    fn entity(&self) -> DdsEntity {
+        self.into()
     }
 }
 

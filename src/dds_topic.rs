@@ -64,6 +64,8 @@ where
             let ret: DDSError = cyclonedds_sys::dds_delete(self.0).into();
             if DDSError::DdsOk != ret {
                 panic!("cannot delete Topic: {}", ret);
+            } else {
+                println!("Topic dropped");
             }
         }
     }

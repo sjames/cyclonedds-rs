@@ -2,6 +2,10 @@ use cyclonedds_sys::dds_listener_t;
 use cyclonedds_sys::*;
 use std::convert::From;
 
+/*
+ Each listener has its own set of callbacks.
+*/
+
 /// The callbacks are in a different structure that is always
 /// heap allocated.
 struct Callbacks {
@@ -203,7 +207,7 @@ impl DdsListener {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        println!("C Callback!");
+        //        println!("C Callback!");
         if let Some(avail) = &mut callbacks.on_data_available {
             avail(reader);
         }
@@ -525,6 +529,7 @@ impl Drop for DdsListener {
             }
         }
         // gain back control of the Callback structure
+
         if let Some(raw) = self.raw_ptr.take() {
             unsafe {
                 // take ownership and free when out of scope

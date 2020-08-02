@@ -1,4 +1,5 @@
 pub mod alloc;
+mod common;
 pub mod dds_api;
 pub mod dds_domain;
 pub mod dds_listener;
@@ -11,6 +12,7 @@ pub mod dds_topic;
 pub mod dds_writer;
 pub mod error;
 
+pub use common::{DdsReadable, DdsWritable};
 pub use dds_api::*;
 pub use dds_listener::DdsListener;
 pub use dds_participant::DdsParticipant;

@@ -4,12 +4,11 @@ use std::os::raw::c_void;
 
 pub use cyclonedds_sys::{DDSBox, DDSGenType, DdsDomainId, DdsEntity};
 
-pub use either::Either;
 use std::marker::PhantomData;
 
 use crate::{
     dds_listener::DdsListener, dds_participant::DdsParticipant, dds_qos::DdsQos,
-    dds_subscriber::DdsSubscriber, dds_topic::DdsTopic,
+    dds_subscriber::DdsSubscriber, dds_topic::DdsTopic, DdsReadable,
 };
 
 pub struct DdsReader<T: Sized + DDSGenType> {
@@ -24,14 +23,14 @@ where
     T: Sized + DDSGenType,
 {
     pub fn create(
-        entity: Either<&DdsParticipant, &DdsSubscriber>,
+        entity: &dyn DdsReadable,
         topic: &DdsTopic<T>,
         maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener>,
     ) -> Result<Self, DDSError> {
         unsafe {
             let w = dds_create_reader(
-                entity.either(|l| l.into(), |r| r.into()),
+                entity.entity(),
                 topic.into(),
                 maybe_qos.map_or(std::ptr::null(), |q| q.into()),
                 maybe_listener
@@ -89,7 +88,7 @@ where
         }
     }
 
-    pub fn read(&self) -> Result<DDSBox<T>, DDSError> {
+    pub fn read(&self) -> Result<&T, DDSError> {
         unsafe {
             let mut info: dds_sample_info = dds_sample_info::default();
             // set to null pointer to ask cyclone to allocate the buffer. All received
@@ -101,8 +100,8 @@ where
 
             if ret >= 0 {
                 if !voidp.is_null() && info.valid_data {
-                    let buf = DDSBox::<T>::new_from_cyclone_allocated_struct(voidp as *mut T);
-                    Ok(buf)
+                    let ref_t = voidp as *const T;
+                    Ok(&*ref_t)
                 } else {
                     Err(DDSError::OutOfResources)
                 }
@@ -110,6 +109,33 @@ where
                 Err(DDSError::from(ret))
             }
         }
+    }
+
+    pub fn take(&self) -> Result<&T, DDSError> {
+        unsafe {
+            let mut info: dds_sample_info = dds_sample_info::default();
+            // set to null pointer to ask cyclone to allocate the buffer. All received
+            // data will need to be allocated by cyclone
+            let mut voidp: *mut c_void = std::ptr::null::<T>() as *mut c_void;
+            let voidpp: *mut *mut c_void = &mut voidp;
+
+            let ret = dds_take(self.entity, voidpp, &mut info as *mut _, 1, 1);
+
+            if ret >= 0 {
+                if !voidp.is_null() && info.valid_data {
+                    let ref_t = voidp as *const T;
+                    Ok(&*ref_t)
+                } else {
+                    Err(DDSError::OutOfResources)
+                }
+            } else {
+                Err(DDSError::from(ret))
+            }
+        }
+    }
+
+    pub fn entity(&self) -> DdsEntity {
+        self.into()
     }
 }
 
@@ -128,5 +154,21 @@ where
 {
     fn from(reader: &DdsReader<T>) -> Self {
         reader.entity
+    }
+}
+
+impl<T> Drop for DdsReader<T>
+where
+    T: Sized + DDSGenType,
+{
+    fn drop(&mut self) {
+        unsafe {
+            let ret: DDSError = cyclonedds_sys::dds_delete(self.entity).into();
+            if DDSError::DdsOk != ret {
+                panic!("cannot delete Reader: {}", ret);
+            } else {
+                //println!("Reader dropped");
+            }
+        }
     }
 }
