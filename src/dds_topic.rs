@@ -65,7 +65,6 @@ where
             if DDSError::DdsOk != ret {
                 panic!("cannot delete Topic: {}", ret);
             } else {
-                println!("Topic dropped");
             }
         }
     }

@@ -98,12 +98,12 @@ where
 
             let ret = dds_read(self.entity, voidpp, &mut info as *mut _, 1, 1);
 
-            println!("Read returns pointer {:?}",voidpp);
+            println!("Read returns pointer {:?}", voidpp);
 
             if ret >= 0 {
                 if !voidp.is_null() && info.valid_data {
-                    let ptr_to_ts : *const *const T = voidpp as *const *const T;
-                    let data = DdsLoanedData::new(ptr_to_ts,self.entity,1);
+                    let ptr_to_ts: *const *const T = voidpp as *const *const T;
+                    let data = DdsLoanedData::new(ptr_to_ts, self.entity, 1);
                     Ok(data)
                 } else {
                     Err(DDSError::OutOfResources)
@@ -128,8 +128,8 @@ where
 
             if ret >= 0 {
                 if !voidp.is_null() && info.valid_data {
-                    let ptr_to_ts : *const *const T = voidpp as *const *const T;
-                    let data = DdsLoanedData::new(ptr_to_ts,self.entity,1);
+                    let ptr_to_ts: *const *const T = voidpp as *const *const T;
+                    let data = DdsLoanedData::new(ptr_to_ts, self.entity, 1);
                     Ok(data)
                 } else {
                     Err(DDSError::OutOfResources)

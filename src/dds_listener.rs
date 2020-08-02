@@ -518,8 +518,6 @@ impl DdsListener {
 
 impl Drop for DdsListener {
     fn drop(&mut self) {
-        println!("Dropping listener");
-
         // delete the listener so we are sure of not
         // getting any callbacks
         if let Some(listener) = &self.listener {
@@ -529,7 +527,6 @@ impl Drop for DdsListener {
             }
         }
         // gain back control of the Callback structure
-
         if let Some(raw) = self.raw_ptr.take() {
             unsafe {
                 // take ownership and free when out of scope
