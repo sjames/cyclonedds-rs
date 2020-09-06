@@ -36,6 +36,7 @@ pub use dds_qos::DdsQos;
 pub use dds_reader::DdsReader;
 pub use dds_topic::DdsTopic;
 pub use dds_writer::DdsWriter;
+pub use dds_publisher::DdsPublisher;
 
 #[cfg(test)]
 mod tests {
