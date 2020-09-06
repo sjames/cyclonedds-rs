@@ -29,12 +29,8 @@ impl DdsDomain {
     pub fn create(domain: DdsDomainId, config: Option<&str>) -> Result<Self, DDSError> {
         unsafe {
             if let Some(cfg) = config {
-                let d = cyclonedds_sys::dds_create_domain(
-                    domain,
-                    CString::new(cfg)
-                        .expect("Unable to create new config string")
-                        .as_ptr(),
-                );
+                let domain_name = CString::new(cfg).expect("Unable to create new config string");
+                let d = cyclonedds_sys::dds_create_domain(domain, domain_name.as_ptr());
                 // negative return value signify an error
                 if d > 0 {
                     Ok(DdsDomain(d))

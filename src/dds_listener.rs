@@ -85,6 +85,12 @@ impl DdsListener {
     }
 }
 
+impl Default for DdsListener {
+    fn default() -> Self {
+        DdsListener::new()
+    }
+}
+
 impl From<DdsListener> for *const dds_listener_t {
     fn from(listener: DdsListener) -> Self {
         if let Some(listener) = listener.listener {
@@ -144,61 +150,61 @@ impl DdsListener {
 
     /// register the callbacks for the closures that have been set.DdsListener
     unsafe fn register_callbacks(&mut self, listener: *mut dds_listener_t, callbacks: &Callbacks) {
-        if let Some(_) = &callbacks.on_data_available {
+        if callbacks.on_data_available.is_some() {
             println!("Listener hooked for data available");
             dds_lset_data_available(listener, Some(Self::call_data_available_closure));
         }
-        if let Some(_) = &callbacks.on_sample_lost {
+        if callbacks.on_sample_lost.is_some() {
             dds_lset_sample_lost(listener, Some(Self::call_sample_lost_closure));
         }
 
-        if let Some(_) = &callbacks.on_sample_rejected {
+        if callbacks.on_sample_rejected.is_some() {
             dds_lset_sample_rejected(listener, Some(Self::call_sample_rejected_closure));
         }
 
-        if let Some(_) = &callbacks.on_liveliness_changed {
+        if callbacks.on_liveliness_changed.is_some() {
             dds_lset_liveliness_changed(listener, Some(Self::call_liveliness_changed_closure));
         }
 
-        if let Some(_) = &callbacks.on_requested_deadline_missed {
+        if callbacks.on_requested_deadline_missed.is_some() {
             dds_lset_requested_deadline_missed(
                 listener,
                 Some(Self::call_requested_deadline_missed_closure),
             );
         }
 
-        if let Some(_) = &callbacks.on_requested_incompatible_qos {
+        if callbacks.on_requested_incompatible_qos.is_some() {
             dds_lset_requested_incompatible_qos(
                 listener,
                 Some(Self::call_requested_incompatible_qos_closure),
             );
         }
 
-        if let Some(_) = &callbacks.on_subscription_matched {
+        if callbacks.on_subscription_matched.is_some() {
             dds_lset_subscription_matched(listener, Some(Self::call_subscription_matched_closure));
         }
-        if let Some(_) = &callbacks.on_liveliness_lost {
+        if callbacks.on_liveliness_lost.is_some() {
             dds_lset_liveliness_lost(listener, Some(Self::call_liveliness_lost_closure));
         }
-        if let Some(_) = &callbacks.on_offered_deadline_missed {
+        if callbacks.on_offered_deadline_missed.is_some() {
             dds_lset_offered_deadline_missed(
                 listener,
                 Some(Self::call_offered_deadline_missed_closure),
             );
         }
-        if let Some(_) = &callbacks.on_offered_incompatible_qos {
+        if callbacks.on_offered_incompatible_qos.is_some() {
             dds_lset_offered_incompatible_qos(
                 listener,
                 Some(Self::call_offered_incompatible_qos_closure),
             );
         }
-        if let Some(_) = &callbacks.on_publication_matched {
+        if callbacks.on_publication_matched.is_some() {
             dds_lset_publication_matched(listener, Some(Self::call_publication_matched_closure));
         }
-        if let Some(_) = &callbacks.on_inconsistent_topic {
+        if callbacks.on_inconsistent_topic.is_some() {
             dds_lset_inconsistent_topic(listener, Some(Self::call_inconsistent_topic_closure));
         }
-        if let Some(_) = &callbacks.on_data_on_readers {
+        if callbacks.on_data_on_readers.is_some() {
             dds_lset_data_on_readers(listener, Some(Self::call_data_on_readers_closure));
         }
     }

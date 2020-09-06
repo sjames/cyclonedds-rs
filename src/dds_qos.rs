@@ -31,7 +31,7 @@ impl DdsQos {
     pub fn create() -> Result<Self, DDSError> {
         unsafe {
             let p = cyclonedds_sys::dds_create_qos();
-            if p != std::ptr::null_mut() {
+            if !p.is_null() {
                 Ok(DdsQos(p))
             } else {
                 Err(DDSError::OutOfResources)
