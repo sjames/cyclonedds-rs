@@ -23,6 +23,8 @@ use cyclonedds_sys::DdsEntity;
 //use crate::dds_writer::DdsWriter;
 pub use cyclonedds_sys::{dds_status_id, DDSBox};
 
+pub use cyclonedds_sys::{dds_duration_t};
+
 // re-export constants
 pub use cyclonedds_sys::dds_status_id_DDS_DATA_AVAILABLE_STATUS_ID as DDS_DATA_AVAILABLE_STATUS_ID;
 pub use cyclonedds_sys::dds_status_id_DDS_DATA_ON_READERS_STATUS_ID as DDS_DATA_ON_READERS_STATUS_ID;
