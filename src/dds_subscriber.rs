@@ -14,10 +14,52 @@
     limitations under the License.
 */
 
-pub use cyclonedds_sys::DdsEntity;
+use crate::{DdsReadable, DdsParticipant, DdsListener, DdsQos};
+pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 use std::convert::From;
 
 pub struct DdsSubscriber(DdsEntity);
+
+impl DdsSubscriber {
+    pub fn create(
+        participant: &DdsParticipant,
+        maybe_qos: Option<DdsQos>,
+        maybe_listener: Option<DdsListener>,
+    ) -> Result<Self, DDSError> {
+        unsafe {
+            let p = cyclonedds_sys::dds_create_subscriber(
+                participant.entity(),
+                maybe_qos.map_or(std::ptr::null(), |d| d.into()),
+                maybe_listener.map_or(std::ptr::null(), |l| l.into()),
+            );
+            if p > 0 {
+                Ok(DdsSubscriber(p))
+            } else {
+                Err(DDSError::from(p))
+            }
+        }
+    }
+}
+
+impl Drop for DdsSubscriber {
+    fn drop(&mut self) {
+        unsafe {
+            let ret: DDSError = cyclonedds_sys::dds_delete(self.0).into();
+            if DDSError::DdsOk != ret {
+                panic!("cannot delete DdsSubscriber: {}", ret);
+            } else {
+                //println!("Participant dropped");
+            }
+        }
+    }
+}
+
+
+impl DdsReadable for DdsSubscriber {
+    fn entity(&self) -> DdsEntity {
+        self.into()
+    }
+}
 
 impl From<DdsSubscriber> for DdsEntity {
     fn from(subscriber: DdsSubscriber) -> Self {
