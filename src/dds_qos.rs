@@ -191,16 +191,10 @@ impl DdsQos {
         }
     }
 
-    pub fn set_partition( &mut self, name: &std::ffi::CStr) {
-        unsafe {
-            dds_qset_partition1(self.0,
-                name.as_ptr(),
-                )
-        }
+    pub fn set_partition(&mut self, name: &std::ffi::CStr) {
+        unsafe { dds_qset_partition1(self.0, name.as_ptr()) }
     }
     //TODO:  Not implementing any getters for now
-
-    
 }
 
 impl Drop for DdsQos {

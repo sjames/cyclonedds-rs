@@ -14,7 +14,7 @@
     limitations under the License.
 */
 
-use crate::{DdsReadable, DdsParticipant, DdsListener, DdsQos};
+use crate::{DdsListener, DdsParticipant, DdsQos, DdsReadable};
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 use std::convert::From;
 
@@ -53,7 +53,6 @@ impl Drop for DdsSubscriber {
         }
     }
 }
-
 
 impl DdsReadable for DdsSubscriber {
     fn entity(&self) -> DdsEntity {

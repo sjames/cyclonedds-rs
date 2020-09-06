@@ -86,7 +86,8 @@ fn subscriber() {
 
             // cyclonedds_sys::read is unsafe.
             unsafe {
-                if let Ok(msg) = cyclonedds_sys::read::<helloworld_data::HelloWorldData::Msg>(entity)
+                if let Ok(msg) =
+                    cyclonedds_sys::read::<helloworld_data::HelloWorldData::Msg>(entity)
                 {
                     let msg = msg.as_slice();
                     println!("Received {} messages", msg.len());

@@ -14,7 +14,7 @@
     limitations under the License.
 */
 
-use crate::{DdsWritable, DdsParticipant, DdsListener, DdsQos};
+use crate::{DdsListener, DdsParticipant, DdsQos, DdsWritable};
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 use std::convert::From;
 
@@ -40,7 +40,6 @@ impl DdsPublisher {
         }
     }
 }
-
 
 impl From<DdsPublisher> for DdsEntity {
     fn from(publisher: DdsPublisher) -> Self {

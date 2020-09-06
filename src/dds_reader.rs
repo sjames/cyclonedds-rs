@@ -22,10 +22,7 @@ pub use cyclonedds_sys::{DDSBox, DDSGenType, DdsDomainId, DdsEntity, DdsLoanedDa
 
 use std::marker::PhantomData;
 
-use crate::{
-    dds_listener::DdsListener, dds_participant::DdsParticipant, dds_qos::DdsQos,
-    dds_subscriber::DdsSubscriber, dds_topic::DdsTopic, DdsReadable,
-};
+use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable};
 
 pub struct DdsReader<T: Sized + DDSGenType> {
     entity: dds_entity_t,
