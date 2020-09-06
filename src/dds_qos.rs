@@ -197,6 +197,12 @@ impl DdsQos {
     //TODO:  Not implementing any getters for now
 }
 
+impl Default for DdsQos {
+    fn default() -> Self {
+        DdsQos::create().expect("Unable to create DdsQos")
+    }
+}
+
 impl Drop for DdsQos {
     fn drop(&mut self) {
         unsafe { dds_delete_qos(self.0) }
