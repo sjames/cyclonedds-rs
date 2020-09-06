@@ -32,7 +32,7 @@ pub use common::{DdsReadable, DdsWritable};
 pub use dds_api::*;
 pub use dds_listener::DdsListener;
 pub use dds_participant::DdsParticipant;
-pub use dds_qos::DdsQos;
+pub use dds_qos::{*};
 pub use dds_reader::DdsReader;
 pub use dds_topic::DdsTopic;
 pub use dds_writer::DdsWriter;
