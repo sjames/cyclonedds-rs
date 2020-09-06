@@ -296,6 +296,7 @@ mod dds_qos_tests {
             qos.set_writer_data_lifecycle(true);
             qos.set_reader_data_lifecycle(100, 100);
             qos.set_durability_service(0, dds_history_kind::DDS_HISTORY_KEEP_LAST, 3, 3, 3, 3);
+            qos.set_partition(&std::ffi::CString::new("partition1").unwrap());
         } else {
             assert!(false);
         }
