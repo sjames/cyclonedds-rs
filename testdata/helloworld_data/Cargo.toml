@@ -11,5 +11,5 @@ build = "build.rs"
 cyclonedds-sys = { git = "ssh://git@github.com/sjames/cyclonedds-sys"}
 
 [build-dependencies]
-cycloneddscodegen = { git = "ssh://git@github.com/sjames/cycloneddscodegen"}
+cycloneddscodegen = { git = "ssh://git@github.com/sjames/cycloneddscodegen", features=["rust_codegen"]}
 

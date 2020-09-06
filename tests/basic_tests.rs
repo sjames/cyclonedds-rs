@@ -20,7 +20,7 @@ fn hello_world_idl_test() {
 
     let participant = cyclonedds_rs::DdsParticipant::create(None, None, None).unwrap();
 
-    let topic: DdsTopic<helloworld_data::HelloWorldData_Msg> =
+    let topic: DdsTopic<helloworld_data::HelloWorldData::Msg> =
         DdsTopic::create(&participant, "HelloWorldData_Msg", None, None)
             .expect("Unable to create topic");
 
@@ -59,7 +59,7 @@ fn hello_world_idl_test() {
         panic!("Unable to set status mask");
     }
 
-    let msg = helloworld_data::HelloWorldData_Msg {
+    let msg = helloworld_data::HelloWorldData::Msg {
         userID: 1,
         message: message_string,
     };
@@ -71,7 +71,7 @@ fn hello_world_idl_test() {
 
 fn subscriber() {
     let participant = cyclonedds_rs::DdsParticipant::create(None, None, None).unwrap();
-    let topic: DdsTopic<helloworld_data::HelloWorldData_Msg> =
+    let topic: DdsTopic<helloworld_data::HelloWorldData::Msg> =
         DdsTopic::create(&participant, "HelloWorldData_Msg", None, None)
             .expect("Unable to create topic");
 
@@ -86,7 +86,7 @@ fn subscriber() {
 
             // cyclonedds_sys::read is unsafe.
             unsafe {
-                if let Ok(msg) = cyclonedds_sys::read::<helloworld_data::HelloWorldData_Msg>(entity)
+                if let Ok(msg) = cyclonedds_sys::read::<helloworld_data::HelloWorldData::Msg>(entity)
                 {
                     let msg = msg.as_slice();
                     println!("Received {} messages", msg.len());

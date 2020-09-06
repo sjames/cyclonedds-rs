@@ -4,9 +4,7 @@
 
 use std::env;
 
-use cyclonedds_sys::DDSGenType;
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
-include!(concat!(env!("OUT_DIR"), "/DdsAllocator_impl.rs"));
 
 
 #[cfg(test)]
