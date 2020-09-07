@@ -20,7 +20,7 @@ use std::convert::From;
 pub use cyclonedds_sys::{DDSBox, DdsEntity};
 use std::marker::PhantomData;
 
-use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsWritable};
+use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsWritable, Entity};
 
 pub struct DdsWriter<T: Sized + DDSGenType>(DdsEntity, Option<DdsListener>, PhantomData<*const T>);
 
@@ -36,8 +36,8 @@ where
     ) -> Result<Self, DDSError> {
         unsafe {
             let w = dds_create_writer(
-                entity.entity(),
-                topic.into(),
+                entity.entity().entity(),
+                topic.entity().entity(),
                 maybe_qos.map_or(std::ptr::null(), |q| q.into()),
                 maybe_listener
                     .as_ref()
@@ -45,7 +45,7 @@ where
             );
 
             if w >= 0 {
-                Ok(DdsWriter(w, maybe_listener, PhantomData))
+                Ok(DdsWriter(DdsEntity::new(w), maybe_listener, PhantomData))
             } else {
                 Err(DDSError::from(w))
             }
@@ -54,7 +54,7 @@ where
 
     pub fn write_to_entity(entity: DdsEntity, msg: &DDSBox<T>) -> Result<(), DDSError> {
         unsafe {
-            let ret = dds_write(entity, msg.get_raw_mut_ptr());
+            let ret = dds_write(entity.entity(), msg.get_raw_mut_ptr());
             if ret >= 0 {
                 Ok(())
             } else {
@@ -65,7 +65,7 @@ where
 
     pub fn write(&mut self, msg: &T) -> Result<(), DDSError> {
         unsafe {
-            let ret = dds_write(self.0, msg as *const T as *const std::ffi::c_void);
+            let ret = dds_write(self.0.entity(), msg as *const T as *const std::ffi::c_void);
             if ret >= 0 {
                 Ok(())
             } else {
@@ -77,7 +77,7 @@ where
     pub fn set_listener(&mut self, listener: DdsListener) -> Result<(), DDSError> {
         unsafe {
             let refl = &listener;
-            let rc = dds_set_listener(self.0, refl.into());
+            let rc = dds_set_listener(self.0.entity(), refl.into());
             if rc == 0 {
                 self.1 = Some(listener);
                 Ok(())
@@ -86,27 +86,14 @@ where
             }
         }
     }
-
-    pub fn entity(&self) -> DdsEntity {
-        self.into()
-    }
 }
 
-impl<T> From<DdsWriter<T>> for DdsEntity
+impl<T> Entity for DdsWriter<T>
 where
-    T: Sized + DDSGenType,
+    T: std::marker::Sized + DDSGenType,
 {
-    fn from(writer: DdsWriter<T>) -> Self {
-        writer.0
-    }
-}
-
-impl<T> From<&DdsWriter<T>> for DdsEntity
-where
-    T: Sized + DDSGenType,
-{
-    fn from(writer: &DdsWriter<T>) -> Self {
-        writer.0
+    fn entity(&self) -> &DdsEntity {
+        &self.0
     }
 }
 
@@ -116,7 +103,7 @@ where
 {
     fn drop(&mut self) {
         unsafe {
-            let ret: DDSError = cyclonedds_sys::dds_delete(self.0).into();
+            let ret: DDSError = cyclonedds_sys::dds_delete(self.0.entity()).into();
             if DDSError::DdsOk != ret && DDSError::AlreadyDeleted != ret {
                 panic!("cannot delete Writer: {}", ret);
             }

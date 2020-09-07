@@ -26,27 +26,26 @@ use std::convert::From;
 /// heap allocated.
 struct Callbacks {
     // Callbacks for readers
-    on_sample_lost: Option<Box<dyn FnMut(dds_entity_t, dds_sample_lost_status_t)>>,
-    on_data_available: Option<Box<dyn FnMut(dds_entity_t)>>,
-    on_sample_rejected: Option<Box<dyn FnMut(dds_entity_t, dds_sample_rejected_status_t)>>,
-    on_liveliness_changed: Option<Box<dyn FnMut(dds_entity_t, dds_liveliness_changed_status_t)>>,
+    on_sample_lost: Option<Box<dyn FnMut(DdsEntity, dds_sample_lost_status_t)>>,
+    on_data_available: Option<Box<dyn FnMut(DdsEntity)>>,
+    on_sample_rejected: Option<Box<dyn FnMut(DdsEntity, dds_sample_rejected_status_t)>>,
+    on_liveliness_changed: Option<Box<dyn FnMut(DdsEntity, dds_liveliness_changed_status_t)>>,
     on_requested_deadline_missed:
-        Option<Box<dyn FnMut(dds_entity_t, dds_requested_deadline_missed_status_t)>>,
+        Option<Box<dyn FnMut(DdsEntity, dds_requested_deadline_missed_status_t)>>,
     on_requested_incompatible_qos:
-        Option<Box<dyn FnMut(dds_entity_t, dds_requested_incompatible_qos_status_t)>>,
-    on_subscription_matched:
-        Option<Box<dyn FnMut(dds_entity_t, dds_subscription_matched_status_t)>>,
+        Option<Box<dyn FnMut(DdsEntity, dds_requested_incompatible_qos_status_t)>>,
+    on_subscription_matched: Option<Box<dyn FnMut(DdsEntity, dds_subscription_matched_status_t)>>,
 
     //callbacks for writers
-    on_liveliness_lost: Option<Box<dyn FnMut(dds_entity_t, dds_liveliness_lost_status_t)>>,
+    on_liveliness_lost: Option<Box<dyn FnMut(DdsEntity, dds_liveliness_lost_status_t)>>,
     on_offered_deadline_missed:
-        Option<Box<dyn FnMut(dds_entity_t, dds_offered_deadline_missed_status_t)>>,
+        Option<Box<dyn FnMut(DdsEntity, dds_offered_deadline_missed_status_t)>>,
     on_offered_incompatible_qos:
-        Option<Box<dyn FnMut(dds_entity_t, dds_offered_incompatible_qos_status_t)>>,
-    on_publication_matched: Option<Box<dyn FnMut(dds_entity_t, dds_publication_matched_status_t)>>,
+        Option<Box<dyn FnMut(DdsEntity, dds_offered_incompatible_qos_status_t)>>,
+    on_publication_matched: Option<Box<dyn FnMut(DdsEntity, dds_publication_matched_status_t)>>,
 
-    on_inconsistent_topic: Option<Box<dyn FnMut(dds_entity_t, dds_inconsistent_topic_status_t)>>,
-    on_data_on_readers: Option<Box<dyn FnMut(dds_entity_t)>>,
+    on_inconsistent_topic: Option<Box<dyn FnMut(DdsEntity, dds_inconsistent_topic_status_t)>>,
+    on_data_on_readers: Option<Box<dyn FnMut(DdsEntity)>>,
 }
 
 impl Default for Callbacks {
@@ -214,7 +213,7 @@ impl DdsListener {
 impl DdsListener {
     pub fn on_data_available<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(dds_entity_t) + 'static,
+        F: FnMut(DdsEntity) + 'static,
     {
         if let Some(callbacks) = &mut self.callbacks {
             callbacks.on_data_available = Some(Box::new(callback));
@@ -231,7 +230,7 @@ impl DdsListener {
         let callbacks = &mut *callbacks_ptr;
         //        println!("C Callback!");
         if let Some(avail) = &mut callbacks.on_data_available {
-            avail(reader);
+            avail(DdsEntity::new(reader));
         }
     }
 }
@@ -240,7 +239,7 @@ impl DdsListener {
     /////
     pub fn on_sample_lost<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(dds_entity_t, dds_sample_lost_status_t) + 'static,
+        F: FnMut(DdsEntity, dds_sample_lost_status_t) + 'static,
     {
         if let Some(callbacks) = &mut self.callbacks {
             callbacks.on_sample_lost = Some(Box::new(callback));
@@ -257,7 +256,7 @@ impl DdsListener {
         let callbacks = &mut *callbacks_ptr;
         println!("C Callback - sample lost");
         if let Some(lost) = &mut callbacks.on_sample_lost {
-            lost(reader, status);
+            lost(DdsEntity::new(reader), status);
         }
     }
 }
@@ -266,7 +265,7 @@ impl DdsListener {
     //////
     pub fn on_sample_rejected<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(dds_entity_t, dds_sample_rejected_status_t) + 'static,
+        F: FnMut(DdsEntity, dds_sample_rejected_status_t) + 'static,
     {
         if let Some(callbacks) = &mut self.callbacks {
             callbacks.on_sample_rejected = Some(Box::new(callback));
@@ -283,7 +282,7 @@ impl DdsListener {
         let callbacks = &mut *callbacks_ptr;
         println!("C Callback - sample rejected");
         if let Some(rejected) = &mut callbacks.on_sample_rejected {
-            rejected(reader, status);
+            rejected(DdsEntity::new(reader), status);
         }
     }
 }
@@ -292,7 +291,7 @@ impl DdsListener {
 impl DdsListener {
     pub fn on_liveliness_changed<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(dds_entity_t, dds_liveliness_changed_status_t) + 'static,
+        F: FnMut(DdsEntity, dds_liveliness_changed_status_t) + 'static,
     {
         if let Some(callbacks) = &mut self.callbacks {
             callbacks.on_liveliness_changed = Some(Box::new(callback));
@@ -309,7 +308,7 @@ impl DdsListener {
         let callbacks = &mut *callbacks_ptr;
         println!("C Callback - Liveliness changed");
         if let Some(changed) = &mut callbacks.on_liveliness_changed {
-            changed(entity, status);
+            changed(DdsEntity::new(entity), status);
         }
     }
 }
@@ -317,7 +316,7 @@ impl DdsListener {
 impl DdsListener {
     pub fn on_requested_deadline_missed<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(dds_entity_t, dds_requested_deadline_missed_status_t) + 'static,
+        F: FnMut(DdsEntity, dds_requested_deadline_missed_status_t) + 'static,
     {
         if let Some(callbacks) = &mut self.callbacks {
             callbacks.on_requested_deadline_missed = Some(Box::new(callback));
@@ -334,7 +333,7 @@ impl DdsListener {
         let callbacks = &mut *callbacks_ptr;
         println!("C Callback - requested deadline missed");
         if let Some(missed) = &mut callbacks.on_requested_deadline_missed {
-            missed(entity, status);
+            missed(DdsEntity::new(entity), status);
         }
     }
 }
@@ -342,7 +341,7 @@ impl DdsListener {
 impl DdsListener {
     pub fn on_requested_incompatible_qos<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(dds_entity_t, dds_requested_incompatible_qos_status_t) + 'static,
+        F: FnMut(DdsEntity, dds_requested_incompatible_qos_status_t) + 'static,
     {
         if let Some(callbacks) = &mut self.callbacks {
             callbacks.on_requested_incompatible_qos = Some(Box::new(callback));
@@ -359,7 +358,7 @@ impl DdsListener {
         let callbacks = &mut *callbacks_ptr;
         println!("C Callback - requested incompatible QOS");
         if let Some(incompatible_qos) = &mut callbacks.on_requested_incompatible_qos {
-            incompatible_qos(entity, status);
+            incompatible_qos(DdsEntity::new(entity), status);
         }
     }
 }
@@ -367,7 +366,7 @@ impl DdsListener {
 impl DdsListener {
     pub fn on_subscription_matched<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(dds_entity_t, dds_subscription_matched_status_t) + 'static,
+        F: FnMut(DdsEntity, dds_subscription_matched_status_t) + 'static,
     {
         if let Some(callbacks) = &mut self.callbacks {
             callbacks.on_subscription_matched = Some(Box::new(callback));
@@ -384,7 +383,7 @@ impl DdsListener {
         let callbacks = &mut *callbacks_ptr;
         println!("C Callback - subscription matched");
         if let Some(matched) = &mut callbacks.on_subscription_matched {
-            matched(entity, status);
+            matched(DdsEntity::new(entity), status);
         }
     }
 }
@@ -392,7 +391,7 @@ impl DdsListener {
 impl DdsListener {
     pub fn on_liveliness_lost<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(dds_entity_t, dds_liveliness_lost_status_t) + 'static,
+        F: FnMut(DdsEntity, dds_liveliness_lost_status_t) + 'static,
     {
         if let Some(callbacks) = &mut self.callbacks {
             callbacks.on_liveliness_lost = Some(Box::new(callback));
@@ -409,7 +408,7 @@ impl DdsListener {
         let callbacks = &mut *callbacks_ptr;
         println!("C Callback - liveliness lost");
         if let Some(lost) = &mut callbacks.on_liveliness_lost {
-            lost(entity, status);
+            lost(DdsEntity::new(entity), status);
         }
     }
 }
@@ -417,7 +416,7 @@ impl DdsListener {
 impl DdsListener {
     pub fn on_offered_deadline_missed<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(dds_entity_t, dds_offered_deadline_missed_status_t) + 'static,
+        F: FnMut(DdsEntity, dds_offered_deadline_missed_status_t) + 'static,
     {
         if let Some(callbacks) = &mut self.callbacks {
             callbacks.on_offered_deadline_missed = Some(Box::new(callback));
@@ -434,7 +433,7 @@ impl DdsListener {
         let callbacks = &mut *callbacks_ptr;
         println!("C Callback - offered deadline missed");
         if let Some(missed) = &mut callbacks.on_offered_deadline_missed {
-            missed(entity, status);
+            missed(DdsEntity::new(entity), status);
         }
     }
 }
@@ -442,7 +441,7 @@ impl DdsListener {
 impl DdsListener {
     pub fn on_offered_incompatible_qos<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(dds_entity_t, dds_offered_incompatible_qos_status_t) + 'static,
+        F: FnMut(DdsEntity, dds_offered_incompatible_qos_status_t) + 'static,
     {
         if let Some(callbacks) = &mut self.callbacks {
             callbacks.on_offered_incompatible_qos = Some(Box::new(callback));
@@ -459,7 +458,7 @@ impl DdsListener {
         let callbacks = &mut *callbacks_ptr;
         println!("C Callback - offered incompatible QOS");
         if let Some(incompatible) = &mut callbacks.on_offered_incompatible_qos {
-            incompatible(entity, status);
+            incompatible(DdsEntity::new(entity), status);
         }
     }
 }
@@ -467,7 +466,7 @@ impl DdsListener {
 impl DdsListener {
     pub fn on_publication_matched<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(dds_entity_t, dds_publication_matched_status_t) + 'static,
+        F: FnMut(DdsEntity, dds_publication_matched_status_t) + 'static,
     {
         if let Some(callbacks) = &mut self.callbacks {
             callbacks.on_publication_matched = Some(Box::new(callback));
@@ -484,7 +483,7 @@ impl DdsListener {
         let callbacks = &mut *callbacks_ptr;
         println!("C Callback - publication matched");
         if let Some(matched) = &mut callbacks.on_publication_matched {
-            matched(entity, status);
+            matched(DdsEntity::new(entity), status);
         }
     }
 }
@@ -492,7 +491,7 @@ impl DdsListener {
 impl DdsListener {
     pub fn on_inconsistent_topic<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(dds_entity_t, dds_inconsistent_topic_status_t) + 'static,
+        F: FnMut(DdsEntity, dds_inconsistent_topic_status_t) + 'static,
     {
         if let Some(callbacks) = &mut self.callbacks {
             callbacks.on_inconsistent_topic = Some(Box::new(callback));
@@ -509,7 +508,7 @@ impl DdsListener {
         let callbacks = &mut *callbacks_ptr;
         println!("C Callback - inconsistent topic");
         if let Some(inconsistant) = &mut callbacks.on_inconsistent_topic {
-            inconsistant(entity, status);
+            inconsistant(DdsEntity::new(entity), status);
         }
     }
 }
@@ -517,7 +516,7 @@ impl DdsListener {
 impl DdsListener {
     pub fn on_data_on_readers<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(dds_entity_t) + 'static,
+        F: FnMut(DdsEntity) + 'static,
     {
         if let Some(callbacks) = &mut self.callbacks {
             callbacks.on_data_on_readers = Some(Box::new(callback));
@@ -533,7 +532,7 @@ impl DdsListener {
         let callbacks = &mut *callbacks_ptr;
         println!("C Callback - data on readers");
         if let Some(data) = &mut callbacks.on_data_on_readers {
-            data(entity);
+            data(DdsEntity::new(entity));
         }
     }
 }

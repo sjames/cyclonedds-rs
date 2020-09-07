@@ -22,10 +22,10 @@ pub use cyclonedds_sys::{DDSBox, DDSGenType, DdsDomainId, DdsEntity, DdsLoanedDa
 
 use std::marker::PhantomData;
 
-use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable};
+use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable, Entity};
 
 pub struct DdsReader<T: Sized + DDSGenType> {
-    entity: dds_entity_t,
+    entity: DdsEntity,
     listener: Option<DdsListener>,
     _phantom: PhantomData<*const T>,
     // The callback closures that can be attached to a reader
@@ -43,8 +43,8 @@ where
     ) -> Result<Self, DDSError> {
         unsafe {
             let w = dds_create_reader(
-                entity.entity(),
-                topic.into(),
+                entity.entity().entity(),
+                topic.entity().entity(),
                 maybe_qos.map_or(std::ptr::null(), |q| q.into()),
                 maybe_listener
                     .as_ref()
@@ -53,7 +53,7 @@ where
 
             if w >= 0 {
                 Ok(DdsReader {
-                    entity: w,
+                    entity: DdsEntity::new(w),
                     listener: maybe_listener,
                     _phantom: PhantomData,
                 })
@@ -66,7 +66,7 @@ where
     pub fn set_listener(&mut self, listener: DdsListener) -> Result<(), DDSError> {
         unsafe {
             let refl = &listener;
-            let rc = dds_set_listener(self.entity, refl.into());
+            let rc = dds_set_listener(self.entity.entity(), refl.into());
             if rc == 0 {
                 self.listener = Some(listener);
                 Ok(())
@@ -86,7 +86,7 @@ where
             let mut voidp: *mut c_void = std::ptr::null::<T>() as *mut c_void;
             let voidpp: *mut *mut c_void = &mut voidp;
 
-            let ret = dds_read(entity, voidpp, &mut info as *mut _, 1, 1);
+            let ret = dds_read(entity.entity(), voidpp, &mut info as *mut _, 1, 1);
 
             if ret >= 0 {
                 if !voidp.is_null() && info.valid_data {
@@ -109,14 +109,14 @@ where
             let mut voidp: *mut c_void = std::ptr::null::<T>() as *mut c_void;
             let voidpp: *mut *mut c_void = &mut voidp;
 
-            let ret = dds_read(self.entity, voidpp, &mut info as *mut _, 1, 1);
+            let ret = dds_read(self.entity.entity(), voidpp, &mut info as *mut _, 1, 1);
 
             println!("Read returns pointer {:?}", voidpp);
 
             if ret >= 0 {
                 if !voidp.is_null() && info.valid_data {
                     let ptr_to_ts: *const *const T = voidpp as *const *const T;
-                    let data = DdsLoanedData::new(ptr_to_ts, self.entity, 1);
+                    let data = DdsLoanedData::new(ptr_to_ts, &self.entity, 1);
                     Ok(data)
                 } else {
                     Err(DDSError::OutOfResources)
@@ -135,14 +135,14 @@ where
             let mut voidp: *mut c_void = std::ptr::null::<T>() as *mut c_void;
             let voidpp: *mut *mut c_void = &mut voidp;
 
-            let ret = dds_take(self.entity, voidpp, &mut info as *mut _, 1, 1);
+            let ret = dds_take(self.entity.entity(), voidpp, &mut info as *mut _, 1, 1);
 
             //println!("Read returns pointer {:?}",voidpp);
 
             if ret >= 0 {
                 if !voidp.is_null() && info.valid_data {
                     let ptr_to_ts: *const *const T = voidpp as *const *const T;
-                    let data = DdsLoanedData::new(ptr_to_ts, self.entity, 1);
+                    let data = DdsLoanedData::new(ptr_to_ts, &self.entity, 1);
                     Ok(data)
                 } else {
                     Err(DDSError::OutOfResources)
@@ -152,27 +152,14 @@ where
             }
         }
     }
-
-    pub fn entity(&self) -> DdsEntity {
-        self.into()
-    }
 }
 
-impl<T> From<DdsReader<T>> for dds_entity_t
+impl<T> Entity for DdsReader<T>
 where
-    T: Sized + DDSGenType,
+    T: std::marker::Sized + DDSGenType,
 {
-    fn from(reader: DdsReader<T>) -> Self {
-        reader.entity
-    }
-}
-
-impl<T> From<&DdsReader<T>> for dds_entity_t
-where
-    T: Sized + DDSGenType,
-{
-    fn from(reader: &DdsReader<T>) -> Self {
-        reader.entity
+    fn entity(&self) -> &DdsEntity {
+        &self.entity
     }
 }
 
@@ -182,7 +169,7 @@ where
 {
     fn drop(&mut self) {
         unsafe {
-            let ret: DDSError = cyclonedds_sys::dds_delete(self.entity).into();
+            let ret: DDSError = cyclonedds_sys::dds_delete(self.entity.entity()).into();
             if DDSError::DdsOk != ret {
                 panic!("cannot delete Reader: {}", ret);
             } else {

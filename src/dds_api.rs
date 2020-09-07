@@ -64,9 +64,9 @@ impl From<DdsStatus> for u32 {
     }
 }
 
-pub fn dds_set_status_mask(entity: DdsEntity, status_mask: DdsStatus) -> Result<(), DDSError> {
+pub fn dds_set_status_mask(entity: &DdsEntity, status_mask: DdsStatus) -> Result<(), DDSError> {
     unsafe {
-        let err = cyclonedds_sys::dds_set_status_mask(entity, status_mask.into());
+        let err = cyclonedds_sys::dds_set_status_mask(entity.entity(), status_mask.into());
 
         if err < 0 {
             Err(DDSError::from(err))
@@ -76,10 +76,10 @@ pub fn dds_set_status_mask(entity: DdsEntity, status_mask: DdsStatus) -> Result<
     }
 }
 
-pub fn dds_get_status_changes(entity: DdsEntity) -> Result<DdsStatus, DDSError> {
+pub fn dds_get_status_changes(entity: &DdsEntity) -> Result<DdsStatus, DDSError> {
     unsafe {
         let mut status = DdsStatus::default();
-        let err = cyclonedds_sys::dds_get_status_changes(entity, &mut status.0);
+        let err = cyclonedds_sys::dds_get_status_changes(entity.entity(), &mut status.0);
 
         if err < 0 {
             Err(DDSError::from(err))

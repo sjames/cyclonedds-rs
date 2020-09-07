@@ -1,5 +1,6 @@
 use cyclonedds_rs::{
     self, dds_api, dds_topic::DdsTopic, DdsListener, DdsQos, DdsReader, DdsStatus, DdsWriter,
+    Entity,
 };
 
 use helloworld_data;
@@ -87,7 +88,7 @@ fn subscriber() {
             // cyclonedds_sys::read is unsafe.
             unsafe {
                 if let Ok(msg) =
-                    cyclonedds_sys::read::<helloworld_data::HelloWorldData::Msg>(entity)
+                    cyclonedds_sys::read::<helloworld_data::HelloWorldData::Msg>(&entity)
                 {
                     let msg = msg.as_slice();
                     println!("Received {} messages", msg.len());

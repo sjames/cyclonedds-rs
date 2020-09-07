@@ -18,9 +18,8 @@ use std::convert::From;
 
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 
-use crate::{dds_listener::DdsListener, dds_qos::DdsQos, DdsReadable, DdsWritable};
+use crate::{dds_listener::DdsListener, dds_qos::DdsQos, DdsReadable, DdsWritable, Entity};
 
-#[derive(Clone)]
 pub struct DdsParticipant(DdsEntity);
 
 impl DdsParticipant {
@@ -36,7 +35,7 @@ impl DdsParticipant {
                 maybe_listener.map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
-                Ok(DdsParticipant(p))
+                Ok(DdsParticipant(DdsEntity::new(p)))
             } else {
                 Err(DDSError::from(p))
             }
@@ -44,22 +43,10 @@ impl DdsParticipant {
     }
 }
 
-impl From<DdsParticipant> for DdsEntity {
-    fn from(domain: DdsParticipant) -> Self {
-        domain.0
-    }
-}
-
-impl From<&DdsParticipant> for DdsEntity {
-    fn from(domain: &DdsParticipant) -> Self {
-        domain.0
-    }
-}
-
 impl Drop for DdsParticipant {
     fn drop(&mut self) {
         unsafe {
-            let ret: DDSError = cyclonedds_sys::dds_delete(self.0).into();
+            let ret: DDSError = cyclonedds_sys::dds_delete(self.0.entity()).into();
             if DDSError::DdsOk != ret {
                 panic!("cannot delete participant: {}", ret);
             } else {
@@ -70,14 +57,20 @@ impl Drop for DdsParticipant {
 }
 
 impl DdsWritable for DdsParticipant {
-    fn entity(&self) -> DdsEntity {
-        self.into()
+    fn entity(&self) -> &DdsEntity {
+        &self.0
     }
 }
 
 impl DdsReadable for DdsParticipant {
-    fn entity(&self) -> DdsEntity {
-        self.into()
+    fn entity(&self) -> &DdsEntity {
+        &self.0
+    }
+}
+
+impl Entity for DdsParticipant {
+    fn entity(&self) -> &DdsEntity {
+        &self.0
     }
 }
 

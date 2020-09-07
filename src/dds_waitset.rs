@@ -14,48 +14,47 @@
     limitations under the License.
 */
 
-use crate::{DdsListener, DdsParticipant, DdsQos, DdsReadable};
+use crate::{DdsParticipant, Entity};
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 use std::convert::From;
+use std::marker::PhantomData;
 
-pub struct DdsSubscriber(DdsEntity);
+pub struct DdsWaitset<T>(DdsEntity, PhantomData<*const T>);
 
-impl DdsSubscriber {
-    pub fn create(
-        participant: &DdsParticipant,
-        maybe_qos: Option<DdsQos>,
-        maybe_listener: Option<DdsListener>,
-    ) -> Result<Self, DDSError> {
+impl<T> DdsWaitset<T> {
+    pub fn create(participant: &DdsParticipant) -> Result<Self, DDSError> {
         unsafe {
-            let p = cyclonedds_sys::dds_create_subscriber(
-                participant.entity().entity(),
-                maybe_qos.map_or(std::ptr::null(), |d| d.into()),
-                maybe_listener.map_or(std::ptr::null(), |l| l.into()),
-            );
+            let p = cyclonedds_sys::dds_create_waitset(participant.entity().entity());
             if p > 0 {
-                Ok(DdsSubscriber(DdsEntity::new(p)))
+                Ok(DdsWaitset(DdsEntity::new(p), PhantomData))
             } else {
                 Err(DDSError::from(p))
             }
         }
     }
+
+    pub fn attach(&mut self, entity: &DdsEntity, x: Box<T>) -> Result<(), DDSError> {
+        Ok(())
+    }
+    pub fn detach(&mut self, entity: &DdsEntity) -> Result<(), DDSError> {
+        Ok(())
+    }
+    pub fn set_trigger(&mut self) -> Result<(), DDSError> {
+        Ok(())
+    }
+    pub fn wait(&mut self) -> Result<Vec<Box<T>>, DDSError> {
+        Ok(Vec::new())
+    }
 }
 
-impl Drop for DdsSubscriber {
+impl<T> Drop for DdsWaitset<T> {
     fn drop(&mut self) {
         unsafe {
             let ret: DDSError = cyclonedds_sys::dds_delete(self.0.entity()).into();
             if DDSError::DdsOk != ret {
-                panic!("cannot delete DdsSubscriber: {}", ret);
+                panic!("cannot delete DdsWaitset: {}", ret);
             } else {
-                //println!("Participant dropped");
             }
         }
-    }
-}
-
-impl DdsReadable for DdsSubscriber {
-    fn entity(&self) -> &DdsEntity {
-        &self.0
     }
 }

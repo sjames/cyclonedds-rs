@@ -25,10 +25,11 @@ pub mod dds_qos;
 pub mod dds_reader;
 pub mod dds_subscriber;
 pub mod dds_topic;
+mod dds_waitset;
 pub mod dds_writer;
 pub mod error;
 
-pub use common::{DdsReadable, DdsWritable};
+pub use common::{DdsReadable, DdsWritable, Entity};
 pub use dds_api::*;
 pub use dds_listener::DdsListener;
 pub use dds_participant::DdsParticipant;
@@ -37,6 +38,7 @@ pub use dds_qos::*;
 pub use dds_reader::DdsReader;
 pub use dds_subscriber::DdsSubscriber;
 pub use dds_topic::DdsTopic;
+pub use dds_waitset::DdsWaitset;
 pub use dds_writer::DdsWriter;
 
 #[cfg(test)]

@@ -28,12 +28,12 @@ impl DdsPublisher {
     ) -> Result<Self, DDSError> {
         unsafe {
             let p = cyclonedds_sys::dds_create_publisher(
-                participant.entity(),
+                participant.entity().entity(),
                 maybe_qos.map_or(std::ptr::null(), |d| d.into()),
                 maybe_listener.map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
-                Ok(DdsPublisher(p))
+                Ok(DdsPublisher(DdsEntity::new(p)))
             } else {
                 Err(DDSError::from(p))
             }
@@ -41,27 +41,16 @@ impl DdsPublisher {
     }
 }
 
-impl From<DdsPublisher> for DdsEntity {
-    fn from(publisher: DdsPublisher) -> Self {
-        publisher.0
-    }
-}
-impl From<&DdsPublisher> for DdsEntity {
-    fn from(publisher: &DdsPublisher) -> Self {
-        publisher.0
-    }
-}
-
 impl DdsWritable for DdsPublisher {
-    fn entity(&self) -> DdsEntity {
-        self.into()
+    fn entity(&self) -> &DdsEntity {
+        &self.0
     }
 }
 
 impl Drop for DdsPublisher {
     fn drop(&mut self) {
         unsafe {
-            let ret: DDSError = cyclonedds_sys::dds_delete(self.0).into();
+            let ret: DDSError = cyclonedds_sys::dds_delete(self.0.entity()).into();
             if DDSError::DdsOk != ret {
                 panic!("cannot delete DdsPublisher: {}", ret);
             } else {

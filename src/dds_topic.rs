@@ -14,7 +14,7 @@
     limitations under the License.
 */
 
-use crate::{dds_listener::DdsListener, dds_participant::DdsParticipant, dds_qos::DdsQos};
+use crate::{dds_listener::DdsListener, dds_participant::DdsParticipant, dds_qos::DdsQos, Entity};
 
 use std::convert::From;
 use std::ffi::CString;
@@ -37,7 +37,7 @@ where
         unsafe {
             let strname = CString::new(name).expect("CString::new failed");
             let topic = cyclonedds_sys::dds_create_topic(
-                participant.into(),
+                participant.entity().entity(),
                 T::get_descriptor(),
                 strname.as_ptr(),
                 maybe_qos.map_or(std::ptr::null(), |q| q.into()),
@@ -45,7 +45,7 @@ where
             );
 
             if topic >= 0 {
-                Ok(DdsTopic(topic, PhantomData))
+                Ok(DdsTopic(DdsEntity::new(topic), PhantomData))
             } else {
                 Err(DDSError::from(topic))
             }
@@ -53,21 +53,12 @@ where
     }
 }
 
-impl<T> From<DdsTopic<T>> for DdsEntity
+impl<T> Entity for DdsTopic<T>
 where
     T: std::marker::Sized + DDSGenType,
 {
-    fn from(domain: DdsTopic<T>) -> Self {
-        domain.0
-    }
-}
-
-impl<T> From<&DdsTopic<T>> for DdsEntity
-where
-    T: std::marker::Sized + DDSGenType,
-{
-    fn from(domain: &DdsTopic<T>) -> Self {
-        domain.0
+    fn entity(&self) -> &DdsEntity {
+        &self.0
     }
 }
 
@@ -77,7 +68,7 @@ where
 {
     fn drop(&mut self) {
         unsafe {
-            let ret: DDSError = cyclonedds_sys::dds_delete(self.0).into();
+            let ret: DDSError = cyclonedds_sys::dds_delete(self.0.entity()).into();
             if DDSError::DdsOk != ret {
                 panic!("cannot delete Topic: {}", ret);
             } else {
