@@ -94,6 +94,13 @@ impl<'a, T> DdsWaitset<T> {
     }
 }
 
+impl<T> Entity for DdsWaitset<T>
+{
+    fn entity(&self) -> &DdsEntity {
+        &self.0
+    }
+}
+
 impl<T> Drop for DdsWaitset<T> {
     fn drop(&mut self) {
         unsafe {
