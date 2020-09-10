@@ -38,6 +38,7 @@ pub use cyclonedds_sys::dds_status_id_DDS_REQUESTED_INCOMPATIBLE_QOS_STATUS_ID a
 pub use cyclonedds_sys::dds_status_id_DDS_SAMPLE_LOST_STATUS_ID as DDS_SAMPLE_LOST_STATUS_ID;
 pub use cyclonedds_sys::dds_status_id_DDS_SAMPLE_REJECTED_STATUS_ID as DDS_SAMPLE_REJECTED_STATUS_ID;
 pub use cyclonedds_sys::dds_status_id_DDS_SUBSCRIPTION_MATCHED_STATUS_ID as DDS_SUBSCRIPTION_MATCHED_STATUS_ID;
+pub use cyclonedds_sys::StateMask;
 
 pub struct DdsStatus(u32);
 
