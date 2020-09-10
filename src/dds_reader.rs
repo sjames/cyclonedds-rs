@@ -192,8 +192,8 @@ where
 {
     fn create(reader: &'a DdsReader<T>, mask: StateMask) -> Result<Self, DDSError> {
         unsafe {
-            let mask: u64 = *mask;
-            let p = cyclonedds_sys::dds_create_readcondition(reader.entity().entity(), mask as u32);
+            let mask: u32 = *mask;
+            let p = cyclonedds_sys::dds_create_readcondition(reader.entity().entity(), mask);
             if p > 0 {
                 Ok(DdsReadCondition(DdsEntity::new(p), reader))
             } else {
