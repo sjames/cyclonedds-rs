@@ -25,7 +25,7 @@ impl<'a, T> DdsWaitset<T> {
     pub fn create(participant: &DdsParticipant) -> Result<Self, DDSError> {
         unsafe {
             let p = cyclonedds_sys::dds_create_waitset(participant.entity().entity());
-            if p > 0 {
+            if p >= 0 {
                 Ok(DdsWaitset(DdsEntity::new(p), PhantomData))
             } else {
                 Err(DDSError::from(p))
@@ -40,7 +40,7 @@ impl<'a, T> DdsWaitset<T> {
                 entity.entity().entity(),
                 x as *const T as isize,
             );
-            if p > 0 {
+            if p == 0 {
                 Ok(())
             } else {
                 Err(DDSError::from(p))
@@ -50,7 +50,7 @@ impl<'a, T> DdsWaitset<T> {
     pub fn detach(&mut self, entity: &dyn Entity) -> Result<(), DDSError> {
         unsafe {
             let p = cyclonedds_sys::dds_waitset_detach(self.0.entity(), entity.entity().entity());
-            if p > 0 {
+            if p == 0 {
                 Ok(())
             } else {
                 Err(DDSError::from(p))
@@ -60,7 +60,7 @@ impl<'a, T> DdsWaitset<T> {
     pub fn set_trigger(&mut self, trigger: bool) -> Result<(), DDSError> {
         unsafe {
             let p = cyclonedds_sys::dds_waitset_set_trigger(self.0.entity(), trigger);
-            if p > 0 {
+            if p == 0 {
                 Ok(())
             } else {
                 Err(DDSError::from(p))
