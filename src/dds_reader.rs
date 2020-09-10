@@ -152,6 +152,10 @@ where
             }
         }
     }
+
+    pub fn create_readcondition(&mut self, mask : u32) -> Result<DdsReadCondition<T>, DDSError> {
+        DdsReadCondition::create(self,mask)
+    }
 }
 
 impl<T> Entity for DdsReader<T>
@@ -176,5 +180,31 @@ where
                 //println!("Reader dropped");
             }
         }
+    }
+}
+
+
+pub struct DdsReadCondition<'a, T: Sized + DDSGenType> (DdsEntity,&'a DdsReader<T>);
+
+impl <'a,T> DdsReadCondition <'a,T> 
+where T: Sized + DDSGenType {
+    fn create (reader: &'a DdsReader<T>, mask: u32) -> Result<Self, DDSError> {
+        unsafe {
+            let p = cyclonedds_sys::dds_create_readcondition(reader.entity().entity(),mask);
+            if p > 0 {
+                Ok(DdsReadCondition(DdsEntity::new(p),reader))
+            } else {
+                Err(DDSError::from(p))
+            }
+        }
+    }
+}
+
+impl<'a,T> Entity for DdsReadCondition<'a,T>
+where
+    T: std::marker::Sized + DDSGenType,
+{
+    fn entity(&self) -> &DdsEntity {
+        &self.0
     }
 }
