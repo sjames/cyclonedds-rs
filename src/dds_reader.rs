@@ -17,6 +17,7 @@
 use cyclonedds_sys::*;
 use std::convert::From;
 use std::os::raw::c_void;
+//use std::convert::TryInto;
 
 pub use cyclonedds_sys::{DDSBox, DDSGenType, DdsDomainId, DdsEntity, DdsLoanedData};
 
@@ -153,7 +154,7 @@ where
         }
     }
 
-    pub fn create_readcondition(&mut self, mask: u32) -> Result<DdsReadCondition<T>, DDSError> {
+    pub fn create_readcondition(&mut self, mask: StateMask) -> Result<DdsReadCondition<T>, DDSError> {
         DdsReadCondition::create(self, mask)
     }
 }
@@ -189,9 +190,10 @@ impl<'a, T> DdsReadCondition<'a, T>
 where
     T: Sized + DDSGenType,
 {
-    fn create(reader: &'a DdsReader<T>, mask: u32) -> Result<Self, DDSError> {
+    fn create(reader: &'a DdsReader<T>, mask: StateMask) -> Result<Self, DDSError> {
         unsafe {
-            let p = cyclonedds_sys::dds_create_readcondition(reader.entity().entity(), mask);
+            let mask: u64 = *mask;
+            let p = cyclonedds_sys::dds_create_readcondition(reader.entity().entity(), mask as u32);
             if p > 0 {
                 Ok(DdsReadCondition(DdsEntity::new(p), reader))
             } else {
