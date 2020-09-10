@@ -19,6 +19,7 @@ use std::convert::From;
 
 use cyclonedds_sys::dds_error::DDSError;
 use cyclonedds_sys::DdsEntity;
+use crate::common::Entity;
 
 //use crate::dds_writer::DdsWriter;
 pub use cyclonedds_sys::{dds_attach_t, dds_duration_t};
@@ -87,6 +88,18 @@ pub fn dds_get_status_changes(entity: &DdsEntity) -> Result<DdsStatus, DDSError>
             Err(DDSError::from(err))
         } else {
             Ok(status)
+        }
+    }
+}
+
+pub fn dds_triggered(entity: &dyn Entity) -> Result<(), DDSError> {
+    unsafe {
+        let err = cyclonedds_sys::dds_triggered(entity.entity().entity());
+
+        if err < 0 {
+            Err(DDSError::from(err))
+        } else {
+            Ok(())
         }
     }
 }
