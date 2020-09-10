@@ -153,8 +153,8 @@ where
         }
     }
 
-    pub fn create_readcondition(&mut self, mask : u32) -> Result<DdsReadCondition<T>, DDSError> {
-        DdsReadCondition::create(self,mask)
+    pub fn create_readcondition(&mut self, mask: u32) -> Result<DdsReadCondition<T>, DDSError> {
+        DdsReadCondition::create(self, mask)
     }
 }
 
@@ -183,16 +183,17 @@ where
     }
 }
 
+pub struct DdsReadCondition<'a, T: Sized + DDSGenType>(DdsEntity, &'a DdsReader<T>);
 
-pub struct DdsReadCondition<'a, T: Sized + DDSGenType> (DdsEntity,&'a DdsReader<T>);
-
-impl <'a,T> DdsReadCondition <'a,T> 
-where T: Sized + DDSGenType {
-    fn create (reader: &'a DdsReader<T>, mask: u32) -> Result<Self, DDSError> {
+impl<'a, T> DdsReadCondition<'a, T>
+where
+    T: Sized + DDSGenType,
+{
+    fn create(reader: &'a DdsReader<T>, mask: u32) -> Result<Self, DDSError> {
         unsafe {
-            let p = cyclonedds_sys::dds_create_readcondition(reader.entity().entity(),mask);
+            let p = cyclonedds_sys::dds_create_readcondition(reader.entity().entity(), mask);
             if p > 0 {
-                Ok(DdsReadCondition(DdsEntity::new(p),reader))
+                Ok(DdsReadCondition(DdsEntity::new(p), reader))
             } else {
                 Err(DDSError::from(p))
             }
@@ -200,7 +201,7 @@ where T: Sized + DDSGenType {
     }
 }
 
-impl<'a,T> Entity for DdsReadCondition<'a,T>
+impl<'a, T> Entity for DdsReadCondition<'a, T>
 where
     T: std::marker::Sized + DDSGenType,
 {

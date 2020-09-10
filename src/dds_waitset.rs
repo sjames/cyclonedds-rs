@@ -21,7 +21,7 @@ use std::marker::PhantomData;
 
 pub struct DdsWaitset<T>(DdsEntity, PhantomData<*const T>);
 
-impl<T> DdsWaitset<T> {
+impl<'a, T> DdsWaitset<T> {
     pub fn create(participant: &DdsParticipant) -> Result<Self, DDSError> {
         unsafe {
             let p = cyclonedds_sys::dds_create_waitset(participant.entity().entity());
@@ -33,17 +33,64 @@ impl<T> DdsWaitset<T> {
         }
     }
 
-    pub fn attach(&mut self, entity: &DdsEntity, x: Box<T>) -> Result<(), DDSError> {
-        Ok(())
+    pub fn attach(&mut self, entity: &dyn Entity, x: &'a T) -> Result<(), DDSError> {
+        unsafe {
+            let p = cyclonedds_sys::dds_waitset_attach(
+                self.0.entity(),
+                entity.entity().entity(),
+                x as *const T as isize,
+            );
+            if p > 0 {
+                Ok(())
+            } else {
+                Err(DDSError::from(p))
+            }
+        }
     }
-    pub fn detach(&mut self, entity: &DdsEntity) -> Result<(), DDSError> {
-        Ok(())
+    pub fn detach(&mut self, entity: &dyn Entity) -> Result<(), DDSError> {
+        unsafe {
+            let p = cyclonedds_sys::dds_waitset_detach(self.0.entity(), entity.entity().entity());
+            if p > 0 {
+                Ok(())
+            } else {
+                Err(DDSError::from(p))
+            }
+        }
     }
-    pub fn set_trigger(&mut self) -> Result<(), DDSError> {
-        Ok(())
+    pub fn set_trigger(&mut self, trigger: bool) -> Result<(), DDSError> {
+        unsafe {
+            let p = cyclonedds_sys::dds_waitset_set_trigger(self.0.entity(), trigger);
+            if p > 0 {
+                Ok(())
+            } else {
+                Err(DDSError::from(p))
+            }
+        }
     }
-    pub fn wait(&mut self) -> Result<Vec<Box<T>>, DDSError> {
-        Ok(Vec::new())
+    pub fn wait<'b>(
+        &mut self,
+        xs: &'b mut Vec<&'b T>,
+        timeout_us: i64,
+    ) -> Result<&'b [&'b T], DDSError> {
+        let capacity = xs.capacity();
+        unsafe {
+            let p = cyclonedds_sys::dds_waitset_wait(
+                self.0.entity(),
+                xs.as_mut_ptr() as *mut isize,
+                capacity,
+                timeout_us,
+            );
+            if p == 0 {
+                // timeout, empty slice back
+                Ok(&xs[0..0])
+            } else if p > 0 {
+                let p = p as usize;
+                xs.set_len(p);
+                Ok(&xs[0..p])
+            } else {
+                Err(DDSError::from(p))
+            }
+        }
     }
 }
 
@@ -58,6 +105,3 @@ impl<T> Drop for DdsWaitset<T> {
         }
     }
 }
-
-
-

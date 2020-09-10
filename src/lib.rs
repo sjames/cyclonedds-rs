@@ -35,7 +35,7 @@ pub use dds_listener::DdsListener;
 pub use dds_participant::DdsParticipant;
 pub use dds_publisher::DdsPublisher;
 pub use dds_qos::*;
-pub use dds_reader::DdsReader;
+pub use dds_reader::{DdsReadCondition, DdsReader};
 pub use dds_subscriber::DdsSubscriber;
 pub use dds_topic::DdsTopic;
 pub use dds_waitset::DdsWaitset;
