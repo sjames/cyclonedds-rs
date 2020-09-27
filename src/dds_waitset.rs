@@ -94,8 +94,7 @@ impl<'a, T> DdsWaitset<T> {
     }
 }
 
-impl<T> Entity for DdsWaitset<T>
-{
+impl<T> Entity for DdsWaitset<T> {
     fn entity(&self) -> &DdsEntity {
         &self.0
     }

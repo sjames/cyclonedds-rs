@@ -32,7 +32,7 @@ fn hello_world_idl_test() {
     );
     qos.set_resource_limits(10, 1, 10);
 
-    let mut writer = DdsWriter::create(&participant, &topic, Some(qos), None).unwrap();
+    let mut writer = DdsWriter::create(&participant, &topic, Some(&qos), None).unwrap();
 
     let mut count = 0;
 
@@ -114,7 +114,7 @@ fn subscriber() {
         1,
     );
 
-    if let Ok(mut reader) = DdsReader::create(&participant, &topic, Some(qos), None) {
+    if let Ok(mut reader) = DdsReader::create(&participant, &topic, Some(&qos), None) {
         reader
             .set_listener(listener)
             .expect("Unable to set listener");
@@ -123,5 +123,5 @@ fn subscriber() {
         println!("Received :{} completed", id);
     } else {
         panic!("Unable to create reader");
-    }
+    };
 }

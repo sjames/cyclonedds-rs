@@ -17,9 +17,9 @@
 use bit_field::BitField;
 use std::convert::From;
 
+use crate::common::Entity;
 use cyclonedds_sys::dds_error::DDSError;
 use cyclonedds_sys::DdsEntity;
-use crate::common::Entity;
 
 //use crate::dds_writer::DdsWriter;
 pub use cyclonedds_sys::{dds_attach_t, dds_duration_t};
@@ -39,8 +39,8 @@ pub use cyclonedds_sys::dds_status_id_DDS_REQUESTED_INCOMPATIBLE_QOS_STATUS_ID a
 pub use cyclonedds_sys::dds_status_id_DDS_SAMPLE_LOST_STATUS_ID as DDS_SAMPLE_LOST_STATUS_ID;
 pub use cyclonedds_sys::dds_status_id_DDS_SAMPLE_REJECTED_STATUS_ID as DDS_SAMPLE_REJECTED_STATUS_ID;
 pub use cyclonedds_sys::dds_status_id_DDS_SUBSCRIPTION_MATCHED_STATUS_ID as DDS_SUBSCRIPTION_MATCHED_STATUS_ID;
-pub use cyclonedds_sys::StateMask;
 pub use cyclonedds_sys::State;
+pub use cyclonedds_sys::StateMask;
 
 pub struct DdsStatus(u32);
 

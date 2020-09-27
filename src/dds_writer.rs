@@ -22,16 +22,21 @@ use std::marker::PhantomData;
 
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsWritable, Entity};
 
-pub struct DdsWriter<T: Sized + DDSGenType>(DdsEntity, Option<DdsListener>, PhantomData<*const T>);
+pub struct DdsWriter<'a, T: Sized + DDSGenType>(
+    DdsEntity,
+    Option<DdsListener>,
+    Option<&'a DdsQos>,
+    PhantomData<*const T>,
+);
 
-impl<T> DdsWriter<T>
+impl<'a, T> DdsWriter<'a, T>
 where
     T: Sized + DDSGenType,
 {
     pub fn create(
         entity: &dyn DdsWritable,
         topic: &DdsTopic<T>,
-        maybe_qos: Option<DdsQos>,
+        maybe_qos: Option<&'a DdsQos>,
         maybe_listener: Option<DdsListener>,
     ) -> Result<Self, DDSError> {
         unsafe {
@@ -45,7 +50,12 @@ where
             );
 
             if w >= 0 {
-                Ok(DdsWriter(DdsEntity::new(w), maybe_listener, PhantomData))
+                Ok(DdsWriter(
+                    DdsEntity::new(w),
+                    maybe_listener,
+                    maybe_qos,
+                    PhantomData,
+                ))
             } else {
                 Err(DDSError::from(w))
             }
@@ -88,7 +98,7 @@ where
     }
 }
 
-impl<T> Entity for DdsWriter<T>
+impl<'a, T> Entity for DdsWriter<'a, T>
 where
     T: std::marker::Sized + DDSGenType,
 {
@@ -97,7 +107,7 @@ where
     }
 }
 
-impl<T> Drop for DdsWriter<T>
+impl<'a, T> Drop for DdsWriter<'a, T>
 where
     T: std::marker::Sized + DDSGenType,
 {

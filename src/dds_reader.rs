@@ -25,21 +25,22 @@ use std::marker::PhantomData;
 
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable, Entity};
 
-pub struct DdsReader<T: Sized + DDSGenType> {
+pub struct DdsReader<'a, T: Sized + DDSGenType> {
     entity: DdsEntity,
     listener: Option<DdsListener>,
+    maybe_qos: Option<&'a DdsQos>,
     _phantom: PhantomData<*const T>,
     // The callback closures that can be attached to a reader
 }
 
-impl<T> DdsReader<T>
+impl<'a, T> DdsReader<'a, T>
 where
     T: Sized + DDSGenType,
 {
     pub fn create(
         entity: &dyn DdsReadable,
         topic: &DdsTopic<T>,
-        maybe_qos: Option<DdsQos>,
+        maybe_qos: Option<&'a DdsQos>,
         maybe_listener: Option<DdsListener>,
     ) -> Result<Self, DDSError> {
         unsafe {
@@ -56,6 +57,7 @@ where
                 Ok(DdsReader {
                     entity: DdsEntity::new(w),
                     listener: maybe_listener,
+                    maybe_qos,
                     _phantom: PhantomData,
                 })
             } else {
@@ -154,12 +156,15 @@ where
         }
     }
 
-    pub fn create_readcondition(&mut self, mask: StateMask) -> Result<DdsReadCondition<T>, DDSError> {
+    pub fn create_readcondition(
+        &mut self,
+        mask: StateMask,
+    ) -> Result<DdsReadCondition<T>, DDSError> {
         DdsReadCondition::create(self, mask)
     }
 }
 
-impl<T> Entity for DdsReader<T>
+impl<'a, T> Entity for DdsReader<'a, T>
 where
     T: std::marker::Sized + DDSGenType,
 {
@@ -168,7 +173,7 @@ where
     }
 }
 
-impl<T> Drop for DdsReader<T>
+impl<'a, T> Drop for DdsReader<'a, T>
 where
     T: Sized + DDSGenType,
 {
@@ -184,7 +189,7 @@ where
     }
 }
 
-pub struct DdsReadCondition<'a, T: Sized + DDSGenType>(DdsEntity, &'a DdsReader<T>);
+pub struct DdsReadCondition<'a, T: Sized + DDSGenType>(DdsEntity, &'a DdsReader<'a, T>);
 
 impl<'a, T> DdsReadCondition<'a, T>
 where

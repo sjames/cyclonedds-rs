@@ -240,6 +240,12 @@ impl From<DdsQos> for *const dds_qos_t {
     }
 }
 
+impl From<&DdsQos> for *const dds_qos_t {
+    fn from(qos: &DdsQos) -> Self {
+        qos.0
+    }
+}
+
 #[cfg(test)]
 mod dds_qos_tests {
     use super::*;
