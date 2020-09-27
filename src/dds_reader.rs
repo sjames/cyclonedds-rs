@@ -27,7 +27,7 @@ use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, Dds
 
 pub struct DdsReader<'a, T: Sized + DDSGenType> {
     entity: DdsEntity,
-    listener: Option<DdsListener>,
+    listener: Option<DdsListener<'a>>,
     maybe_qos: Option<&'a DdsQos>,
     _phantom: PhantomData<*const T>,
     // The callback closures that can be attached to a reader
@@ -41,7 +41,7 @@ where
         entity: &dyn DdsReadable,
         topic: &DdsTopic<T>,
         maybe_qos: Option<&'a DdsQos>,
-        maybe_listener: Option<DdsListener>,
+        maybe_listener: Option<DdsListener<'a>>,
     ) -> Result<Self, DDSError> {
         unsafe {
             let w = dds_create_reader(
@@ -66,7 +66,7 @@ where
         }
     }
 
-    pub fn set_listener(&mut self, listener: DdsListener) -> Result<(), DDSError> {
+    pub fn set_listener(&mut self, listener: DdsListener<'a>) -> Result<(), DDSError> {
         unsafe {
             let refl = &listener;
             let rc = dds_set_listener(self.entity.entity(), refl.into());
@@ -157,7 +157,7 @@ where
     }
 
     pub fn create_readcondition(
-        &mut self,
+        &'a mut self,
         mask: StateMask,
     ) -> Result<DdsReadCondition<T>, DDSError> {
         DdsReadCondition::create(self, mask)
@@ -195,7 +195,7 @@ impl<'a, T> DdsReadCondition<'a, T>
 where
     T: Sized + DDSGenType,
 {
-    fn create(reader: &'a DdsReader<T>, mask: StateMask) -> Result<Self, DDSError> {
+    fn create(reader: &'a DdsReader<'a, T>, mask: StateMask) -> Result<Self, DDSError> {
         unsafe {
             let mask: u32 = *mask;
             let p = cyclonedds_sys::dds_create_readcondition(reader.entity().entity(), mask);

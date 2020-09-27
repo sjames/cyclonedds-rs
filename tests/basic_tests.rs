@@ -78,6 +78,12 @@ fn subscriber() {
 
     let (tx, rx): (Sender<i32>, Receiver<i32>) = mpsc::channel();
 
+    let mut qos = DdsQos::create().unwrap();
+    qos.set_history(
+        cyclonedds_rs::dds_qos::dds_history_kind::DDS_HISTORY_KEEP_LAST,
+        1,
+    );
+
     let listener = DdsListener::new()
         .on_subscription_matched(move |_, _| {
             println!("Subscription matched");
@@ -107,12 +113,6 @@ fn subscriber() {
             }
         })
         .hook();
-
-    let mut qos = DdsQos::create().unwrap();
-    qos.set_history(
-        cyclonedds_rs::dds_qos::dds_history_kind::DDS_HISTORY_KEEP_LAST,
-        1,
-    );
 
     if let Ok(mut reader) = DdsReader::create(&participant, &topic, Some(&qos), None) {
         reader

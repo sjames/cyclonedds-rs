@@ -24,7 +24,7 @@ use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, Dds
 
 pub struct DdsWriter<'a, T: Sized + DDSGenType>(
     DdsEntity,
-    Option<DdsListener>,
+    Option<DdsListener<'a>>,
     Option<&'a DdsQos>,
     PhantomData<*const T>,
 );
@@ -37,7 +37,7 @@ where
         entity: &dyn DdsWritable,
         topic: &DdsTopic<T>,
         maybe_qos: Option<&'a DdsQos>,
-        maybe_listener: Option<DdsListener>,
+        maybe_listener: Option<DdsListener<'a>>,
     ) -> Result<Self, DDSError> {
         unsafe {
             let w = dds_create_writer(
@@ -84,7 +84,7 @@ where
         }
     }
 
-    pub fn set_listener(&mut self, listener: DdsListener) -> Result<(), DDSError> {
+    pub fn set_listener(&mut self, listener: DdsListener<'a>) -> Result<(), DDSError> {
         unsafe {
             let refl = &listener;
             let rc = dds_set_listener(self.0.entity(), refl.into());
