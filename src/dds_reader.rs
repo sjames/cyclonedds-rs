@@ -106,53 +106,13 @@ where
 
     pub fn read(&self) -> Result<DdsLoanedData<T>, DDSError> {
         unsafe {
-            let mut info: dds_sample_info = dds_sample_info::default();
-            // set to null pointer to ask cyclone to allocate the buffer. All received
-            // data will need to be allocated by cyclone
-            let mut voidp: *mut c_void = std::ptr::null::<T>() as *mut c_void;
-            let voidpp: *mut *mut c_void = &mut voidp;
-
-            let ret = dds_read(self.entity.entity(), voidpp, &mut info as *mut _, 1, 1);
-
-            println!("Read returns pointer {:?}", voidpp);
-
-            if ret >= 0 {
-                if !voidp.is_null() && info.valid_data {
-                    let ptr_to_ts: *const *const T = voidpp as *const *const T;
-                    let data = DdsLoanedData::new(ptr_to_ts, &self.entity, 1);
-                    Ok(data)
-                } else {
-                    Err(DDSError::OutOfResources)
-                }
-            } else {
-                Err(DDSError::from(ret))
-            }
+            cyclonedds_sys::read(self.entity())   
         }
     }
 
     pub fn take(&self) -> Result<DdsLoanedData<T>, DDSError> {
         unsafe {
-            let mut info: dds_sample_info = dds_sample_info::default();
-            // set to null pointer to ask cyclone to allocate the buffer. All received
-            // data will need to be allocated by cyclone
-            let mut voidp: *mut c_void = std::ptr::null::<T>() as *mut c_void;
-            let voidpp: *mut *mut c_void = &mut voidp;
-
-            let ret = dds_take(self.entity.entity(), voidpp, &mut info as *mut _, 1, 1);
-
-            //println!("Read returns pointer {:?}",voidpp);
-
-            if ret >= 0 {
-                if !voidp.is_null() && info.valid_data {
-                    let ptr_to_ts: *const *const T = voidpp as *const *const T;
-                    let data = DdsLoanedData::new(ptr_to_ts, &self.entity, 1);
-                    Ok(data)
-                } else {
-                    Err(DDSError::OutOfResources)
-                }
-            } else {
-                Err(DDSError::from(ret))
-            }
+            cyclonedds_sys::take(self.entity())   
         }
     }
 
@@ -179,6 +139,7 @@ where
 {
     fn drop(&mut self) {
         unsafe {
+            println!("Drop reader:{:?}",self.entity().entity());
             let ret: DDSError = cyclonedds_sys::dds_delete(self.entity.entity()).into();
             if DDSError::DdsOk != ret {
                 panic!("cannot delete Reader: {}", ret);

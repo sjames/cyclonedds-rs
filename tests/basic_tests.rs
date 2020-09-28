@@ -90,7 +90,8 @@ fn subscriber() {
         })
         .on_data_available(move |entity| {
             println!("Data on reader");
-
+            tx.send(0).unwrap();
+            /*
             // cyclonedds_sys::read is unsafe.
             unsafe {
                 if let Ok(msg) =
@@ -106,11 +107,12 @@ fn subscriber() {
                         CStr::from_bytes_with_nul("Hello from DDS Cyclone Rust\0".as_bytes())
                             .unwrap()
                     );
-                    tx.send(msg[0].userID).unwrap();
+                    tx.send(0).unwrap();
                 } else {
                     println!("Error reading");
                 }
             }
+            */
         })
         .hook();
 
@@ -120,7 +122,31 @@ fn subscriber() {
             .expect("Unable to set listener");
 
         let id = rx.recv().unwrap();
+
+           // cyclonedds_sys::read is unsafe.
+          // unsafe {
+            
+            if let Ok(msg) = reader.take()
+
+            {
+                let msg = msg.as_slice();
+                println!("Received {} messages", msg.len());
+
+                println!("Received message : {}", msg[0].userID);
+                assert_eq!(1, msg[0].userID);
+                assert_eq!(
+                    unsafe {CStr::from_ptr(msg[0].message)},
+                    CStr::from_bytes_with_nul("Hello from DDS Cyclone Rust\0".as_bytes())
+                        .unwrap()
+                );
+            } else {
+                println!("Error reading");
+            }
+       // }
         println!("Received :{} completed", id);
+        let ten_millis = std::time::Duration::from_millis(100);
+        std::thread::sleep(ten_millis);
+
     } else {
         panic!("Unable to create reader");
     };
