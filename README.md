@@ -12,7 +12,17 @@ Rust bindings for cyclonedds https://github.com/eclipse-cyclonedds/cyclonedds.
 This crate allows you to use the cyclonedds library using(mostly) safe rust. Each IDL is maintained in
 a separate crate. This allows us to use the power of cargo to version and maintain topic descriptors.
 
-# Example - Roundrip from cyclonedds examples
+You'll find a simple example in the tests/basic_tests.rs that uses the idl crate in testdata.
+
+# Features
+
+1. Qos
+2. Reader and Writer
+3. Listener with closure callbacks
+3. template to create IDL crates
+
+
+# Example - RoundripPong from cyclonedds examples
 
 Let us use the Roundtrip example from cyclonedds. 
 
@@ -56,13 +66,7 @@ Modify roundtrip-data/build.rs to reflect the new name.
 Make sure everything is ok by building the roundtrip-example project.
 
     cargo build
+    
 
-
-
-
-
-
-
-
-
+Complete example code implementing RoundTripPong is available at https://github.com/sjames/roundtrip-example
 
