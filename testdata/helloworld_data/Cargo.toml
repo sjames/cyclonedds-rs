@@ -8,7 +8,7 @@ build = "build.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cyclonedds-sys = { git = "ssh://git@github.com/sjames/cyclonedds-sys"}
+cyclonedds-sys = "0.1.0"
 
 [build-dependencies]
 cycloneddscodegen = { git = "ssh://git@github.com/sjames/cycloneddscodegen", features=["rust_codegen"]}
