@@ -3,6 +3,9 @@ name = "cyclonedds-rs"
 version = "0.1.0"
 authors = ["Sojan James <Sojan.James@gmail.com>"]
 edition = "2018"
+description = "Safe Rust bindings for cyclonedds"
+license-file = "LICENSE"
+homepage = "https://github.com/sjames/cyclonedds-rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
