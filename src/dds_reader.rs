@@ -28,7 +28,7 @@ use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, Dds
 pub struct DdsReader<'a, T: Sized + DDSGenType> {
     entity: DdsEntity,
     listener: Option<DdsListener<'a>>,
-    maybe_qos: Option<&'a DdsQos>,
+    _maybe_qos: Option<&'a DdsQos>,
     _phantom: PhantomData<*const T>,
     // The callback closures that can be attached to a reader
 }
@@ -57,7 +57,7 @@ where
                 Ok(DdsReader {
                     entity: DdsEntity::new(w),
                     listener: maybe_listener,
-                    maybe_qos,
+                    _maybe_qos: maybe_qos,
                     _phantom: PhantomData,
                 })
             } else {
@@ -105,15 +105,11 @@ where
     }
 
     pub fn read(&self) -> Result<DdsLoanedData<T>, DDSError> {
-        unsafe {
-            cyclonedds_sys::read(self.entity())   
-        }
+        unsafe { cyclonedds_sys::read(self.entity()) }
     }
 
     pub fn take(&self) -> Result<DdsLoanedData<T>, DDSError> {
-        unsafe {
-            cyclonedds_sys::take(self.entity())   
-        }
+        unsafe { cyclonedds_sys::take(self.entity()) }
     }
 
     pub fn create_readcondition(
@@ -139,7 +135,7 @@ where
 {
     fn drop(&mut self) {
         unsafe {
-            println!("Drop reader:{:?}",self.entity().entity());
+            println!("Drop reader:{:?}", self.entity().entity());
             let ret: DDSError = cyclonedds_sys::dds_delete(self.entity.entity()).into();
             if DDSError::DdsOk != ret {
                 panic!("cannot delete Reader: {}", ret);

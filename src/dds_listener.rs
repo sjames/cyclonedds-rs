@@ -256,7 +256,7 @@ impl<'a> DdsListener<'a> {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        println!("C Callback - sample lost");
+        //println!("C Callback - sample lost");
         if let Some(lost) = &mut callbacks.on_sample_lost {
             lost(DdsEntity::new(reader), status);
         }
@@ -282,7 +282,7 @@ impl<'a> DdsListener<'a> {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        println!("C Callback - sample rejected");
+        //println!("C Callback - sample rejected");
         if let Some(rejected) = &mut callbacks.on_sample_rejected {
             rejected(DdsEntity::new(reader), status);
         }
@@ -308,7 +308,7 @@ impl<'a> DdsListener<'a> {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        println!("C Callback - Liveliness changed");
+        //println!("C Callback - Liveliness changed");
         if let Some(changed) = &mut callbacks.on_liveliness_changed {
             changed(DdsEntity::new(entity), status);
         }
@@ -333,7 +333,7 @@ impl<'a> DdsListener<'a> {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        println!("C Callback - requested deadline missed");
+        //println!("C Callback - requested deadline missed");
         if let Some(missed) = &mut callbacks.on_requested_deadline_missed {
             missed(DdsEntity::new(entity), status);
         }
@@ -358,7 +358,7 @@ impl<'a> DdsListener<'a> {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        println!("C Callback - requested incompatible QOS");
+        //println!("C Callback - requested incompatible QOS");
         if let Some(incompatible_qos) = &mut callbacks.on_requested_incompatible_qos {
             incompatible_qos(DdsEntity::new(entity), status);
         }
@@ -383,7 +383,7 @@ impl<'a> DdsListener<'a> {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        println!("C Callback - subscription matched");
+        //println!("C Callback - subscription matched");
         if let Some(matched) = &mut callbacks.on_subscription_matched {
             matched(DdsEntity::new(entity), status);
         }
@@ -408,7 +408,7 @@ impl<'a> DdsListener<'a> {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        println!("C Callback - liveliness lost");
+        //println!("C Callback - liveliness lost");
         if let Some(lost) = &mut callbacks.on_liveliness_lost {
             lost(DdsEntity::new(entity), status);
         }
@@ -433,7 +433,7 @@ impl<'a> DdsListener<'a> {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        println!("C Callback - offered deadline missed");
+        //println!("C Callback - offered deadline missed");
         if let Some(missed) = &mut callbacks.on_offered_deadline_missed {
             missed(DdsEntity::new(entity), status);
         }
@@ -458,7 +458,7 @@ impl<'a> DdsListener<'a> {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        println!("C Callback - offered incompatible QOS");
+        //println!("C Callback - offered incompatible QOS");
         if let Some(incompatible) = &mut callbacks.on_offered_incompatible_qos {
             incompatible(DdsEntity::new(entity), status);
         }
@@ -483,7 +483,7 @@ impl<'a> DdsListener<'a> {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        println!("C Callback - publication matched");
+        //println!("C Callback - publication matched");
         if let Some(matched) = &mut callbacks.on_publication_matched {
             matched(DdsEntity::new(entity), status);
         }
@@ -508,7 +508,7 @@ impl<'a> DdsListener<'a> {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        println!("C Callback - inconsistent topic");
+        //println!("C Callback - inconsistent topic");
         if let Some(inconsistant) = &mut callbacks.on_inconsistent_topic {
             inconsistant(DdsEntity::new(entity), status);
         }
@@ -532,7 +532,7 @@ impl<'a> DdsListener<'a> {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        println!("C Callback - data on readers");
+        //println!("C Callback - data on readers");
         if let Some(data) = &mut callbacks.on_data_on_readers {
             data(DdsEntity::new(entity));
         }
