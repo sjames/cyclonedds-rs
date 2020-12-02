@@ -67,6 +67,6 @@ Make sure everything is ok by building the roundtrip-example project.
 
     cargo build
     
-
+Part 2:
 Complete example code implementing RoundTripPong is available at https://github.com/sjames/roundtrip-example
 
