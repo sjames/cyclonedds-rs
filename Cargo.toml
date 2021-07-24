@@ -10,8 +10,9 @@ homepage = "https://github.com/sjames/cyclonedds-rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-cyclonedds-sys = "0.1.1"
+#cyclonedds-sys = "0.1.1"
+cyclonedds-sys = {path = "../cyclonedds-sys"}
 bit_field = "0.10"
 
-[dev-dependencies]
-helloworld_data = { path = "./testdata/helloworld_data" }
+#[dev-dependencies]
+#helloworld_data = { path = "./testdata/helloworld_data" }

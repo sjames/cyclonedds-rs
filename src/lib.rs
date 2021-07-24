@@ -13,7 +13,7 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 */
-
+#![feature(vec_into_raw_parts)]
 pub mod alloc;
 mod common;
 pub mod dds_api;
@@ -40,6 +40,7 @@ pub use dds_subscriber::DdsSubscriber;
 pub use dds_topic::DdsTopic;
 pub use dds_waitset::DdsWaitset;
 pub use dds_writer::DdsWriter;
+mod deserializer;
 
 #[cfg(test)]
 mod tests {
