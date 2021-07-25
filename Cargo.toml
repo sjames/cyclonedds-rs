@@ -13,6 +13,9 @@ homepage = "https://github.com/sjames/cyclonedds-rs"
 #cyclonedds-sys = "0.1.1"
 cyclonedds-sys = {path = "../cyclonedds-sys"}
 bit_field = "0.10"
+cdr = "0.2.4"
+serde = "1.0.126"
+serde_derive = "1.0.126"
 
 #[dev-dependencies]
 #helloworld_data = { path = "./testdata/helloworld_data" }

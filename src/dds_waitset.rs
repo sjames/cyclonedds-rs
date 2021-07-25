@@ -77,7 +77,7 @@ impl<'a, T> DdsWaitset<T> {
             let p = cyclonedds_sys::dds_waitset_wait(
                 self.0.entity(),
                 xs.as_mut_ptr() as *mut isize,
-                capacity,
+                capacity as u64,
                 timeout_us,
             );
             if p == 0 {

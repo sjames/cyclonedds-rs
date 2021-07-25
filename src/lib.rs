@@ -14,6 +14,8 @@
     limitations under the License.
 */
 #![feature(vec_into_raw_parts)]
+#![feature(new_uninit)]
+
 pub mod alloc;
 mod common;
 pub mod dds_api;

@@ -1,3 +1,4 @@
+/*
 use cyclonedds_rs::{
     self, dds_api, dds_topic::DdsTopic, DdsListener, DdsQos, DdsReader, DdsStatus, DdsWriter,
     Entity,
@@ -146,3 +147,4 @@ fn subscriber() {
         panic!("Unable to create reader");
     };
 }
+*/
