@@ -186,6 +186,13 @@ where T: DeserializeOwned {
     ptr as *mut ddsi_serdata
 }
 
+unsafe extern "C" fn serdata_from_keyhash<T>(_sertype: *const ddsi_sertype, _keyhash: *const ddsi_keyhash) -> *mut ddsi_serdata {
+    std::ptr::null_mut()
+}
+
+unsafe extern "C" fn serdata_from_sample<T>(_sertype: *const ddsi_sertype, _kind: u32, _sample: *const c_void) -> *mut ddsi_serdata {
+    std::ptr::null_mut()
+}
 
 unsafe extern "C" fn serdata_from_iov<T>(
     sertype: *const ddsi_sertype,
@@ -279,8 +286,8 @@ where T : DeserializeOwned {
         get_size: Some(get_size::<T>),
         from_ser: Some(serdata_from_fragchain::<T>),
         from_ser_iov: Some(serdata_from_iov::<T>),
-        from_keyhash: todo!(),
-        from_sample: todo!(),
+        from_keyhash: Some(serdata_from_keyhash::<T>),
+        from_sample: Some(serdata_from_sample::<T>),
         to_ser: todo!(),
         to_ser_ref: todo!(),
         to_ser_unref: todo!(),
