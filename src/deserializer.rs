@@ -39,16 +39,16 @@ struct SerType<T> {
 
 impl <'a,T>SerType<T> {
     fn new() -> Box<SerType<T>> 
-    where T: Topic {
+    where T: Default + DeserializeOwned {
         Box::<SerType<T>>::new(SerType {
             sertype: {
                 let mut sertype = std::mem::MaybeUninit::uninit();
                 unsafe {
                     ddsi_sertype_init(
                         sertype.as_mut_ptr(),
-                        T::get_type_name().as_ptr(),
-                        Box::into_raw(T::create_sertype_ops()),
-                        Box::into_raw(T::create_serdata_ops()),
+                        get_type_name::<T>().as_ptr(),
+                        Box::into_raw(create_sertype_ops::<T>()),
+                        Box::into_raw(create_serdata_ops::<T>()),
                         true,
                     );
                     sertype.assume_init()
@@ -57,21 +57,8 @@ impl <'a,T>SerType<T> {
             _phantom : PhantomData,
         })
     }
-
-    fn ref_from_ddsi_sertype(sertype: *const ddsi_sertype) -> &'a mut SerType<T> {
-        unsafe {
-            // The sertype is really a Sertype<T>. Should be safe to typecast 
-            let ptr = sertype as *mut  SerType<T>;
-            &mut *ptr
-        }
-    }
 }
 
-pub trait Topic {
-    fn get_type_name() -> std::ffi::CString;
-    fn create_sertype_ops() -> Box<ddsi_sertype_ops>;
-    fn create_serdata_ops() -> Box<ddsi_serdata_ops>;
-}
 
 unsafe extern "C" fn zero_samples<T>(
     sertype: *const ddsi_sertype,
@@ -206,11 +193,12 @@ unsafe extern "C" fn serdata_from_iov<T>(
     niov: u64,
     iov: *const iovec,
     size: u64,
-) -> *mut ddsi_serdata {
+) -> *mut ddsi_serdata 
+where T : DeserializeOwned {
     let size = size as usize;
     let niov = niov as usize;
 
-    let serdata = SerData::<T>::new(sertype, kind);
+    let mut serdata = SerData::<T>::new(sertype, kind);
 
     let iovs =
         std::slice::from_raw_parts(iov as *mut *const cyclonedds_sys::iovec, niov as usize);
@@ -225,6 +213,17 @@ unsafe extern "C" fn serdata_from_iov<T>(
         })
         .collect();
 
+          // make a reader out of the sg_list
+    let reader = SGReader::new(iov_slices);
+    if let Ok(decoded) = cdr::deserialize_from::<_,T,_>(reader, Bounded(size as u64) ) {
+        let sample = std::sync::Arc::new(decoded);
+        //store the deserialized sample in the serdata. We don't need to deserialize again
+        serdata.maybe_sample = Some(sample);
+    } else {
+        println!("Deserialization error!");
+        return std::ptr::null_mut();
+    }
+
     // convert into raw pointer and forget about it as ownership is passed into cyclonedds
     let ptr = Box::into_raw(serdata);
     // only we know this ddsi_serdata is really of type SerData
@@ -238,67 +237,70 @@ unsafe extern "C" fn free_serdata<T>(serdata: *mut ddsi_serdata) {
     // _data goes out of scope and frees the SerData. Nothing more to do here.
 }
 
-// test
-impl Topic for TopicStruct {
-    fn get_type_name() -> std::ffi::CString {
-        std::ffi::CString::new(format!("{}::TopicStruct", module_path!()))
-            .expect("Unable to create CString for type name")
-    }
-    fn create_sertype_ops() -> Box<ddsi_sertype_ops> {
-        Box::new(ddsi_sertype_ops {
-            version: Some(ddsi_sertype_v0),
-            arg: std::ptr::null_mut(),
-            free: Some(free_sertype::<Self>),
-            zero_samples: Some(zero_samples::<Self>),
-            realloc_samples: Some(realloc_samples::<Self>),
-            free_samples: Some(free_samples::<Self>),
-            equal: Some(Self::equal),
-            hash: Some(Self::hash),
-            typeid_hash: None,
-            serialized_size: None,
-            serialize: None,
-            deserialize: None,
-            assignable_from: None,
-        })
-    }
-    fn create_serdata_ops() -> Box<ddsi_serdata_ops> {
-        Box::new(ddsi_serdata_ops {
-            eqkey: todo!(),
-            get_size: todo!(),
-            from_ser: Some(serdata_from_fragchain::<Self>),
-            from_ser_iov: Some(serdata_from_iov::<Self>),
-            from_keyhash: todo!(),
-            from_sample: todo!(),
-            to_ser: todo!(),
-            to_ser_ref: todo!(),
-            to_ser_unref: todo!(),
-            to_sample: todo!(),
-            to_untyped: todo!(),
-            untyped_to_sample: todo!(),
-            free: Some(free_serdata::<Self>),
-            print: todo!(),
-            get_keyhash: todo!(),
-        })
-    }
-
+fn get_type_name<T>() -> std::ffi::CString {
+    std::ffi::CString::new(format!("{}", std::any::type_name::<T>()))
+        .expect("Unable to create CString for type name")
 }
 
-impl TopicStruct {
-    pub fn create_type() -> *mut ddsi_sertype {
-        let sertype = SerType::<TopicStruct>::new();
-        let ptr = Box::into_raw(sertype);
-        ptr as *mut ddsi_sertype
-     }
+//TODO: check if returning 0 is ok
+unsafe extern "C" fn get_size<T>(serdata: *const ddsi_serdata) -> u32 {
+    0
+}
 
+unsafe extern "C" fn eqkey<T>(serdata_a: *const ddsi_serdata, serdata_b: *const ddsi_serdata) -> bool {
+    let a = SerData::<T>::mut_ref_from_serdata(serdata_a);
+    let b = SerData::<T>::mut_ref_from_serdata(serdata_b);
+    a.key_hash.value == b.key_hash.value
+}
+
+fn create_sertype_ops<T>() -> Box<ddsi_sertype_ops> 
+where T: Default {
+    Box::new(ddsi_sertype_ops {
+        version: Some(ddsi_sertype_v0),
+        arg: std::ptr::null_mut(),
+        free: Some(free_sertype::<T>),
+        zero_samples: Some(zero_samples::<T>),
+        realloc_samples: Some(realloc_samples::<T>),
+        free_samples: Some(free_samples::<T>),
+        equal: Some(equal::<T>),
+        hash: Some(hash::<T>),
+        typeid_hash: None,
+        serialized_size: None,
+        serialize: None,
+        deserialize: None,
+        assignable_from: None,
+    })
+}
+
+fn create_serdata_ops<T>() -> Box<ddsi_serdata_ops> 
+where T : DeserializeOwned {
+    Box::new(ddsi_serdata_ops {
+        eqkey: Some(eqkey::<T>),
+        get_size: Some(get_size::<T>),
+        from_ser: Some(serdata_from_fragchain::<T>),
+        from_ser_iov: Some(serdata_from_iov::<T>),
+        from_keyhash: todo!(),
+        from_sample: todo!(),
+        to_ser: todo!(),
+        to_ser_ref: todo!(),
+        to_ser_unref: todo!(),
+        to_sample: todo!(),
+        to_untyped: todo!(),
+        untyped_to_sample: todo!(),
+        free: Some(free_serdata::<T>),
+        print: todo!(),
+        get_keyhash: todo!(),
+    })
+}
 
     // not sure what this needs to do. The C++ implementation at
     // https://github.com/eclipse-cyclonedds/cyclonedds-cxx/blob/templated-streaming/src/ddscxx/include/org/eclipse/cyclonedds/topic/datatopic.hpp
     // just returns 0
-    unsafe extern "C" fn hash(_acmn: *const ddsi_sertype) -> u32 {
+    unsafe extern "C" fn hash<T>(_acmn: *const ddsi_sertype) -> u32 {
         0
     }
 
-    unsafe extern "C" fn equal(acmn: *const ddsi_sertype, bcmn: *const ddsi_sertype) -> bool {
+    unsafe extern "C" fn equal<T>(acmn: *const ddsi_sertype, bcmn: *const ddsi_sertype) -> bool {
 
         let acmn = CStr::from_ptr((*acmn).type_name as *mut i8);
         let bcmn = CStr::from_ptr((*bcmn).type_name as *mut i8);
@@ -310,12 +312,7 @@ impl TopicStruct {
 
     }
 
-   
 
-   
-
- 
-}
 
 /// A representation for the serialized data.
 #[repr(C)]
@@ -325,7 +322,7 @@ struct SerData<T> {
     key_hash : ddsi_keyhash,
 }
 
-impl <T>SerData<T> {
+impl <'a,T>SerData<T> {
     fn new(sertype: *const ddsi_sertype, kind: u32) -> Box<SerData<T>> {
         Box::<SerData<T>>::new(SerData {
             serdata: {
@@ -338,6 +335,11 @@ impl <T>SerData<T> {
             maybe_sample : None,
             key_hash : ddsi_keyhash::default()
         })
+    }
+
+    fn mut_ref_from_serdata(serdata: *const ddsi_serdata) -> &'a mut Self {
+        let ptr = serdata as *mut SerData<T>;
+        unsafe {&mut*ptr}
     }
 }
 
