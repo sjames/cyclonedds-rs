@@ -11,7 +11,7 @@ homepage = "https://github.com/sjames/cyclonedds-rs"
 
 [dependencies]
 #cyclonedds-sys = "0.1.1"
-cyclonedds-sys = {path = "../cyclonedds-sys"}
+cyclonedds-sys = {git = "https://github.com/sjames/cyclonedds-sys.git"}
 bit_field = "0.10"
 cdr = "0.2.4"
 serde = "1.0.126"
