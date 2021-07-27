@@ -304,12 +304,7 @@ where T : DeserializeOwned {
 
         let acmn = CStr::from_ptr((*acmn).type_name as *mut i8);
         let bcmn = CStr::from_ptr((*bcmn).type_name as *mut i8);
-        if acmn == bcmn {
-            true
-        } else {
-            false
-        }
-
+        acmn == bcmn
     }
 
 
