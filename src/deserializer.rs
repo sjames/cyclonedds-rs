@@ -457,7 +457,7 @@ mod test {
 
     #[test]
     fn basic() {
-        let t = TopicStruct::create_type();
+        let t =  SerType::<TopicStruct>::new();
     }
 }
 
