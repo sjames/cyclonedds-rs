@@ -20,7 +20,7 @@
 use cdr::{Bounded, CdrBe, Infinite};
 use serde::{Deserialize, __private::ser, de::DeserializeOwned};
 use serde_derive::{Deserialize, Serialize};
-use std::{ffi::{CStr, c_void}, fmt::format, marker::PhantomData, mem::{self, MaybeUninit}, ops::{Add, Deref}};
+use std::{ffi::{CStr, c_void}, fmt::format, marker::PhantomData, mem::{self, MaybeUninit}, ops::{Add, Deref}, sync::Arc};
 use std::io::prelude::*;
 use cyclonedds_sys::*;
 
@@ -59,6 +59,11 @@ impl <'a,T>SerType<T> {
     }
 }
 
+/// A sample is simply a smart pointer. The storage for the sample
+/// is in the serdata structure.
+struct Sample<T> {
+    it: Option<Arc<T>>
+}
 
 unsafe extern "C" fn zero_samples<T>(
     sertype: *const ddsi_sertype,
@@ -260,6 +265,21 @@ unsafe extern "C" fn eqkey<T>(serdata_a: *const ddsi_serdata, serdata_b: *const 
     a.key_hash.value == b.key_hash.value
 }
 
+unsafe extern "C" fn serdata_to_ser<T>(serdata: *const ddsi_serdata, size: u64, offset: u64, buf: *mut c_void) {
+    todo!()
+}
+
+unsafe extern "C" fn serdata_to_ser_ref<T>(serdata: *const ddsi_serdata, offset: u64, size: u64, iov : *mut iovec) -> *mut ddsi_serdata {
+    std::ptr::null_mut()
+}
+
+unsafe extern "C" fn serdata_to_ser_unref<T>(serdata: *mut ddsi_serdata, iov: *const iovec) {
+   unsafe {
+       todo!()
+       //ddsi_serdata_unref(serdata)
+   } 
+}
+
 fn create_sertype_ops<T>() -> Box<ddsi_sertype_ops> 
 where T: Default {
     Box::new(ddsi_sertype_ops {
@@ -288,9 +308,9 @@ where T : DeserializeOwned {
         from_ser_iov: Some(serdata_from_iov::<T>),
         from_keyhash: Some(serdata_from_keyhash::<T>),
         from_sample: Some(serdata_from_sample::<T>),
-        to_ser: todo!(),
-        to_ser_ref: todo!(),
-        to_ser_unref: todo!(),
+        to_ser: Some(serdata_to_ser::<T>),
+        to_ser_ref: Some(serdata_to_ser_ref::<T>),
+        to_ser_unref: Some(serdata_to_ser_unref::<T>),
         to_sample: todo!(),
         to_untyped: todo!(),
         untyped_to_sample: todo!(),
