@@ -280,7 +280,11 @@ where T : DeserializeOwned + Topic {
         .collect();
 
           // make a reader out of the sg_list
-    let reader = SGReader::new(iov_slices);
+    let mut reader = SGReader::new(iov_slices);
+    // skip the cdr_encoding options that cyclone inserts.
+    let mut cdr_encoding_options = [0u8;4];
+    let _ = reader.read_exact(&mut cdr_encoding_options);
+
     if let Ok(decoded) = cdr::deserialize_from::<_,T,_>(reader, Bounded(size as u64) ) {
         if T::has_key() {
             serdata.serdata.hash = decoded.hash();
@@ -306,11 +310,11 @@ unsafe extern "C" fn free_serdata<T>(serdata: *mut ddsi_serdata) {
     // _data goes out of scope and frees the SerData. Nothing more to do here.
 }
 
-//TODO: check if returning 0 is ok
 unsafe extern "C" fn get_size<T>(serdata: *const ddsi_serdata) -> u32 where T: Serialize {
     let serdata = SerData::<T>::const_ref_from_serdata(serdata);
     if let SampleData::SDKData(serdata) = &serdata.sample {
-        cdr::calc_serialized_size(&serdata.deref()) as u32
+        //TODO: should we add 4 bytes here??
+        (cdr::calc_serialized_size(&serdata.deref()) + 4 )as u32 
     } else {
         0
     }
