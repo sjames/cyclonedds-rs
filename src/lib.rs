@@ -15,6 +15,7 @@
 */
 #![feature(vec_into_raw_parts)]
 #![feature(new_uninit)]
+#![feature(num_as_ne_bytes)]
 
 pub mod alloc;
 mod common;

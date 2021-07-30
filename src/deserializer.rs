@@ -17,19 +17,37 @@
 // Rust deserializer for CycloneDDS.
 // See discussion at https://github.com/eclipse-cyclonedds/cyclonedds/issues/830
 
-use cdr::{Bounded, CdrBe, Infinite};
-use serde::{Deserialize, __private::ser, de::DeserializeOwned};
+use cdr::{Bounded, CdrBe, Infinite, SizeLimit};
+use serde::{Deserialize, Serialize, __private::ser, de::DeserializeOwned};
 use serde_derive::{Deserialize, Serialize};
 use std::{ffi::{CStr, c_void}, fmt::format, marker::PhantomData, mem::{self, MaybeUninit}, ops::{Add, Deref}, sync::Arc};
 use std::io::prelude::*;
+
+use std::hash::Hasher;
+
 use cyclonedds_sys::*;
+use fasthash::{murmur3::Hasher32, FastHasher};
 
-//const mod_path : String = format!("{}::TopicStruct\0",  module_path!());
-
+// TEST DATA
 #[derive(Default, Deserialize, Serialize, PartialEq)]
 struct TopicStruct {
+    //key
     a: u32,
+    b: u32,
 }
+
+impl Topic for TopicStruct {
+    fn hash(&self) -> u32 {
+        let mut h = Hasher32::new();
+        h.write(self.a.as_ne_bytes());
+        h.finish() as u32
+    }
+    fn has_key() -> bool {
+        true
+    }
+}
+
+// END of TEST DATA
 
 #[repr(C)]
 struct SerType<T> {
@@ -37,19 +55,38 @@ struct SerType<T> {
     _phantom : PhantomData<T>
 }
 
+pub trait Topic {
+    // generate a non-cryptographic hash of the key values to be used internally
+    // in cyclonedds
+    fn hash(&self) -> u32 {
+        0
+    }
+    fn typename() -> std::ffi::CString {
+        std::ffi::CString::new(format!("{}", std::any::type_name::<Self>()))
+        .expect("Unable to create CString for type name")
+    }
+    fn has_key() -> bool;
+    // this is the key hash as defined in the DDS-RTPS spec. 
+    // KeyHash (PID_KEY_HASH)
+    fn key_hash() -> [u8;16] {
+        [0;16]
+    }
+}
+
+
 impl <'a,T>SerType<T> {
     fn new() -> Box<SerType<T>> 
-    where T: Default + DeserializeOwned {
+    where T: Default + DeserializeOwned + Serialize + Topic {
         Box::<SerType<T>>::new(SerType {
             sertype: {
                 let mut sertype = std::mem::MaybeUninit::uninit();
                 unsafe {
                     ddsi_sertype_init(
                         sertype.as_mut_ptr(),
-                        get_type_name::<T>().as_ptr(),
+                        T::typename().as_ptr(),
                         Box::into_raw(create_sertype_ops::<T>()),
                         Box::into_raw(create_serdata_ops::<T>()),
-                        true,
+                        !T::has_key(),
                     );
                     sertype.assume_init()
                 } 
@@ -65,6 +102,19 @@ struct Sample<T> {
     it: Option<Arc<T>>
 }
 
+impl <T>Sample<T> {
+    fn get(&self) -> Option<&T> {
+        self.it.as_ref().map(|it| it.as_ref())
+    }
+}
+
+impl <T>Default for Sample<T> {
+    fn default() -> Self {
+        Sample { it: None}
+    }
+}
+
+
 unsafe extern "C" fn zero_samples<T>(
     sertype: *const ddsi_sertype,
     ptr: *mut std::ffi::c_void,
@@ -79,9 +129,9 @@ extern "C" fn realloc_samples<T>(
     new_count: u64,
 ) {
     let old = unsafe {
-        Vec::<T>::from_raw_parts(old as *mut T, old_count as usize, old_count as usize)
+        Vec::<Sample<T>>::from_raw_parts(old as *mut Sample<T>, old_count as usize, old_count as usize)
     };
-    let mut new = Vec::<T>::with_capacity(new_count as usize);
+    let mut new = Vec::<Sample<T>>::with_capacity(new_count as usize);
 
     let copy_count = if new_count < old_count {
         new_count
@@ -95,7 +145,7 @@ extern "C" fn realloc_samples<T>(
             break; // break out if we reached the allocated amount
         }
     }
-    // left over samples in the old vector will get freed when it goes out of scope.
+    // leftover samples in the old vector will get freed when it goes out of scope.
     // TODO: must test this.
 
     let (raw, length, allocated_length) = new.into_raw_parts();
@@ -112,16 +162,16 @@ extern "C" fn free_samples<T>(
     len: u64,
     op: dds_free_op_t,
 ) where T: Default {
-    let ptrs_v: *mut *mut T = ptrs as *mut *mut T;
+    let ptrs_v: *mut *mut Sample<T> = ptrs as *mut *mut Sample<T>;
 
     if (op & DDS_FREE_ALL_BIT) != 0 {
         let _samples =
-            unsafe { Vec::<T>::from_raw_parts(*ptrs_v, len as usize, len as usize) };
+            unsafe { Vec::<Sample<T>>::from_raw_parts(*ptrs_v, len as usize, len as usize) };
         // all samples will get freed when samples goes out of scope
     } else {
         assert_ne!(op & DDS_FREE_CONTENTS_BIT, 0);
         let mut samples =
-            unsafe { Vec::<T>::from_raw_parts(*ptrs_v, len as usize, len as usize) };
+            unsafe { Vec::<Sample<T>>::from_raw_parts(*ptrs_v, len as usize, len as usize) };
         for sample in samples.iter_mut() {
             let _old_sample = std::mem::take(sample);
             //_old_sample goes out of scope and the content is freed. The pointer is replaced with a default constructed sample
@@ -148,8 +198,7 @@ unsafe extern "C" fn free_sertype<T>(sertype: *mut cyclonedds_sys::ddsi_sertype)
     mut fragchain: *const nn_rdata,
     size: u64,
 ) -> *mut ddsi_serdata 
-where T: DeserializeOwned {
-    //make it a reference for convenience
+where T: DeserializeOwned + Topic {
     let off : u32 = 0;
     let size = size as usize;
     let fragchain_ref = &*fragchain;
@@ -177,13 +226,18 @@ where T: DeserializeOwned {
     // make a reader out of the sg_list
     let reader = SGReader::new(sg_list);
     if let Ok(decoded) = cdr::deserialize_from::<_,T,_>(reader, Bounded(size as u64) ) {
+        if T::has_key() {
+            serdata.serdata.hash = decoded.hash();
+        }
         let sample = std::sync::Arc::new(decoded);
         //store the deserialized sample in the serdata. We don't need to deserialize again
-        serdata.maybe_sample = Some(sample);
+        serdata.sample = SampleData::SDKData(sample);
     } else {
         println!("Deserialization error!");
         return std::ptr::null_mut();
     }
+
+    //store the hash into the serdata
 
     // convert into raw pointer and forget about it (for now). Cyclone will take ownership.
     let ptr = Box::into_raw(serdata);
@@ -206,7 +260,7 @@ unsafe extern "C" fn serdata_from_iov<T>(
     iov: *const iovec,
     size: u64,
 ) -> *mut ddsi_serdata 
-where T : DeserializeOwned {
+where T : DeserializeOwned + Topic {
     let size = size as usize;
     let niov = niov as usize;
 
@@ -228,9 +282,12 @@ where T : DeserializeOwned {
           // make a reader out of the sg_list
     let reader = SGReader::new(iov_slices);
     if let Ok(decoded) = cdr::deserialize_from::<_,T,_>(reader, Bounded(size as u64) ) {
+        if T::has_key() {
+            serdata.serdata.hash = decoded.hash();
+        }
         let sample = std::sync::Arc::new(decoded);
         //store the deserialized sample in the serdata. We don't need to deserialize again
-        serdata.maybe_sample = Some(sample);
+        serdata.sample = SampleData::SDKData(sample);
     } else {
         println!("Deserialization error!");
         return std::ptr::null_mut();
@@ -249,14 +306,15 @@ unsafe extern "C" fn free_serdata<T>(serdata: *mut ddsi_serdata) {
     // _data goes out of scope and frees the SerData. Nothing more to do here.
 }
 
-fn get_type_name<T>() -> std::ffi::CString {
-    std::ffi::CString::new(format!("{}", std::any::type_name::<T>()))
-        .expect("Unable to create CString for type name")
-}
-
 //TODO: check if returning 0 is ok
-unsafe extern "C" fn get_size<T>(serdata: *const ddsi_serdata) -> u32 {
-    0
+unsafe extern "C" fn get_size<T>(serdata: *const ddsi_serdata) -> u32 where T: Serialize {
+    let serdata = SerData::<T>::const_ref_from_serdata(serdata);
+    if let SampleData::SDKData(serdata) = &serdata.sample {
+        cdr::calc_serialized_size(&serdata.deref()) as u32
+    } else {
+        0
+    }
+    
 }
 
 unsafe extern "C" fn eqkey<T>(serdata_a: *const ddsi_serdata, serdata_b: *const ddsi_serdata) -> bool {
@@ -265,19 +323,68 @@ unsafe extern "C" fn eqkey<T>(serdata_a: *const ddsi_serdata, serdata_b: *const 
     a.key_hash.value == b.key_hash.value
 }
 
-unsafe extern "C" fn serdata_to_ser<T>(serdata: *const ddsi_serdata, size: u64, offset: u64, buf: *mut c_void) {
-    todo!()
+unsafe extern "C" fn serdata_to_ser<T>(serdata: *const ddsi_serdata, size: u64, offset: u64, buf: *mut c_void) where T: Serialize + Topic {
+    let serdata = SerData::<T>::const_ref_from_serdata(serdata);
+    if let SampleData::SDKData(serdata) = &serdata.sample {
+        let buf = buf as *mut u8;
+        let buf_slice = std::slice::from_raw_parts_mut(buf.add(offset as usize), size as usize);
+        if let Err(e) = cdr::serialize_into::<_,T,_,CdrBe>(buf_slice, &serdata.deref(), Bounded(size as u64)) {
+            panic!("Unable to serialize type {:?} due to {}", T::typename(), e);
+        }
+    } else {
+        panic!("Attempt to serialize without data");
+    }
 }
 
-unsafe extern "C" fn serdata_to_ser_ref<T>(serdata: *const ddsi_serdata, offset: u64, size: u64, iov : *mut iovec) -> *mut ddsi_serdata {
-    std::ptr::null_mut()
+
+unsafe extern "C" fn serdata_to_ser_ref<T>(serdata: *const ddsi_serdata, offset: u64, size: u64, iov : *mut iovec) -> *mut ddsi_serdata where T: Serialize + Topic {
+    let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
+    let iov = &mut *iov;
+    if serdata.cdr.is_none() {
+        if let SampleData::SDKData(sample) = &serdata.sample {
+            if let Ok(data) = cdr::serialize::<T,_,CdrBe>(&sample.as_ref(), Infinite ) {
+                serdata.cdr = Some(data);
+                
+            } else {
+                panic!("Unable to serialize type {:?} due to", T::typename());
+            }
+        } else {
+            panic!("Attempt to serialize without data");
+        }
+    }
+
+    if let Some(cdr) = &serdata.cdr {
+        iov.iov_base = cdr.as_ptr() as *mut c_void;
+        iov.iov_len = cdr.len() as u64;
+        ddsi_serdata_addref(&serdata.serdata)
+    } else {
+        std::ptr::null_mut()
+    }   
 }
 
 unsafe extern "C" fn serdata_to_ser_unref<T>(serdata: *mut ddsi_serdata, iov: *const iovec) {
-   unsafe {
-       todo!()
-       //ddsi_serdata_unref(serdata)
-   } 
+    let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
+    ddsi_serdata_removeref(&mut serdata.serdata)
+}
+
+
+unsafe extern "C" fn serdata_to_sample<T>(serdata: *const ddsi_serdata, sample: *mut c_void, _bufptr:  *mut *mut c_void, _buflim: *mut c_void) -> bool {
+    let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
+    let sample = &mut *(sample as *mut Sample<T>);
+    if let SampleData::SDKData(data) = &serdata.sample {
+        sample.it = Some(data.clone());
+        false
+    }  else {
+        true
+    }
+}
+
+unsafe extern "C" fn serdata_to_untyped<T>(serdata: *const ddsi_serdata) -> *mut ddsi_serdata {
+    let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
+    let new_serdata = SerData::<T>::new(serdata.serdata.type_, serdata.serdata.kind);
+    
+    let ptr =  Box::into_raw(new_serdata);
+    ptr as *mut ddsi_serdata
 }
 
 fn create_sertype_ops<T>() -> Box<ddsi_sertype_ops> 
@@ -300,7 +407,7 @@ where T: Default {
 }
 
 fn create_serdata_ops<T>() -> Box<ddsi_serdata_ops> 
-where T : DeserializeOwned {
+where T : DeserializeOwned + Topic + Serialize  {
     Box::new(ddsi_serdata_ops {
         eqkey: Some(eqkey::<T>),
         get_size: Some(get_size::<T>),
@@ -311,8 +418,8 @@ where T : DeserializeOwned {
         to_ser: Some(serdata_to_ser::<T>),
         to_ser_ref: Some(serdata_to_ser_ref::<T>),
         to_ser_unref: Some(serdata_to_ser_unref::<T>),
-        to_sample: todo!(),
-        to_untyped: todo!(),
+        to_sample: Some(serdata_to_sample::<T>),
+        to_untyped: Some(serdata_to_untyped::<T>),
         untyped_to_sample: todo!(),
         free: Some(free_serdata::<T>),
         print: todo!(),
@@ -335,12 +442,27 @@ where T : DeserializeOwned {
     }
 
 
+enum SampleData<T> {
+    Uninitialized,
+    SDKKey(Vec<u8>),
+    SDKData(std::sync::Arc<T>)
+}
+
+impl <T>Default for SampleData<T> {
+    fn default() -> Self {
+        Self::Uninitialized
+    }
+}
+
 
 /// A representation for the serialized data.
 #[repr(C)]
 struct SerData<T> {
     serdata: ddsi_serdata,
-    maybe_sample : Option<std::sync::Arc<T>>,
+    sample : SampleData<T>,
+    //data in CDR format. This is put into an option as we only create
+    //the serialized version when we need it
+    cdr : Option<Vec<u8>>,
     key_hash : ddsi_keyhash,
 }
 
@@ -354,9 +476,15 @@ impl <'a,T>SerData<T> {
                     data.assume_init()
                 }
             },
-            maybe_sample : None,
+            sample : SampleData::default(),
+            cdr : None,
             key_hash : ddsi_keyhash::default()
         })
+    }
+
+    fn const_ref_from_serdata(serdata: *const ddsi_serdata) ->&'a Self {
+        let ptr = serdata as *const SerData<T>;
+        unsafe {&*ptr} 
     }
 
     fn mut_ref_from_serdata(serdata: *const ddsi_serdata) -> &'a mut Self {
@@ -388,8 +516,11 @@ fn nn_rmsg_payload_offset(rmsg : *const nn_rmsg, offset: usize) -> * const u8{
 
 
 
+
+
+
 /// A reader for a list of scatter gather buffers
-struct SGReader<'a> {
+struct SGReader<'a> { 
     sc_list: Option<Vec<&'a [u8]>>,
     //the current slice that is used
     slice_cursor: usize,
