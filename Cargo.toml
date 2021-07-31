@@ -18,6 +18,9 @@ cdr = "0.2.4"
 serde = "1.0.126"
 serde_derive = "1.0.126"
 fasthash = "0.4.0"
+dds_derive = {path = "dds_derive"}
 
-#[dev-dependencies]
+
+[dev-dependencies]
 #helloworld_data = { path = "./testdata/helloworld_data" }
+

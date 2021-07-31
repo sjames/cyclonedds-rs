@@ -28,12 +28,27 @@ use std::hash::Hasher;
 use cyclonedds_sys::*;
 use fasthash::{murmur3::Hasher32, FastHasher};
 
+use dds_derive::Topic;
+
+
+#[derive(Default, Deserialize, Serialize, PartialEq, Topic, Clone)]
+struct NestedStructWithKey {
+    #[topic_key]
+    a : u32,
+    b : String,
+    c : u8,
+    d : Vec<u8>,
+}
+
 // TEST DATA
-#[derive(Default, Deserialize, Serialize, PartialEq)]
+#[derive(Default, Deserialize, Serialize, PartialEq, Topic)]
 struct TopicStruct {
-    //key
+    #[topic_key]
     a: u32,
     b: u32,
+    c: [u8;32],
+    #[topic_key]
+    d: NestedStructWithKey,
 }
 
 impl Topic for TopicStruct {
@@ -340,7 +355,7 @@ unsafe extern "C" fn serdata_to_ser<T>(serdata: *const ddsi_serdata, size: u64, 
     }
 }
 
-
+//TODO: ADjust buffer to 4 bytes CDR header
 unsafe extern "C" fn serdata_to_ser_ref<T>(serdata: *const ddsi_serdata, offset: u64, size: u64, iov : *mut iovec) -> *mut ddsi_serdata where T: Serialize + Topic {
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
     let iov = &mut *iov;
