@@ -12,7 +12,11 @@ pub fn derive_topic(item: TokenStream) -> TokenStream {
         println!("Struct has KEY");    
     }
 
-    let ts = build_key_holder_struct(&topic_struct);
+    let mut ts = build_key_holder_struct(&topic_struct);
+    let ts2 = create_keyhash_functions(&topic_struct);
+
+    ts.extend(ts2);
+    
 
     println!("KEYHOLDER:{:?}",ts.clone().to_string());
 
@@ -85,6 +89,37 @@ fn build_key_holder_struct(item : &syn::ItemStruct) -> TokenStream {
     };
 
     ts.into() 
+}
+
+// create the keyhash methods for this type
+fn create_keyhash_functions(item : &syn::ItemStruct) -> TokenStream {
+    let topic_key_ident = &item.ident;
+    let topic_key_holder_ident =  quote::format_ident!("{}KeyHolder_",&item.ident);
+
+    let ts = quote!{
+        impl Topic for #topic_key_ident {
+            fn key_cdr(&self) -> Vec<u8> {
+                let holder_struct : #topic_key_holder_ident = self.into();
+                let encoded = cdr::serialize::<_, _, CdrBe>(&holder_struct, cdr::Infinite).expect("Unable to serialize key");
+               encoded
+            }
+            
+            fn has_key() -> bool {
+                if std::mem::size_of::<#topic_key_holder_ident>() > 0 {
+                    true
+                } else {
+                    false
+                } 
+            }
+
+            fn use_md5_keyhash() -> bool {
+                true
+            }
+        }
+    };
+
+    ts.into()
+    
 }
 
 fn struct_has_key(it: &ItemStruct) -> bool {

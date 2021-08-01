@@ -37,6 +37,7 @@ use fasthash::{murmur3::Hasher32, FastHasher};
 
 use dds_derive::Topic;
 
+// TEST DATA
 #[derive(Default, Deserialize, Serialize, PartialEq, Topic, Clone)]
 struct NestedStructWithKey {
     #[topic_key]
@@ -46,7 +47,7 @@ struct NestedStructWithKey {
     d: Vec<u8>,
 }
 
-// TEST DATA
+
 #[derive(Default, Deserialize, Serialize, PartialEq, Topic)]
 struct TopicStruct {
     #[topic_key]
@@ -55,17 +56,6 @@ struct TopicStruct {
     c: [u8; 32],
     #[topic_key]
     d: NestedStructWithKey,
-}
-
-impl Topic for TopicStruct {
-    fn hash(&self) -> u32 {
-        let mut h = Hasher32::new();
-        h.write(self.a.as_ne_bytes());
-        h.finish() as u32
-    }
-    fn has_key() -> bool {
-        true
-    }
 }
 
 // END of TEST DATA
@@ -80,7 +70,10 @@ pub trait Topic {
     // generate a non-cryptographic hash of the key values to be used internally
     // in cyclonedds
     fn hash(&self) -> u32 {
-        0
+        let mut h = Hasher32::new();
+        let cdr = self.key_cdr();
+        h.write(&cdr[..]);
+        h.finish() as u32
     }
     fn typename() -> std::ffi::CString {
         std::ffi::CString::new(format!("{}", std::any::type_name::<Self>()))
@@ -89,9 +82,11 @@ pub trait Topic {
     fn has_key() -> bool;
     // this is the key hash as defined in the DDS-RTPS spec.
     // KeyHash (PID_KEY_HASH)
-    fn key_hash() -> [u8; 16] {
-        [0; 16]
+    fn key_cdr(&self) -> Vec<u8> {
+        Vec::new()
     }
+
+    fn use_md5_keyhash() -> bool;
 }
 
 impl<'a, T> SerType<T> {
