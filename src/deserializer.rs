@@ -290,10 +290,21 @@ fn compute_key_hash <T>(key_cdr: &[u8], serdata: &mut Box<SerData<T>>) where T: 
 
 #[allow(dead_code)]
 unsafe extern "C" fn serdata_from_keyhash<T>(
-    _sertype: *const ddsi_sertype,
-    _keyhash: *const ddsi_keyhash,
+    sertype: *const ddsi_sertype,
+    keyhash: *const ddsi_keyhash,
 ) -> *mut ddsi_serdata {
-    todo!();
+
+    let mut serdata = SerData::<T>::new(sertype, ddsi_serdata_kind_SDK_KEY);
+    let keyhash = (&*keyhash).value;
+    serdata.sample = SampleData::SDKKey;
+    let mut key_hash = &mut serdata.key_hash[4..];
+    for (i,b) in keyhash.iter().enumerate() {
+        key_hash[i] = *b;
+    }
+
+    let ptr = Box::into_raw(serdata);
+    // only we know this ddsi_serdata is really of type SerData
+    ptr as *mut ddsi_serdata
 }
 
 #[allow(dead_code)]
@@ -633,7 +644,7 @@ struct SerData<T> {
     cdr: Option<Vec<u8>>,
     //key_hash: ddsi_keyhash,
     // include 4 bytes of CDR encapsulation header
-    key_hash : [u8;24],
+    key_hash : [u8;20],
 }
 
 impl<'a, T> SerData<T> {
@@ -648,7 +659,7 @@ impl<'a, T> SerData<T> {
             },
             sample: SampleData::default(),
             cdr: None,
-            key_hash: [0;24],
+            key_hash: [0;20],
         })
     }
 
