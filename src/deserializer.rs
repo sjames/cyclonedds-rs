@@ -18,6 +18,7 @@
 // See discussion at https://github.com/eclipse-cyclonedds/cyclonedds/issues/830
 
 use cdr::{Bounded, CdrBe, Infinite, SizeLimit};
+use serde::de::value;
 use serde::{Deserialize, Serialize, __private::ser, de::DeserializeOwned};
 use serde_derive::{Deserialize, Serialize};
 use std::io::prelude::*;
@@ -35,33 +36,10 @@ use std::hash::Hasher;
 use cyclonedds_sys::*;
 use fasthash::{murmur3::Hasher32, FastHasher};
 
-use dds_derive::Topic;
 
-// TEST DATA
-#[derive(Default, Deserialize, Serialize, PartialEq, Topic, Clone)]
-struct NestedStructWithKey {
-    #[topic_key]
-    a: u32,
-    b: String,
-    c: u8,
-    d: Vec<u8>,
-}
-
-
-#[derive(Default, Deserialize, Serialize, PartialEq, Topic)]
-struct TopicStruct {
-    #[topic_key]
-    a: u32,
-    b: u32,
-    c: [u8; 32],
-    #[topic_key]
-    d: NestedStructWithKey,
-}
-
-// END of TEST DATA
 
 #[repr(C)]
-struct SerType<T> {
+pub struct SerType<T> {
     sertype: ddsi_sertype,
     _phantom: PhantomData<T>,
 }
@@ -86,11 +64,13 @@ pub trait Topic {
         Vec::new()
     }
 
-    fn use_md5_keyhash() -> bool;
+    // force the use of md5 even if the serialized size is less than 16
+    // as per the standard, we need to check the potential field size and not the actual.
+    fn force_md5_keyhash() -> bool;
 }
 
 impl<'a, T> SerType<T> {
-    fn new() -> Box<SerType<T>>
+    pub fn new() -> Box<SerType<T>>
     where
         T: Default + DeserializeOwned + Serialize + Topic,
     {
@@ -115,12 +95,12 @@ impl<'a, T> SerType<T> {
 
 /// A sample is simply a smart pointer. The storage for the sample
 /// is in the serdata structure.
-struct Sample<T> {
+pub struct Sample<T> {
     it: Option<Arc<T>>,
 }
 
 impl<T> Sample<T> {
-    fn get(&self) -> Option<&T> {
+    pub fn get(&self) -> Option<&T> {
         self.it.as_ref().map(|it| it.as_ref())
     }
 }
@@ -131,13 +111,15 @@ impl<T> Default for Sample<T> {
     }
 }
 
+#[allow(dead_code)]
 unsafe extern "C" fn zero_samples<T>(
-    sertype: *const ddsi_sertype,
-    ptr: *mut std::ffi::c_void,
-    len: u64,
+    _sertype: *const ddsi_sertype,
+    _ptr: *mut std::ffi::c_void,
+    _len: u64,
 ) {
 } // empty implementation
 
+#[allow(dead_code)]
 extern "C" fn realloc_samples<T>(
     ptrs: *mut *mut std::ffi::c_void,
     _sertype: *const ddsi_sertype,
@@ -177,6 +159,7 @@ extern "C" fn realloc_samples<T>(
     }
 }
 
+#[allow(dead_code)]
 extern "C" fn free_samples<T>(
     _sertype: *const ddsi_sertype,
     ptrs: *mut *mut std::ffi::c_void,
@@ -202,6 +185,7 @@ extern "C" fn free_samples<T>(
     }
 }
 
+#[allow(dead_code)]
 unsafe extern "C" fn free_sertype<T>(sertype: *mut cyclonedds_sys::ddsi_sertype) {
     ddsi_sertype_fini(sertype);
 
@@ -216,6 +200,7 @@ unsafe extern "C" fn free_sertype<T>(sertype: *mut cyclonedds_sys::ddsi_sertype)
 }
 
 // create ddsi_serdata from a fragchain
+#[allow(dead_code)]
 unsafe extern "C" fn serdata_from_fragchain<T>(
     sertype: *const ddsi_sertype,
     kind: u32,
@@ -254,6 +239,11 @@ where
     if let Ok(decoded) = cdr::deserialize_from::<_, T, _>(reader, Bounded(size as u64)) {
         if T::has_key() {
             serdata.serdata.hash = decoded.hash();
+            // compute the 16byte key hash
+            let key_cdr = decoded.key_cdr();
+            // skip the four byte header
+            let key_cdr = &key_cdr[4..];
+            compute_key_hash(key_cdr, &mut serdata);
         }
         let sample = std::sync::Arc::new(decoded);
         //store the deserialized sample in the serdata. We don't need to deserialize again
@@ -271,6 +261,24 @@ where
     ptr as *mut ddsi_serdata
 }
 
+fn compute_key_hash <T>(key_cdr: &[u8], serdata: &mut Box<SerData<T>>) where T: Topic {
+    if T::force_md5_keyhash() || key_cdr.len() > 16 {
+        let mut md5st = ddsrt_md5_state_t::default(); 
+        let md5set = &mut md5st as *mut ddsrt_md5_state_s;
+        unsafe {
+            ddsrt_md5_init(md5set);
+            ddsrt_md5_append(md5set, key_cdr.as_ptr(), key_cdr.len() as u32);
+            ddsrt_md5_finish(md5set, serdata.key_hash.as_mut_ptr());
+        }
+    } else {
+        serdata.key_hash.fill(0);
+        for (i,data) in key_cdr.iter().enumerate() {
+            serdata.key_hash[i] = *data;
+        }
+    }
+}
+
+#[allow(dead_code)]
 unsafe extern "C" fn serdata_from_keyhash<T>(
     _sertype: *const ddsi_sertype,
     _keyhash: *const ddsi_keyhash,
@@ -278,6 +286,7 @@ unsafe extern "C" fn serdata_from_keyhash<T>(
     std::ptr::null_mut()
 }
 
+#[allow(dead_code)]
 unsafe extern "C" fn serdata_from_sample<T>(
     _sertype: *const ddsi_sertype,
     _kind: u32,
@@ -286,6 +295,7 @@ unsafe extern "C" fn serdata_from_sample<T>(
     std::ptr::null_mut()
 }
 
+#[allow(dead_code)]
 unsafe extern "C" fn serdata_from_iov<T>(
     sertype: *const ddsi_sertype,
     kind: u32,
@@ -321,6 +331,11 @@ where
     if let Ok(decoded) = cdr::deserialize_from::<_, T, _>(reader, Bounded(size as u64)) {
         if T::has_key() {
             serdata.serdata.hash = decoded.hash();
+            // compute the 16byte key hash
+            let key_cdr = decoded.key_cdr();
+            // skip the four byte header
+            let key_cdr = &key_cdr[4..];
+            compute_key_hash(key_cdr, &mut serdata);
         }
         let sample = std::sync::Arc::new(decoded);
         //store the deserialized sample in the serdata. We don't need to deserialize again
@@ -336,6 +351,7 @@ where
     ptr as *mut ddsi_serdata
 }
 
+#[allow(dead_code)]
 unsafe extern "C" fn free_serdata<T>(serdata: *mut ddsi_serdata) {
     // the pointer is really a *mut SerData
     let ptr = serdata as *mut SerData<T>;
@@ -343,28 +359,30 @@ unsafe extern "C" fn free_serdata<T>(serdata: *mut ddsi_serdata) {
     // _data goes out of scope and frees the SerData. Nothing more to do here.
 }
 
+#[allow(dead_code)]
 unsafe extern "C" fn get_size<T>(serdata: *const ddsi_serdata) -> u32
 where
     T: Serialize,
 {
     let serdata = SerData::<T>::const_ref_from_serdata(serdata);
-    if let SampleData::SDKData(serdata) = &serdata.sample {
-        //TODO: should we add 4 bytes here??
-        (cdr::calc_serialized_size(&serdata.deref()) + 4) as u32
-    } else {
-        0
+    match &serdata.sample {
+        SampleData::Uninitialized =>panic!("Uninitialized SerData. no size possible"),
+        SampleData::SDKKey => serdata.key_hash.len() as u32,
+        SampleData::SDKData(serdata) => (cdr::calc_serialized_size(&serdata.deref()) + 4) as u32,
     }
 }
 
+#[allow(dead_code)]
 unsafe extern "C" fn eqkey<T>(
     serdata_a: *const ddsi_serdata,
     serdata_b: *const ddsi_serdata,
 ) -> bool {
     let a = SerData::<T>::mut_ref_from_serdata(serdata_a);
     let b = SerData::<T>::mut_ref_from_serdata(serdata_b);
-    a.key_hash.value == b.key_hash.value
+    a.key_hash == b.key_hash
 }
 
+#[allow(dead_code)]
 unsafe extern "C" fn serdata_to_ser<T>(
     serdata: *const ddsi_serdata,
     size: u64,
@@ -374,24 +392,34 @@ unsafe extern "C" fn serdata_to_ser<T>(
     T: Serialize + Topic,
 {
     let serdata = SerData::<T>::const_ref_from_serdata(serdata);
-    if let SampleData::SDKData(serdata) = &serdata.sample {
-        let buf = buf as *mut u8;
-        let buf_slice = std::slice::from_raw_parts_mut(buf.add(offset as usize), size as usize);
-        if let Err(e) =
-            cdr::serialize_into::<_, T, _, CdrBe>(buf_slice, &serdata.deref(), Bounded(size as u64))
-        {
-            panic!("Unable to serialize type {:?} due to {}", T::typename(), e);
-        }
-    } else {
-        panic!("Attempt to serialize without data");
+    let buf = buf as *mut u8;
+    let buf = buf.add(offset as usize);
+
+    match &serdata.sample {
+        SampleData::Uninitialized => { panic!("Attempt to serialize uninitialized serdata")},
+        SampleData::SDKKey => {
+            // just copy the key hash that is already serialized. This includes the four byte CDR encapsulation header
+            std::ptr::copy_nonoverlapping(serdata.key_hash.as_ptr(), buf, size as usize);
+        },
+        SampleData::SDKData(serdata) => {
+            
+            let buf_slice = std::slice::from_raw_parts_mut(buf, size as usize);
+            if let Err(e) =
+                cdr::serialize_into::<_, T, _, CdrBe>(buf_slice, &serdata.deref(), Bounded(size as u64))
+            {
+                panic!("Unable to serialize type {:?} due to {}", T::typename(), e);
+            }
+        },
     }
+    
 }
 
 //TODO: ADjust buffer to 4 bytes CDR header
+#[allow(dead_code)]
 unsafe extern "C" fn serdata_to_ser_ref<T>(
     serdata: *const ddsi_serdata,
-    offset: u64,
-    size: u64,
+    _offset: u64,
+    _size: u64,
     iov: *mut iovec,
 ) -> *mut ddsi_serdata
 where
@@ -399,32 +427,42 @@ where
 {
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
     let iov = &mut *iov;
-    if serdata.cdr.is_none() {
-        if let SampleData::SDKData(sample) = &serdata.sample {
-            if let Ok(data) = cdr::serialize::<T, _, CdrBe>(&sample.as_ref(), Infinite) {
-                serdata.cdr = Some(data);
-            } else {
-                panic!("Unable to serialize type {:?} due to", T::typename());
-            }
-        } else {
-            panic!("Attempt to serialize without data");
-        }
-    }
 
-    if let Some(cdr) = &serdata.cdr {
-        iov.iov_base = cdr.as_ptr() as *mut c_void;
-        iov.iov_len = cdr.len() as u64;
-        ddsi_serdata_addref(&serdata.serdata)
-    } else {
-        std::ptr::null_mut()
+    match &serdata.sample {
+        SampleData::Uninitialized => panic!("Attempt to serialize uninitialized Sample"),
+        SampleData::SDKKey => {
+            iov.iov_base = serdata.key_hash.as_ptr() as *mut c_void;
+            iov.iov_len = serdata.key_hash.len() as u64;
+        }
+        SampleData::SDKData(_sample) => {
+            if serdata.cdr.is_none() {
+                if let SampleData::SDKData(sample) = &serdata.sample {
+                    if let Ok(data) = cdr::serialize::<T, _, CdrBe>(&sample.as_ref(), Infinite) {
+                        serdata.cdr = Some(data);
+                    } else {
+                        panic!("Unable to serialize type {:?} due to", T::typename());
+                    }
+                } else {
+                    panic!("Attempt to serialize without data");
+                }
+            }
+            
+            if let Some(cdr) = &serdata.cdr {
+                iov.iov_base = cdr.as_ptr() as *mut c_void;
+                iov.iov_len = cdr.len() as u64;
+            }
+        },
     }
+    ddsi_serdata_addref(&serdata.serdata)
 }
 
+#[allow(dead_code)]
 unsafe extern "C" fn serdata_to_ser_unref<T>(serdata: *mut ddsi_serdata, iov: *const iovec) {
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
     ddsi_serdata_removeref(&mut serdata.serdata)
 }
 
+#[allow(dead_code)]
 unsafe extern "C" fn serdata_to_sample<T>(
     serdata: *const ddsi_serdata,
     sample: *mut c_void,
@@ -441,13 +479,56 @@ unsafe extern "C" fn serdata_to_sample<T>(
     }
 }
 
+#[allow(dead_code)]
 unsafe extern "C" fn serdata_to_untyped<T>(serdata: *const ddsi_serdata) -> *mut ddsi_serdata {
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
-    let new_serdata = SerData::<T>::new(serdata.serdata.type_, serdata.serdata.kind);
+    
+    if let SampleData::<T>::SDKData(_d) = &serdata.sample {
+        let mut untyped_serdata = SerData::<T>::new(serdata.serdata.type_, ddsi_serdata_kind_SDK_KEY);
+        // untype it
+        untyped_serdata.serdata.type_ = std::ptr::null_mut();
+        untyped_serdata.sample = SampleData::SDKKey;
 
-    let ptr = Box::into_raw(new_serdata);
-    ptr as *mut ddsi_serdata
+        //copy the hashes
+        untyped_serdata.key_hash = serdata.key_hash;
+        untyped_serdata.serdata.hash = serdata.serdata.hash;
+
+        let ptr = Box::into_raw(untyped_serdata);
+        ptr as *mut ddsi_serdata
+
+    } else {
+        println!("Error: Cannot convert from untyped to untyped");
+        std::ptr::null_mut()
+    }
 }
+
+#[allow(dead_code)]
+unsafe extern "C" fn untyped_to_sample<T>(sertype: *const ddsi_sertype, 
+    serdata: *const ddsi_serdata, 
+    sample : *mut c_void, 
+    buf: *mut *mut c_void, 
+    buflim: *mut c_void) -> bool {
+
+        todo!()
+
+}
+
+#[allow(dead_code)]
+unsafe extern "C" fn get_keyhash<T>(serdata: *const ddsi_serdata, keyhash: *mut ddsi_keyhash, _force_md5: bool) {
+    let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
+    let keyhash = &mut *keyhash;
+    let source_key_hash = &serdata.key_hash[4..];
+    for (i,b) in source_key_hash.iter().enumerate() {
+        keyhash.value[i] = *b;
+    }
+    
+}
+
+#[allow(dead_code)]
+unsafe extern "C" fn print<T>(sertype: *const ddsi_sertype, serdata:  *const ddsi_serdata, buf:  *mut i8, bufsize: u64) -> u64 {
+    0
+}
+
 
 fn create_sertype_ops<T>() -> Box<ddsi_sertype_ops>
 where
@@ -486,10 +567,10 @@ where
         to_ser_unref: Some(serdata_to_ser_unref::<T>),
         to_sample: Some(serdata_to_sample::<T>),
         to_untyped: Some(serdata_to_untyped::<T>),
-        untyped_to_sample: todo!(),
+        untyped_to_sample: Some(untyped_to_sample::<T>),
         free: Some(free_serdata::<T>),
-        print: todo!(),
-        get_keyhash: todo!(),
+        print: Some(print::<T>),
+        get_keyhash: Some(get_keyhash::<T>),
     })
 }
 
@@ -508,7 +589,7 @@ unsafe extern "C" fn equal<T>(acmn: *const ddsi_sertype, bcmn: *const ddsi_serty
 
 enum SampleData<T> {
     Uninitialized,
-    SDKKey(Vec<u8>),
+    SDKKey,
     SDKData(std::sync::Arc<T>),
 }
 
@@ -526,7 +607,9 @@ struct SerData<T> {
     //data in CDR format. This is put into an option as we only create
     //the serialized version when we need it
     cdr: Option<Vec<u8>>,
-    key_hash: ddsi_keyhash,
+    //key_hash: ddsi_keyhash,
+    // include 4 bytes of CDR encapsulation header
+    key_hash : [u8;24],
 }
 
 impl<'a, T> SerData<T> {
@@ -541,7 +624,7 @@ impl<'a, T> SerData<T> {
             },
             sample: SampleData::default(),
             cdr: None,
-            key_hash: ddsi_keyhash::default(),
+            key_hash: [0;24],
         })
     }
 
@@ -631,6 +714,7 @@ impl<'a> Read for SGReader<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use dds_derive::Topic;
     #[test]
     fn scatter_gather() {
         let a = vec![1, 2, 3, 4, 5, 6];
@@ -670,9 +754,6 @@ mod test {
             y : u32,
         }
         let foo = Foo { id: 0x12345678,x: 10,y:20};
-
-        let bound = cdr::Infinite;
-
         let key_cdr = foo.key_cdr();
         assert_eq!(key_cdr,vec![0,0,0,0,0x12u8,0x34u8,0x56u8,0x78u8]);
     }
@@ -688,16 +769,12 @@ mod test {
             y : u32,
         }
         let foo = Foo { id: 0x12345678,x: 10,s: String::from("boo"),  y:20};
-
-        let bound = cdr::Infinite;
-
         let key_cdr = foo.key_cdr();
         assert_eq!(key_cdr,vec![0, 0, 0, 0, 18, 52, 86, 120, 0, 0, 0, 4, 98, 111, 111, 0]);
     }
 
     #[test]
     fn keyhash_nested() {
-
         #[derive(Serialize, Deserialize, Topic)]
         struct NestedFoo {
             name : String,
@@ -729,12 +806,12 @@ mod test {
         }
         let foo = Foo { id: 0x12345678,x: 10,s: String::from("boo"),  y:20, inner: NestedFoo::new()};
         let key_cdr = foo.key_cdr();
-        assert_eq!(key_cdr,vec![0, 0, 0, 0, 18, 52, 86, 120, 0, 0, 0, 4, 98, 111, 111, 0]);
+        assert_eq!(key_cdr,vec![0, 0, 0, 0, 18, 52, 86, 120, 0, 0, 0, 4, 98, 111, 111, 0, 0, 0, 0, 25]);
     }
 
 
     #[test]
-    fn array() {
+    fn primitive_array_as_key() {
         #[derive(Serialize, Deserialize, Topic)]
         struct Foo {
             #[topic_key]
@@ -750,11 +827,67 @@ mod test {
         };
 
         let key_cdr = foo.key_cdr();
-        assert_eq!(key_cdr,vec![0, 0, 0, 0, 18, 52, 86, 120, 0, 0, 0, 4, 98, 111, 111, 0]);
+        assert_eq!(key_cdr,vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(false, Foo::force_md5_keyhash());
     }
 
     #[test]
+    fn primitive_array_and_string_as_key() {
+        #[derive(Serialize, Deserialize, Topic)]
+        struct Foo {
+            #[topic_key]
+            a : [u8;8],
+            b : u32,
+            #[topic_key]
+            c: String,
+        }
+
+        let foo = Foo {
+            a : [0,0,0,0,0,0,0,0],
+            b : 42,
+            c : "foo".to_owned(),
+        };
+
+        let key_cdr = foo.key_cdr();
+        assert_eq!(key_cdr,vec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 102, 111, 111, 0]);
+        assert_eq!(true, Foo::force_md5_keyhash());
+    }
+
+
+    #[test]
     fn basic() {
-        let t = SerType::<TopicStruct>::new();
+        #[derive(Serialize, Deserialize, Topic, Default)]
+        struct NestedFoo {
+            name : String,
+            val : u64,
+            #[topic_key]
+            instance: u32,
+        }
+
+        impl NestedFoo {
+            fn new() -> Self {
+                Self {
+                    name : "my name".to_owned(),
+                    val : 42,
+                    instance : 25,
+                }
+            }
+        }
+
+        #[derive(Serialize, Deserialize, Topic, Default)]
+        struct Foo {
+            #[topic_key]
+            id : i32,
+            x : u32,
+            #[topic_key]
+            s : String,
+            y : u32,
+            #[topic_key]
+            inner : NestedFoo,
+        }
+        let foo = Foo { id: 0x12345678,x: 10,s: String::from("boo"),  y:20, inner: NestedFoo::new()};
+        let t = SerType::<Foo>::new();
     }
 }
+
+
