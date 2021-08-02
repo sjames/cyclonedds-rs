@@ -73,7 +73,7 @@ fn build_key_holder_struct(item : &syn::ItemStruct) -> TokenStream {
     //println!("Filtered fields:{:?}", &filtered_fields);
 
     let ts = quote! {
-        #[derive(Default, Deserialize, Serialize, PartialEq, Clone)]
+        #[derive(Default, Deserialize, Serialize, PartialEq, Clone, Debug)]
         struct #holder_name {
             #(#field_idents:#field_types,)*
         }
@@ -98,8 +98,13 @@ fn create_keyhash_functions(item : &syn::ItemStruct) -> TokenStream {
 
     let ts = quote!{
         impl Topic for #topic_key_ident {
+            /// return the cdr encoding for the key. The encoded string includes the four byte
+            /// encapsulation string.
             fn key_cdr(&self) -> Vec<u8> {
                 let holder_struct : #topic_key_holder_ident = self.into();
+                
+                println!("TopicKeyHolder:{:?}  size:{}", &holder_struct,std::mem::size_of::<#topic_key_holder_ident>());
+                
                 let encoded = cdr::serialize::<_, _, CdrBe>(&holder_struct, cdr::Infinite).expect("Unable to serialize key");
                encoded
             }
@@ -162,7 +167,8 @@ fn is_primitive(field:&Field) -> bool {
             type_path.path.is_ident("u128") ||
             type_path.path.is_ident("usize") ||
             type_path.path.is_ident("f32") ||
-            type_path.path.is_ident("f64") 
+            type_path.path.is_ident("f64") || 
+            type_path.path.is_ident("String")
         {
             true
         } else {

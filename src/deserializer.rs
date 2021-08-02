@@ -661,6 +661,99 @@ mod test {
     }
 
     #[test]
+    fn keyhash_basic() {
+        #[derive(Serialize, Deserialize, Topic)]
+        struct Foo {
+            #[topic_key]
+            id : i32,
+            x : u32,
+            y : u32,
+        }
+        let foo = Foo { id: 0x12345678,x: 10,y:20};
+
+        let bound = cdr::Infinite;
+
+        let key_cdr = foo.key_cdr();
+        assert_eq!(key_cdr,vec![0,0,0,0,0x12u8,0x34u8,0x56u8,0x78u8]);
+    }
+    #[test]
+    fn keyhash_simple() {
+        #[derive(Serialize, Deserialize, Topic)]
+        struct Foo {
+            #[topic_key]
+            id : i32,
+            x : u32,
+            #[topic_key]
+            s : String,
+            y : u32,
+        }
+        let foo = Foo { id: 0x12345678,x: 10,s: String::from("boo"),  y:20};
+
+        let bound = cdr::Infinite;
+
+        let key_cdr = foo.key_cdr();
+        assert_eq!(key_cdr,vec![0, 0, 0, 0, 18, 52, 86, 120, 0, 0, 0, 4, 98, 111, 111, 0]);
+    }
+
+    #[test]
+    fn keyhash_nested() {
+
+        #[derive(Serialize, Deserialize, Topic)]
+        struct NestedFoo {
+            name : String,
+            val : u64,
+            #[topic_key]
+            instance: u32,
+        }
+
+        impl NestedFoo {
+            fn new() -> Self {
+                Self {
+                    name : "my name".to_owned(),
+                    val : 42,
+                    instance : 25,
+                }
+            }
+        }
+
+        #[derive(Serialize, Deserialize, Topic)]
+        struct Foo {
+            #[topic_key]
+            id : i32,
+            x : u32,
+            #[topic_key]
+            s : String,
+            y : u32,
+            #[topic_key]
+            inner : NestedFoo,
+        }
+        let foo = Foo { id: 0x12345678,x: 10,s: String::from("boo"),  y:20, inner: NestedFoo::new()};
+        let key_cdr = foo.key_cdr();
+        assert_eq!(key_cdr,vec![0, 0, 0, 0, 18, 52, 86, 120, 0, 0, 0, 4, 98, 111, 111, 0]);
+    }
+
+
+    #[test]
+    fn array() {
+        #[derive(Serialize, Deserialize, Topic)]
+        struct Foo {
+            #[topic_key]
+            a : [u8;8],
+            b : u32,
+            c: String,
+        }
+
+        let foo = Foo {
+            a : [0,0,0,0,0,0,0,0],
+            b : 42,
+            c : "foo".to_owned(),
+        };
+
+        let key_cdr = foo.key_cdr();
+        assert_eq!(key_cdr,vec![0, 0, 0, 0, 18, 52, 86, 120, 0, 0, 0, 4, 98, 111, 111, 0]);
+    }
+
+    #[test]
     fn basic() {
         let t = SerType::<TopicStruct>::new();
     }
