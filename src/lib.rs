@@ -31,6 +31,7 @@ pub mod dds_topic;
 mod dds_waitset;
 pub mod dds_writer;
 pub mod error;
+pub mod deserializer;
 
 pub use common::{DdsReadable, DdsWritable, Entity};
 pub use dds_api::*;
@@ -43,7 +44,8 @@ pub use dds_subscriber::DdsSubscriber;
 pub use dds_topic::DdsTopic;
 pub use dds_waitset::DdsWaitset;
 pub use dds_writer::DdsWriter;
-pub mod deserializer;
+
+pub use deserializer::TopicType;
 pub use cdr;
 
 
