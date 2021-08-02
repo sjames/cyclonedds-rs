@@ -21,8 +21,9 @@ pub use cyclonedds_sys::{DDSBox, DdsEntity};
 use std::marker::PhantomData;
 
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsWritable, Entity};
+use crate::deserializer::{Sample, Topic};
 
-pub struct DdsWriter<'a, T: Sized + DDSGenType>(
+pub struct DdsWriter<'a, T: Sized + Topic>(
     DdsEntity,
     Option<DdsListener<'a>>,
     Option<&'a DdsQos>,
@@ -31,7 +32,7 @@ pub struct DdsWriter<'a, T: Sized + DDSGenType>(
 
 impl<'a, T> DdsWriter<'a, T>
 where
-    T: Sized + DDSGenType,
+    T: Sized + Topic,
 {
     pub fn create(
         entity: &dyn DdsWritable,
@@ -62,9 +63,12 @@ where
         }
     }
 
-    pub fn write_to_entity(entity: DdsEntity, msg: &DDSBox<T>) -> Result<(), DDSError> {
+    pub fn write_to_entity(entity: &DdsEntity, msg: std::sync::Arc<T>) -> Result<(), DDSError> {
         unsafe {
-            let ret = dds_write(entity.entity(), msg.get_raw_mut_ptr());
+            let sample = Sample::<T>::from(msg);
+            let sample = &sample as *const Sample<T>;
+            let sample = sample as *const ::std::os::raw::c_void;
+            let ret = dds_write(entity.entity(), sample);
             if ret >= 0 {
                 Ok(())
             } else {
@@ -73,15 +77,9 @@ where
         }
     }
 
-    pub fn write(&mut self, msg: &T) -> Result<(), DDSError> {
-        unsafe {
-            let ret = dds_write(self.0.entity(), msg as *const T as *const std::ffi::c_void);
-            if ret >= 0 {
-                Ok(())
-            } else {
-                Err(DDSError::from(ret))
-            }
-        }
+    pub fn write(&mut self, msg: std::sync::Arc<T>) -> Result<(), DDSError> {
+        unsafe {Self::write_to_entity(&self.0, msg)}
+
     }
 
     pub fn set_listener(&mut self, listener: DdsListener<'a>) -> Result<(), DDSError> {
@@ -100,7 +98,7 @@ where
 
 impl<'a, T> Entity for DdsWriter<'a, T>
 where
-    T: std::marker::Sized + DDSGenType,
+    T: std::marker::Sized + Topic,
 {
     fn entity(&self) -> &DdsEntity {
         &self.0
@@ -109,7 +107,7 @@ where
 
 impl<'a, T> Drop for DdsWriter<'a, T>
 where
-    T: std::marker::Sized + DDSGenType,
+    T: std::marker::Sized + Topic,
 {
     fn drop(&mut self) {
         unsafe {

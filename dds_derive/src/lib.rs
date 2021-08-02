@@ -137,7 +137,7 @@ fn create_keyhash_functions(item : &syn::ItemStruct) -> TokenStream {
                 
                 println!("TopicKeyHolder:{:?}  size:{}", &holder_struct,std::mem::size_of::<#topic_key_holder_ident>());
                 
-                let encoded = cdr::serialize::<_, _, CdrBe>(&holder_struct, cdr::Infinite).expect("Unable to serialize key");
+                let encoded = cdr::serialize::<_, _, cdr::CdrBe>(&holder_struct, cdr::Infinite).expect("Unable to serialize key");
                encoded
             }
             

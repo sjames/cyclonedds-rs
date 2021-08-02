@@ -44,7 +44,7 @@ pub struct SerType<T> {
     _phantom: PhantomData<T>,
 }
 
-pub trait Topic {
+pub trait Topic : Default + Serialize + DeserializeOwned {
     // generate a non-cryptographic hash of the key values to be used internally
     // in cyclonedds
     fn hash(&self) -> u32 {
@@ -60,9 +60,7 @@ pub trait Topic {
     fn has_key() -> bool;
     // this is the key hash as defined in the DDS-RTPS spec.
     // KeyHash (PID_KEY_HASH)
-    fn key_cdr(&self) -> Vec<u8> {
-        Vec::new()
-    }
+    fn key_cdr(&self) -> Vec<u8>;
 
     // force the use of md5 even if the serialized size is less than 16
     // as per the standard, we need to check the potential field size and not the actual.
@@ -91,6 +89,13 @@ impl<'a, T> SerType<T> {
             _phantom: PhantomData,
         })
     }
+
+    // cast into cyclone dds sertype.  Rust relinquishes ownership here. 
+    // Cyclone DDS will free this. But if you need to free this pointer
+    // before handing it over to cyclone, make sure you explicitly free it
+    pub fn into_sertype(sertype: Box::<SerType<T>>) -> *mut ddsi_sertype {
+        Box::<SerType<T>>::into_raw(sertype) as *mut ddsi_sertype
+    }
 }
 
 /// A sample is simply a smart pointer. The storage for the sample
@@ -100,8 +105,12 @@ pub struct Sample<T> {
 }
 
 impl<T> Sample<T> {
-    pub fn get(&self) -> Option<&T> {
-        self.it.as_ref().map(|it| it.as_ref())
+    pub fn get(&self) -> Option<Arc<T>> {
+        self.it.clone()
+    }
+
+    pub fn from(it: Arc<T>) -> Self {
+        Self { it: Some(it)}
     }
 }
 
@@ -187,6 +196,7 @@ extern "C" fn free_samples<T>(
 
 #[allow(dead_code)]
 unsafe extern "C" fn free_sertype<T>(sertype: *mut cyclonedds_sys::ddsi_sertype) {
+    
     ddsi_sertype_fini(sertype);
 
     let _sertype_ops = Box::<ddsi_sertype_ops>::from_raw((&*sertype).ops as *mut ddsi_sertype_ops);
@@ -292,7 +302,7 @@ unsafe extern "C" fn serdata_from_sample<T>(
     _kind: u32,
     _sample: *const c_void,
 ) -> *mut ddsi_serdata {
-    std::ptr::null_mut()
+    todo!();
 }
 
 #[allow(dead_code)]
@@ -713,6 +723,8 @@ impl<'a> Read for SGReader<'a> {
 
 #[cfg(test)]
 mod test {
+    use std::ffi::CString;
+
     use super::*;
     use dds_derive::Topic;
     #[test]
@@ -746,7 +758,7 @@ mod test {
 
     #[test]
     fn keyhash_basic() {
-        #[derive(Serialize, Deserialize, Topic)]
+        #[derive(Serialize, Deserialize, Topic, Default)]
         struct Foo {
             #[topic_key]
             id : i32,
@@ -759,7 +771,7 @@ mod test {
     }
     #[test]
     fn keyhash_simple() {
-        #[derive(Serialize, Deserialize, Topic)]
+        #[derive(Serialize, Deserialize, Topic, Default)]
         struct Foo {
             #[topic_key]
             id : i32,
@@ -775,7 +787,7 @@ mod test {
 
     #[test]
     fn keyhash_nested() {
-        #[derive(Serialize, Deserialize, Topic)]
+        #[derive(Serialize, Deserialize, Topic, Default)]
         struct NestedFoo {
             name : String,
             val : u64,
@@ -793,7 +805,7 @@ mod test {
             }
         }
 
-        #[derive(Serialize, Deserialize, Topic)]
+        #[derive(Serialize, Deserialize, Topic, Default)]
         struct Foo {
             #[topic_key]
             id : i32,
@@ -812,7 +824,7 @@ mod test {
 
     #[test]
     fn primitive_array_as_key() {
-        #[derive(Serialize, Deserialize, Topic)]
+        #[derive(Serialize, Deserialize, Topic, Default)]
         struct Foo {
             #[topic_key]
             a : [u8;8],
@@ -833,7 +845,7 @@ mod test {
 
     #[test]
     fn primitive_array_and_string_as_key() {
-        #[derive(Serialize, Deserialize, Topic)]
+        #[derive(Serialize, Deserialize, Topic, Default)]
         struct Foo {
             #[topic_key]
             a : [u8;8],
@@ -887,6 +899,15 @@ mod test {
         }
         let foo = Foo { id: 0x12345678,x: 10,s: String::from("boo"),  y:20, inner: NestedFoo::new()};
         let t = SerType::<Foo>::new();
+        let mut t = SerType::into_sertype(t);
+        let tt = &mut t as *mut *mut ddsi_sertype;
+        unsafe {
+            let p = dds_create_participant (0, std::ptr::null_mut(), std::ptr::null_mut());
+            let topic_name = CString::new("topic_name").unwrap();
+            let topic = dds_create_topic_sertype(p, topic_name.as_ptr(), tt , std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut());
+
+            dds_delete(topic);
+        }
     }
 }
 

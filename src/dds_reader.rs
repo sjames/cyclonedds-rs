@@ -17,15 +17,18 @@
 use cyclonedds_sys::*;
 use std::convert::From;
 use std::os::raw::c_void;
+use std::sync::Arc;
 //use std::convert::TryInto;
 
-pub use cyclonedds_sys::{DDSBox, DDSGenType, DdsDomainId, DdsEntity, DdsLoanedData};
+pub use cyclonedds_sys::{DDSBox, DdsDomainId, DdsEntity, DdsLoanedData};
 
 use std::marker::PhantomData;
 
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable, Entity};
+use crate::deserializer::{Topic, Sample};
 
-pub struct DdsReader<'a, T: Sized + DDSGenType> {
+
+pub struct DdsReader<'a, T: Sized + Topic> {
     entity: DdsEntity,
     listener: Option<DdsListener<'a>>,
     _maybe_qos: Option<&'a DdsQos>,
@@ -35,7 +38,7 @@ pub struct DdsReader<'a, T: Sized + DDSGenType> {
 
 impl<'a, T> DdsReader<'a, T>
 where
-    T: Sized + DDSGenType,
+    T: Sized + Topic,
 {
     pub fn create(
         entity: &dyn DdsReadable,
@@ -79,9 +82,10 @@ where
         }
     }
 
+    /* */
     /// Read a buffer given a dds_entity_t.  This is useful when you want to read data
     /// within a closure.
-    pub fn read_from_entity(entity: DdsEntity) -> Result<DDSBox<T>, DDSError> {
+    pub fn read_from_entity(entity: &DdsEntity) -> Result<Arc<T>, DDSError> {
         unsafe {
             let mut info = cyclonedds_sys::dds_sample_info::default();
             // set to null pointer to ask cyclone to allocate the buffer. All received
@@ -93,8 +97,14 @@ where
 
             if ret >= 0 {
                 if !voidp.is_null() && info.valid_data {
-                    let buf = DDSBox::<T>::new_from_cyclone_allocated_struct(voidp as *mut T);
-                    Ok(buf)
+                    let sample = voidp as *const Sample<T>;
+                    let sample = &*sample;
+                    if let Some(sample) = sample.get() {
+                       Ok(sample) 
+                    } else {
+                        Err(DDSError::NoData)
+                    }
+                    
                 } else {
                     Err(DDSError::OutOfResources)
                 }
@@ -104,12 +114,37 @@ where
         }
     }
 
-    pub fn read(&self) -> Result<DdsLoanedData<T>, DDSError> {
-        unsafe { cyclonedds_sys::read(self.entity()) }
+    pub fn read(&self) -> Result<Arc<T>, DDSError> {
+       Self::read_from_entity(self.entity()) 
     }
 
-    pub fn take(&self) -> Result<DdsLoanedData<T>, DDSError> {
-        unsafe { cyclonedds_sys::take(self.entity()) }
+    pub fn take(&self) -> Result<Arc<T>, DDSError> {
+        unsafe {
+            let mut info = cyclonedds_sys::dds_sample_info::default();
+            // set to null pointer to ask cyclone to allocate the buffer. All received
+            // data will need to be allocated by cyclone
+            let mut voidp: *mut c_void = std::ptr::null::<T>() as *mut c_void;
+            let voidpp: *mut *mut c_void = &mut voidp;
+
+            let ret = dds_take(self.entity.entity(), voidpp, &mut info as *mut _, 1, 1);
+
+            if ret >= 0 {
+                if !voidp.is_null() && info.valid_data {
+                    let sample = voidp as *const Sample<T>;
+                    let sample = &*sample;
+
+                    if let Some(sample) = sample.get() {
+                        Ok(sample) 
+                     } else {
+                         Err(DDSError::NoData)
+                     }
+                } else {
+                    Err(DDSError::OutOfResources)
+                }
+            } else {
+                Err(DDSError::from(ret))
+            }
+        }
     }
 
     pub fn create_readcondition(
@@ -122,7 +157,7 @@ where
 
 impl<'a, T> Entity for DdsReader<'a, T>
 where
-    T: std::marker::Sized + DDSGenType,
+    T: std::marker::Sized + Topic,
 {
     fn entity(&self) -> &DdsEntity {
         &self.entity
@@ -131,7 +166,7 @@ where
 
 impl<'a, T> Drop for DdsReader<'a, T>
 where
-    T: Sized + DDSGenType,
+    T: Sized + Topic,
 {
     fn drop(&mut self) {
         unsafe {
@@ -145,12 +180,12 @@ where
         }
     }
 }
-
-pub struct DdsReadCondition<'a, T: Sized + DDSGenType>(DdsEntity, &'a DdsReader<'a, T>);
+ 
+pub struct DdsReadCondition<'a, T: Sized + Topic>(DdsEntity, &'a DdsReader<'a, T>);
 
 impl<'a, T> DdsReadCondition<'a, T>
 where
-    T: Sized + DDSGenType,
+    T: Sized + Topic,
 {
     fn create(reader: &'a DdsReader<'a, T>, mask: StateMask) -> Result<Self, DDSError> {
         unsafe {
@@ -167,7 +202,7 @@ where
 
 impl<'a, T> Entity for DdsReadCondition<'a, T>
 where
-    T: std::marker::Sized + DDSGenType,
+    T: std::marker::Sized + Topic,
 {
     fn entity(&self) -> &DdsEntity {
         &self.0

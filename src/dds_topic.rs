@@ -20,13 +20,14 @@ use std::convert::From;
 use std::ffi::CString;
 use std::marker::PhantomData;
 
-pub use cyclonedds_sys::{DDSError, DDSGenType, DdsEntity};
+use crate::deserializer::{Topic, SerType};
+pub use cyclonedds_sys::{DDSError, DdsEntity,ddsi_sertype};
 
-pub struct DdsTopic<T: Sized + DDSGenType>(DdsEntity, PhantomData<*const T>);
+pub struct DdsTopic<T: Sized + Topic>(DdsEntity, PhantomData<*const T>);
 
 impl<T> DdsTopic<T>
 where
-    T: std::marker::Sized + DDSGenType,
+    T: std::marker::Sized + Topic,
 {
     pub fn create(
         participant: &DdsParticipant,
@@ -34,15 +35,17 @@ where
         maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener>,
     ) -> Result<Self, DDSError> {
+        let t = SerType::<T>::new();
+        let mut t = SerType::into_sertype(t);
+        let tt = &mut t as *mut *mut ddsi_sertype;
+
         unsafe {
             let strname = CString::new(name).expect("CString::new failed");
-            let topic = cyclonedds_sys::dds_create_topic(
-                participant.entity().entity(),
-                T::get_descriptor(),
-                strname.as_ptr(),
-                maybe_qos.map_or(std::ptr::null(), |q| q.into()),
+            let topic = cyclonedds_sys::dds_create_topic_sertype(participant.entity().entity()
+                , strname.as_ptr(), tt , 
+                maybe_qos.map_or(std::ptr::null(), |q| q.into()), 
                 maybe_listener.map_or(std::ptr::null(), |l| l.into()),
-            );
+                std::ptr::null_mut());
 
             if topic >= 0 {
                 Ok(DdsTopic(DdsEntity::new(topic), PhantomData))
@@ -51,11 +54,12 @@ where
             }
         }
     }
+    
 }
 
 impl<T> Entity for DdsTopic<T>
 where
-    T: std::marker::Sized + DDSGenType,
+    T: std::marker::Sized + Topic,
 {
     fn entity(&self) -> &DdsEntity {
         &self.0
@@ -64,7 +68,7 @@ where
 
 impl<T> Drop for DdsTopic<T>
 where
-    T: std::marker::Sized + DDSGenType,
+    T: std::marker::Sized + Topic,
 {
     fn drop(&mut self) {
         unsafe {
@@ -75,4 +79,41 @@ where
             }
         }
     }
+}
+
+mod test {
+    use std::sync::Arc;
+
+    use crate::{DdsPublisher, DdsWriter};
+
+    use super::*;
+    use dds_derive::Topic;
+    use serde_derive::{Deserialize, Serialize};
+    #[test]
+    fn test_topic_creation() {
+
+        #[derive(Default, Deserialize, Serialize, Topic)]
+        struct MyTopic {
+            #[topic_key]
+            a : u32,
+            b : u32,
+            c: String,
+            d : u32,
+        }
+
+        let participant = DdsParticipant::create(None,None, None).unwrap();
+        let topic =  DdsTopic::<MyTopic>::create(&participant, "my_topic", None, None).unwrap();
+        let publisher = DdsPublisher::create(&participant, None, None).expect("Unable to create publisher");
+        let mut writer = DdsWriter::create(&publisher, &topic, None, None).unwrap();
+
+        let data = Arc::new(MyTopic {
+            a : 1,
+            b : 32,
+            c : "my_data_sample".to_owned(),
+            d : 546,
+        });
+
+        writer.write(data).unwrap();
+    }
+
 }
