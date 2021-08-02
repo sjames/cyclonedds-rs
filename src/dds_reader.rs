@@ -25,10 +25,10 @@ pub use cyclonedds_sys::{DDSBox, DdsDomainId, DdsEntity, DdsLoanedData};
 use std::marker::PhantomData;
 
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable, Entity};
-use crate::deserializer::{Topic, Sample};
+use crate::deserializer::{TopicType, Sample};
 
 
-pub struct DdsReader<'a, T: Sized + Topic> {
+pub struct DdsReader<'a, T: Sized + TopicType> {
     entity: DdsEntity,
     listener: Option<DdsListener<'a>>,
     _maybe_qos: Option<&'a DdsQos>,
@@ -38,7 +38,7 @@ pub struct DdsReader<'a, T: Sized + Topic> {
 
 impl<'a, T> DdsReader<'a, T>
 where
-    T: Sized + Topic,
+    T: Sized + TopicType,
 {
     pub fn create(
         entity: &dyn DdsReadable,
@@ -157,7 +157,7 @@ where
 
 impl<'a, T> Entity for DdsReader<'a, T>
 where
-    T: std::marker::Sized + Topic,
+    T: std::marker::Sized + TopicType,
 {
     fn entity(&self) -> &DdsEntity {
         &self.entity
@@ -166,7 +166,7 @@ where
 
 impl<'a, T> Drop for DdsReader<'a, T>
 where
-    T: Sized + Topic,
+    T: Sized + TopicType,
 {
     fn drop(&mut self) {
         unsafe {
@@ -181,11 +181,11 @@ where
     }
 }
  
-pub struct DdsReadCondition<'a, T: Sized + Topic>(DdsEntity, &'a DdsReader<'a, T>);
+pub struct DdsReadCondition<'a, T: Sized + TopicType>(DdsEntity, &'a DdsReader<'a, T>);
 
 impl<'a, T> DdsReadCondition<'a, T>
 where
-    T: Sized + Topic,
+    T: Sized + TopicType,
 {
     fn create(reader: &'a DdsReader<'a, T>, mask: StateMask) -> Result<Self, DDSError> {
         unsafe {
@@ -202,7 +202,7 @@ where
 
 impl<'a, T> Entity for DdsReadCondition<'a, T>
 where
-    T: std::marker::Sized + Topic,
+    T: std::marker::Sized + crate::deserializer::TopicType,
 {
     fn entity(&self) -> &DdsEntity {
         &self.0

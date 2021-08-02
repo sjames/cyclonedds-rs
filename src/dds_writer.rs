@@ -21,9 +21,9 @@ pub use cyclonedds_sys::{DDSBox, DdsEntity};
 use std::marker::PhantomData;
 
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsWritable, Entity};
-use crate::deserializer::{Sample, Topic};
+use crate::deserializer::{Sample, TopicType};
 
-pub struct DdsWriter<'a, T: Sized + Topic>(
+pub struct DdsWriter<'a, T: Sized + TopicType>(
     DdsEntity,
     Option<DdsListener<'a>>,
     Option<&'a DdsQos>,
@@ -32,7 +32,7 @@ pub struct DdsWriter<'a, T: Sized + Topic>(
 
 impl<'a, T> DdsWriter<'a, T>
 where
-    T: Sized + Topic,
+    T: Sized + TopicType,
 {
     pub fn create(
         entity: &dyn DdsWritable,
@@ -98,7 +98,7 @@ where
 
 impl<'a, T> Entity for DdsWriter<'a, T>
 where
-    T: std::marker::Sized + Topic,
+    T: std::marker::Sized + TopicType,
 {
     fn entity(&self) -> &DdsEntity {
         &self.0
@@ -107,7 +107,7 @@ where
 
 impl<'a, T> Drop for DdsWriter<'a, T>
 where
-    T: std::marker::Sized + Topic,
+    T: std::marker::Sized + TopicType,
 {
     fn drop(&mut self) {
         unsafe {

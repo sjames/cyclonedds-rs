@@ -43,7 +43,9 @@ pub use dds_subscriber::DdsSubscriber;
 pub use dds_topic::DdsTopic;
 pub use dds_waitset::DdsWaitset;
 pub use dds_writer::DdsWriter;
-mod deserializer;
+pub mod deserializer;
+pub use cdr;
+
 
 #[cfg(test)]
 mod tests {

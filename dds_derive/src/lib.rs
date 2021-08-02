@@ -148,7 +148,7 @@ fn create_keyhash_functions(item : &syn::ItemStruct) -> TokenStream {
     let topic_key_holder_ident =  quote::format_ident!("{}KeyHolder_",&item.ident);
 
     let ts = quote!{
-        impl Topic for #topic_key_ident {
+        impl TopicType for #topic_key_ident {
             /// return the cdr encoding for the key. The encoded string includes the four byte
             /// encapsulation string.
             fn key_cdr(&self) -> Vec<u8> {

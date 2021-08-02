@@ -44,7 +44,7 @@ pub struct SerType<T> {
     _phantom: PhantomData<T>,
 }
 
-pub trait Topic : Default + Serialize + DeserializeOwned {
+pub trait TopicType : Default + Serialize + DeserializeOwned {
     // generate a non-cryptographic hash of the key values to be used internally
     // in cyclonedds
     fn hash(&self) -> u32 {
@@ -73,7 +73,7 @@ pub trait Topic : Default + Serialize + DeserializeOwned {
 impl<'a, T> SerType<T> {
     pub fn new() -> Box<SerType<T>>
     where
-        T: Default + DeserializeOwned + Serialize + Topic,
+        T: Default + DeserializeOwned + Serialize + TopicType,
     {
         Box::<SerType<T>>::new(SerType {
             sertype: {
@@ -221,7 +221,7 @@ unsafe extern "C" fn serdata_from_fragchain<T>(
     size: u64,
 ) -> *mut ddsi_serdata
 where
-    T: DeserializeOwned + Topic,
+    T: DeserializeOwned + TopicType,
 {
     let off: u32 = 0;
     let size = size as usize;
@@ -274,7 +274,7 @@ where
     ptr as *mut ddsi_serdata
 }
 
-fn compute_key_hash <T>(key_cdr: &[u8], serdata: &mut Box<SerData<T>>) where T: Topic {
+fn compute_key_hash <T>(key_cdr: &[u8], serdata: &mut Box<SerData<T>>) where T: TopicType {
     if T::force_md5_keyhash() || key_cdr.len() > 16 {
         let mut md5st = ddsrt_md5_state_t::default(); 
         let md5set = &mut md5st as *mut ddsrt_md5_state_s;
@@ -347,7 +347,7 @@ unsafe extern "C" fn serdata_from_iov<T>(
     size: u64,
 ) -> *mut ddsi_serdata
 where
-    T: DeserializeOwned + Topic,
+    T: DeserializeOwned + TopicType,
 {
     let size = size as usize;
     let niov = niov as usize;
@@ -432,7 +432,7 @@ unsafe extern "C" fn serdata_to_ser<T>(
     offset: u64,
     buf: *mut c_void,
 ) where
-    T: Serialize + Topic,
+    T: Serialize + TopicType,
 {
     let serdata = SerData::<T>::const_ref_from_serdata(serdata);
     let buf = buf as *mut u8;
@@ -465,7 +465,7 @@ unsafe extern "C" fn serdata_to_ser_ref<T>(
     iov: *mut iovec,
 ) -> *mut ddsi_serdata
 where
-    T: Serialize + Topic,
+    T: Serialize + TopicType,
 {
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
     let iov = &mut *iov;
@@ -591,7 +591,7 @@ where
 
 fn create_serdata_ops<T>() -> Box<ddsi_serdata_ops>
 where
-    T: DeserializeOwned + Topic + Serialize,
+    T: DeserializeOwned + TopicType + Serialize,
 {
     Box::new(ddsi_serdata_ops {
         eqkey: Some(eqkey::<T>),
@@ -752,7 +752,6 @@ impl<'a> Read for SGReader<'a> {
 #[cfg(test)]
 mod test {
     use std::ffi::CString;
-
     use super::*;
     use dds_derive::Topic;
     #[test]

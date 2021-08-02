@@ -20,14 +20,14 @@ use std::convert::From;
 use std::ffi::CString;
 use std::marker::PhantomData;
 
-use crate::deserializer::{Topic, SerType};
+use crate::deserializer::{TopicType, SerType};
 pub use cyclonedds_sys::{DDSError, DdsEntity,ddsi_sertype};
 
-pub struct DdsTopic<T: Sized + Topic>(DdsEntity, PhantomData<*const T>);
+pub struct DdsTopic<T: Sized + TopicType>(DdsEntity, PhantomData<*const T>);
 
 impl<T> DdsTopic<T>
 where
-    T: std::marker::Sized + Topic,
+    T: std::marker::Sized + TopicType,
 {
     pub fn create(
         participant: &DdsParticipant,
@@ -59,7 +59,7 @@ where
 
 impl<T> Entity for DdsTopic<T>
 where
-    T: std::marker::Sized + Topic,
+    T: std::marker::Sized + TopicType,
 {
     fn entity(&self) -> &DdsEntity {
         &self.0
@@ -68,7 +68,7 @@ where
 
 impl<T> Drop for DdsTopic<T>
 where
-    T: std::marker::Sized + Topic,
+    T: std::marker::Sized + TopicType,
 {
     fn drop(&mut self) {
         unsafe {
@@ -81,11 +81,11 @@ where
     }
 }
 
+#[cfg(test)]
 mod test {
     use std::sync::Arc;
-
     use crate::{DdsPublisher, DdsWriter};
-
+    use rusty_fork::rusty_fork_test;
     use super::*;
     use dds_derive::Topic;
     use serde_derive::{Deserialize, Serialize};
