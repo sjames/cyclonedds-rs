@@ -58,8 +58,11 @@ pub trait Topic : Default + Serialize + DeserializeOwned {
             .expect("Unable to create CString for type name")
     }
     fn has_key() -> bool;
-    // this is the key hash as defined in the DDS-RTPS spec.
-    // KeyHash (PID_KEY_HASH)
+    // this is the key as defined in the DDS-RTPS spec.
+    // KeyHash (PID_KEY_HASH). This function does not
+    // hash the key. Use the force_md5_keyhash to know
+    // whether to use md5 even if the the key cdr is 16 bytes
+    // or shorter.
     fn key_cdr(&self) -> Vec<u8>;
 
     // force the use of md5 even if the serialized size is less than 16
