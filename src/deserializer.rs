@@ -293,16 +293,35 @@ unsafe extern "C" fn serdata_from_keyhash<T>(
     _sertype: *const ddsi_sertype,
     _keyhash: *const ddsi_keyhash,
 ) -> *mut ddsi_serdata {
-    std::ptr::null_mut()
+    todo!();
 }
 
 #[allow(dead_code)]
 unsafe extern "C" fn serdata_from_sample<T>(
-    _sertype: *const ddsi_sertype,
-    _kind: u32,
-    _sample: *const c_void,
+    sertype: *const ddsi_sertype,
+    kind: u32,
+    sample: *const c_void,
 ) -> *mut ddsi_serdata {
-    todo!();
+    
+    let mut serdata = SerData::<T>::new(sertype, kind);
+    let sample = sample as *const Sample<T>;
+    let sample = &*sample;
+
+    match kind {
+        ddsi_serdata_kind_SDK_DATA => {
+            serdata.sample = SampleData::SDKData(sample.get().unwrap());
+        }
+
+        ddsi_serdata_kind_SDK_KEY => {
+            panic!("Don't know how to create serdata from sample for SDK_KEY");
+        }
+
+        _ => panic!("Unexpected kind")
+    }
+
+    let ptr = Box::into_raw(serdata);
+    // only we know this ddsi_serdata is really of type SerData
+    ptr as *mut ddsi_serdata
 }
 
 #[allow(dead_code)]
@@ -424,7 +443,6 @@ unsafe extern "C" fn serdata_to_ser<T>(
     
 }
 
-//TODO: ADjust buffer to 4 bytes CDR header
 #[allow(dead_code)]
 unsafe extern "C" fn serdata_to_ser_ref<T>(
     serdata: *const ddsi_serdata,
@@ -444,16 +462,12 @@ where
             iov.iov_base = serdata.key_hash.as_ptr() as *mut c_void;
             iov.iov_len = serdata.key_hash.len() as u64;
         }
-        SampleData::SDKData(_sample) => {
+        SampleData::SDKData(sample) => {
             if serdata.cdr.is_none() {
-                if let SampleData::SDKData(sample) = &serdata.sample {
-                    if let Ok(data) = cdr::serialize::<T, _, CdrBe>(&sample.as_ref(), Infinite) {
-                        serdata.cdr = Some(data);
-                    } else {
-                        panic!("Unable to serialize type {:?} due to", T::typename());
-                    }
+                if let Ok(data) = cdr::serialize::<T, _, CdrBe>(&sample.as_ref(), Infinite) {
+                    serdata.cdr = Some(data);
                 } else {
-                    panic!("Attempt to serialize without data");
+                    panic!("Unable to serialize type {:?} due to", T::typename());
                 }
             }
             
