@@ -13,9 +13,6 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 */
-#![feature(vec_into_raw_parts)]
-#![feature(new_uninit)]
-#![feature(num_as_ne_bytes)]
 
 pub mod alloc;
 mod common;

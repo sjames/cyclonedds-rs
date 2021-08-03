@@ -172,9 +172,11 @@ extern "C" fn realloc_samples<T>(
         }
     }
 
-    let (raw, length, allocated_length) = new.into_raw_parts();
+    let leaked = new.leak();
+
+    let (raw, length) = (leaked.as_ptr(), leaked.len());
     // if the length and allocated length are not equal, we messed up above.
-    assert_eq!(length, allocated_length);
+    //assert_eq!(length, allocated_length);
     unsafe {
         *ptrs = raw as *mut std::ffi::c_void;
     }
@@ -232,7 +234,7 @@ unsafe extern "C" fn serdata_from_fragchain<T>(
 where
     T: DeserializeOwned + TopicType,
 {
-    let off: i32 = 0;
+    let mut off: u32 = 0;
     let size = size as usize;
     let fragchain_ref = &*fragchain;
 
@@ -249,14 +251,16 @@ where
         if fragchain_ref.maxp1 > off as u32 {
             let payload =
                 nn_rmsg_payload_offset(fragchain_ref.rmsg, nn_rdata_payload_offset(fragchain));
-            let src = payload.add((off - fragchain_ref.min as i32) as usize);
+            let src = payload.add((off - fragchain_ref.min) as usize);
             let n_bytes = fragchain_ref.maxp1 - off as u32;
             sg_list.push(std::slice::from_raw_parts(src, n_bytes as usize));
+            off = fragchain_ref.maxp1;
+            assert!(off as usize <= size);
         }
         fragchain = fragchain_ref.nextfrag;
     }
-    let len : usize = sg_list.iter().fold(0usize, |s,e| s + e.len() );
-    println!("Fragchain: elements:{} {} bytes",sg_list.len(),len );
+    //let len : usize = sg_list.iter().fold(0usize, |s,e| s + e.len() );
+    //println!("Fragchain: elements:{} {} bytes",sg_list.len(),len );
     // make a reader out of the sg_list
     let reader = SGReader::new(sg_list);
     if let Ok(decoded) = cdr::deserialize_from::<_, T, _>(reader, Bounded(size as u64)) {
