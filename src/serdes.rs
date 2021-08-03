@@ -107,25 +107,31 @@ impl<'a, T> SerType<T> {
 
 /// A sample is simply a smart pointer. The storage for the sample
 /// is in the serdata structure.
-pub struct Sample<T> {
-    it: Option<Arc<T>>,
+
+pub enum Sample<T> {
+    Uninitialized,
+    Value(Arc<T>),
 }
 
-impl<T> Sample<T> {
+impl <T> Sample <T> {
     pub fn get(&self) -> Option<Arc<T>> {
-        self.it.clone()
+        match self {
+            Sample::Uninitialized => None,
+            Sample::Value(t) => Some(t.clone()),
+        }
     }
 
     pub fn from(it: Arc<T>) -> Self {
-        Self { it: Some(it)}
+        Self::Value(it)
     }
 }
 
-impl<T> Default for Sample<T> {
+impl <T> Default for Sample<T> {
     fn default() -> Self {
-        Sample { it: None }
+        Self::Uninitialized
     }
 }
+
 
 #[allow(dead_code)]
 unsafe extern "C" fn zero_samples<T>(
@@ -513,7 +519,7 @@ unsafe extern "C" fn serdata_to_sample<T>(
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
     let sample = &mut *(sample as *mut Sample<T>);
     if let SampleData::SDKData(data) = &serdata.sample {
-        sample.it = Some(data.clone());
+        *sample = Sample::Value(data.clone()) ;
         false
     } else {
         true
