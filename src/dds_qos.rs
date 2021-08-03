@@ -224,7 +224,9 @@ impl Default for DdsQos {
 
 impl Drop for DdsQos {
     fn drop(&mut self) {
+        if !self.0.is_null() {
         unsafe { dds_delete_qos(self.0) }
+        }
     }
 }
 
@@ -254,8 +256,12 @@ impl Clone for DdsQos {
 }
 
 impl From<DdsQos> for *const dds_qos_t {
-    fn from(qos: DdsQos) -> Self {
-        qos.0
+    fn from(mut qos: DdsQos) -> Self {
+        let q = qos.0;
+        // we need to forget the pointer here
+        qos.0 = std::ptr::null_mut();
+        // setting to zero will ensure drop will not deallocate it
+        q
     }
 }
 

@@ -105,6 +105,9 @@ mod test {
         let publisher = DdsPublisher::create(&participant, None, None).expect("Unable to create publisher");
         let mut writer = DdsWriter::create(&publisher, &topic, None, None).unwrap();
 
+
+       // MyTopic::create_writer()
+
         let data = Arc::new(MyTopic {
             a : 1,
             b : 32,
