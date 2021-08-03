@@ -305,19 +305,26 @@ fn compute_key_hash <T>(key_cdr: &[u8], serdata: &mut Box<SerData<T>>) where T: 
 unsafe extern "C" fn serdata_from_keyhash<T>(
     sertype: *const ddsi_sertype,
     keyhash: *const ddsi_keyhash,
-) -> *mut ddsi_serdata {
-
-    let mut serdata = SerData::<T>::new(sertype, ddsi_serdata_kind_SDK_KEY);
+) -> *mut ddsi_serdata where T: TopicType {
+ 
     let keyhash = (&*keyhash).value;
-    serdata.sample = SampleData::SDKKey;
-    let key_hash = &mut serdata.key_hash[4..];
-    for (i,b) in keyhash.iter().enumerate() {
-        key_hash[i] = *b;
-    }
+    
+    if T::force_md5_keyhash() {
+        // this means keyhas fits in 16 bytes
+        std::ptr::null_mut()
+    } else {
+        let mut serdata = SerData::<T>::new(sertype, ddsi_serdata_kind_SDK_KEY);
+        serdata.sample = SampleData::SDKKey;
+        let key_hash = &mut serdata.key_hash[4..];
 
-    let ptr = Box::into_raw(serdata);
-    // only we know this ddsi_serdata is really of type SerData
-    ptr as *mut ddsi_serdata
+        for (i,b) in keyhash.iter().enumerate() {
+            key_hash[i] = *b;
+        }
+
+        let ptr = Box::into_raw(serdata);
+        // only we know this ddsi_serdata is really of type SerData
+        ptr as *mut ddsi_serdata
+    }
 }
 
 #[allow(dead_code)]
@@ -555,12 +562,18 @@ unsafe extern "C" fn serdata_to_untyped<T>(serdata: *const ddsi_serdata) -> *mut
 #[allow(dead_code)]
 unsafe extern "C" fn untyped_to_sample<T>(_sertype: *const ddsi_sertype, 
     _serdata: *const ddsi_serdata, 
-    _sample : *mut c_void, 
+    sample : *mut c_void, 
     _buf: *mut *mut c_void, 
     _buflim: *mut c_void) -> bool {
 
-        todo!()
+    let sample = sample as *mut Sample<T>;
+    let sample = &mut *sample;
+    
+    // hmm. We don't store serialized data in serdata. I'm not really sure how
+    // to implement this. For now, invalidate the sample.
+    *sample = Sample::Uninitialized;
 
+    true
 }
 
 #[allow(dead_code)]
