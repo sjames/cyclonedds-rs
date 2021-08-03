@@ -152,22 +152,19 @@ extern "C" fn realloc_samples<T>(
     };
     let mut new = Vec::<Sample<T>>::with_capacity(new_count as usize);
 
-    if old_count > 0 {
-        let copy_count = if new_count < old_count {
-            new_count
-        } else {
-            old_count
-        };
-
+    if new_count >= old_count {
         for entry in old {
             new.push(entry);
-            if new.len() == copy_count as usize {
-                break; // break out if we reached the allocated amount
-            }
+        }
+
+        for _i in 0..(new_count - old_count) {
+            new.push(Sample::<T>::default());
+        }
+    } else {
+        for e in old.into_iter().take(new_count as usize) {
+            new.push(e)
         }
     }
-    // leftover samples in the old vector will get freed when it goes out of scope.
-    // TODO: must test this.
 
     let (raw, length, allocated_length) = new.into_raw_parts();
     // if the length and allocated length are not equal, we messed up above.
