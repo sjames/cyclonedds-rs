@@ -26,19 +26,16 @@ use syn::{Field, Ident, ItemStruct, parse_macro_input};
 pub fn derive_topic(item: TokenStream) -> TokenStream {
     let topic_struct = parse_macro_input!(item as syn::ItemStruct);
 
-
-    if struct_has_key(&topic_struct) {
-        println!("Struct has KEY");    
-    }
+    //if struct_has_key(&topic_struct) {
+    //    println!("Struct has KEY");    
+    //}
 
     let mut ts = build_key_holder_struct(&topic_struct);
     let ts2 = create_keyhash_functions(&topic_struct);
 
     ts.extend(ts2);
-    
-
-    println!("KEYHOLDER:{:?}",ts.clone().to_string());
-
+  
+    //println!("KEYHOLDER:{:?}",ts.clone().to_string());
     ts
 }
 

@@ -17,17 +17,13 @@
 // Rust deserializer for CycloneDDS.
 // See discussion at https://github.com/eclipse-cyclonedds/cyclonedds/issues/830
 
-use cdr::{Bounded, CdrBe, Infinite, SizeLimit};
-use serde::de::value;
-use serde::{Deserialize, Serialize, __private::ser, de::DeserializeOwned};
-use serde_derive::{Deserialize, Serialize};
+use cdr::{Bounded, CdrBe, Infinite};
+use serde::{Serialize, de::DeserializeOwned};
 use std::io::prelude::*;
 use std::{
     ffi::{c_void, CStr},
-    fmt::format,
     marker::PhantomData,
-    mem::{self, MaybeUninit},
-    ops::{Add, Deref},
+    ops::{Deref},
     sync::Arc,
 };
 
@@ -174,7 +170,7 @@ extern "C" fn realloc_samples<T>(
 
     let leaked = new.leak();
 
-    let (raw, length) = (leaked.as_ptr(), leaked.len());
+    let (raw, _length) = (leaked.as_ptr(), leaked.len());
     // if the length and allocated length are not equal, we messed up above.
     //assert_eq!(length, allocated_length);
     unsafe {
@@ -314,7 +310,7 @@ unsafe extern "C" fn serdata_from_keyhash<T>(
     let mut serdata = SerData::<T>::new(sertype, ddsi_serdata_kind_SDK_KEY);
     let keyhash = (&*keyhash).value;
     serdata.sample = SampleData::SDKKey;
-    let mut key_hash = &mut serdata.key_hash[4..];
+    let key_hash = &mut serdata.key_hash[4..];
     for (i,b) in keyhash.iter().enumerate() {
         key_hash[i] = *b;
     }
@@ -325,6 +321,7 @@ unsafe extern "C" fn serdata_from_keyhash<T>(
 }
 
 #[allow(dead_code)]
+#[allow(non_upper_case_globals)]
 unsafe extern "C" fn serdata_from_sample<T>(
     sertype: *const ddsi_sertype,
     kind: u32,
@@ -336,6 +333,7 @@ unsafe extern "C" fn serdata_from_sample<T>(
     let sample = &*sample;
 
     match kind {
+        #[allow(non_upper_case_globals)]
         ddsi_serdata_kind_SDK_DATA => {
             serdata.sample = SampleData::SDKData(sample.get().unwrap());
         }
@@ -509,7 +507,7 @@ where
 }
 
 #[allow(dead_code)]
-unsafe extern "C" fn serdata_to_ser_unref<T>(serdata: *mut ddsi_serdata, iov: *const iovec) {
+unsafe extern "C" fn serdata_to_ser_unref<T>(serdata: *mut ddsi_serdata, _iov: *const iovec) {
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
     ddsi_serdata_removeref(&mut serdata.serdata)
 }
@@ -555,11 +553,11 @@ unsafe extern "C" fn serdata_to_untyped<T>(serdata: *const ddsi_serdata) -> *mut
 }
 
 #[allow(dead_code)]
-unsafe extern "C" fn untyped_to_sample<T>(sertype: *const ddsi_sertype, 
-    serdata: *const ddsi_serdata, 
-    sample : *mut c_void, 
-    buf: *mut *mut c_void, 
-    buflim: *mut c_void) -> bool {
+unsafe extern "C" fn untyped_to_sample<T>(_sertype: *const ddsi_sertype, 
+    _serdata: *const ddsi_serdata, 
+    _sample : *mut c_void, 
+    _buf: *mut *mut c_void, 
+    _buflim: *mut c_void) -> bool {
 
         todo!()
 
@@ -577,7 +575,7 @@ unsafe extern "C" fn get_keyhash<T>(serdata: *const ddsi_serdata, keyhash: *mut 
 }
 
 #[allow(dead_code)]
-unsafe extern "C" fn print<T>(sertype: *const ddsi_sertype, serdata:  *const ddsi_serdata, buf:  *mut i8, bufsize: u64) -> u64 {
+unsafe extern "C" fn print<T>(_sertype: *const ddsi_sertype, _serdata:  *const ddsi_serdata, _buf:  *mut i8, _bufsize: u64) -> u64 {
     0
 }
 
@@ -767,7 +765,9 @@ impl<'a> Read for SGReader<'a> {
 mod test {
     use std::ffi::CString;
     use super::*;
+    use serde_derive::{Deserialize, Serialize};
     use dds_derive::Topic;
+    
     #[test]
     fn scatter_gather() {
         let a = vec![1, 2, 3, 4, 5, 6];
