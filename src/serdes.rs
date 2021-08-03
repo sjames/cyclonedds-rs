@@ -767,6 +767,7 @@ mod test {
     use super::*;
     use serde_derive::{Deserialize, Serialize};
     use dds_derive::Topic;
+    use crate::{DdsQos, DdsTopic,DdsParticipant, DdsListener};
     
     #[test]
     fn scatter_gather() {

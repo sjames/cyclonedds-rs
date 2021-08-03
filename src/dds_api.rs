@@ -18,7 +18,7 @@ use bit_field::BitField;
 use std::convert::From;
 
 use crate::common::Entity;
-use cyclonedds_sys::dds_error::DDSError;
+pub use cyclonedds_sys::dds_error::DDSError;
 use cyclonedds_sys::DdsEntity;
 
 //use crate::dds_writer::DdsWriter;

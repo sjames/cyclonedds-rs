@@ -42,15 +42,10 @@ pub use dds_subscriber::DdsSubscriber;
 pub use dds_topic::DdsTopic;
 pub use dds_waitset::DdsWaitset;
 pub use dds_writer::DdsWriter;
-
 pub use serdes::TopicType;
+
 pub use cdr;
+pub use cyclonedds_sys::dds_error::DDSError;
 
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+pub use dds_derive::Topic;
+pub use serde_derive::{Deserialize, Serialize};
