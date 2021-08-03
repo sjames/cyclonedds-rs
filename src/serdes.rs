@@ -232,30 +232,31 @@ unsafe extern "C" fn serdata_from_fragchain<T>(
 where
     T: DeserializeOwned + TopicType,
 {
-    let off: u32 = 0;
+    let off: i32 = 0;
     let size = size as usize;
     let fragchain_ref = &*fragchain;
 
     let mut serdata = SerData::<T>::new(sertype, kind);
 
     assert_eq!(fragchain_ref.min, 0);
-    assert!(fragchain_ref.maxp1 >= off);
+    assert!(fragchain_ref.maxp1 >= off as u32);
 
     // The scatter gather list
     let mut sg_list = Vec::new();
 
     while !fragchain.is_null() {
         let fragchain_ref = &*fragchain;
-        if fragchain_ref.maxp1 > off {
+        if fragchain_ref.maxp1 > off as u32 {
             let payload =
                 nn_rmsg_payload_offset(fragchain_ref.rmsg, nn_rdata_payload_offset(fragchain));
-            let src = payload.add((off - fragchain_ref.min) as usize);
-            let n_bytes = fragchain_ref.maxp1 - off;
+            let src = payload.add((off - fragchain_ref.min as i32) as usize);
+            let n_bytes = fragchain_ref.maxp1 - off as u32;
             sg_list.push(std::slice::from_raw_parts(src, n_bytes as usize));
         }
         fragchain = fragchain_ref.nextfrag;
     }
-
+    let len : usize = sg_list.iter().fold(0usize, |s,e| s + e.len() );
+    println!("Fragchain: elements:{} {} bytes",sg_list.len(),len );
     // make a reader out of the sg_list
     let reader = SGReader::new(sg_list);
     if let Ok(decoded) = cdr::deserialize_from::<_, T, _>(reader, Bounded(size as u64)) {
