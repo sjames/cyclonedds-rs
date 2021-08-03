@@ -81,7 +81,7 @@ mod dds_participant_tests {
     #[test]
     fn test_create() {
         let qos = DdsQos::create().unwrap()
-        .set_lifespan(1000);
+        .set_lifespan(std::time::Duration::from_nanos(1000));
         let _par = DdsParticipant::create(None, Some(qos), None);
     }
 }

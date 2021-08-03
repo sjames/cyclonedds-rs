@@ -83,16 +83,16 @@ impl DdsQos {
         self
     }
 
-    pub fn set_lifespan(self, lifespan: dds_duration_t) -> Self {
+    pub fn set_lifespan(self, lifespan: std::time::Duration) -> Self {
         unsafe {
-            dds_qset_lifespan(self.0, lifespan);
+            dds_qset_lifespan(self.0, lifespan.as_nanos() as i64);
         }
         self
     }
 
-    pub fn set_deadline(self, deadline: dds_duration_t) -> Self {
+    pub fn set_deadline(self, deadline: std::time::Duration) -> Self {
         unsafe {
-            dds_qset_deadline(self.0, deadline);
+            dds_qset_deadline(self.0, deadline.as_nanos() as i64);
         }
         self
     }
@@ -135,10 +135,10 @@ impl DdsQos {
     pub fn set_reliability(
         self,
         kind: dds_reliability_kind,
-        max_blocking_time: dds_duration_t,
+        max_blocking_time: std::time::Duration,
     ) -> Self {
         unsafe {
-            dds_qset_reliability(self.0, kind, max_blocking_time);
+            dds_qset_reliability(self.0, kind, max_blocking_time.as_nanos() as i64);
         }
         self
     }
@@ -297,7 +297,7 @@ mod dds_qos_tests {
 
     #[test]
     fn test_set() {
-        if let Ok(mut qos) = DdsQos::create() {
+        if let Ok(qos) = DdsQos::create() {
             let qos = qos.set_durability(dds_durability_kind::DDS_DURABILITY_VOLATILE)
             .set_history(dds_history_kind::DDS_HISTORY_KEEP_LAST, 3)
             .set_resource_limits(10, 1, 10)
@@ -306,14 +306,14 @@ mod dds_qos_tests {
                 false,
                 false,
             )
-            .set_lifespan(100)
-            .set_deadline(100)
+            .set_lifespan(std::time::Duration::from_nanos(100))
+            .set_deadline(std::time::Duration::from_nanos(100))
             .set_latency_budget(1000)
             .set_ownership(dds_ownership_kind::DDS_OWNERSHIP_EXCLUSIVE)
             .set_ownership_strength(1000)
             .set_liveliness(dds_liveliness_kind::DDS_LIVELINESS_AUTOMATIC, 10000)
             .set_time_based_filter(1000)
-            .set_reliability(dds_reliability_kind::DDS_RELIABILITY_RELIABLE, 100)
+            .set_reliability(dds_reliability_kind::DDS_RELIABILITY_RELIABLE, std::time::Duration::from_nanos(100))
             .set_transport_priority(1000)
             .set_destination_order(
                 dds_destination_order_kind::DDS_DESTINATIONORDER_BY_RECEPTION_TIMESTAMP,
