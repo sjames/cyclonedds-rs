@@ -80,8 +80,8 @@ mod dds_participant_tests {
 
     #[test]
     fn test_create() {
-        let mut qos = DdsQos::create().unwrap();
-        qos.set_lifespan(1000);
+        let qos = DdsQos::create().unwrap()
+        .set_lifespan(1000);
         let _par = DdsParticipant::create(None, Some(qos), None);
     }
 }
