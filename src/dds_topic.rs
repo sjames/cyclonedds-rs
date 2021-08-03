@@ -20,7 +20,7 @@ use std::convert::From;
 use std::ffi::CString;
 use std::marker::PhantomData;
 
-use crate::deserializer::{TopicType, SerType};
+use crate::serdes::{TopicType, SerType};
 pub use cyclonedds_sys::{DDSError, DdsEntity,ddsi_sertype};
 
 pub struct DdsTopic<T: Sized + TopicType>(DdsEntity, PhantomData<*const T>);
@@ -85,7 +85,6 @@ where
 mod test {
     use std::sync::Arc;
     use crate::{DdsPublisher, DdsWriter};
-    use rusty_fork::rusty_fork_test;
     use super::*;
     use dds_derive::Topic;
     use serde_derive::{Deserialize, Serialize};

@@ -21,7 +21,7 @@ pub use cyclonedds_sys::{DDSBox, DdsEntity};
 use std::marker::PhantomData;
 
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsWritable, Entity};
-use crate::deserializer::{Sample, TopicType};
+use crate::serdes::{Sample, TopicType};
 
 pub struct DdsWriter<'a, T: Sized + TopicType>(
     DdsEntity,

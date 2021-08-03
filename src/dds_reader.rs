@@ -25,7 +25,7 @@ pub use cyclonedds_sys::{DDSBox, DdsDomainId, DdsEntity, DdsLoanedData};
 use std::marker::PhantomData;
 
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable, Entity};
-use crate::deserializer::{TopicType, Sample};
+use crate::serdes::{TopicType, Sample};
 
 
 pub struct DdsReader<'a, T: Sized + TopicType> {
@@ -202,7 +202,7 @@ where
 
 impl<'a, T> Entity for DdsReadCondition<'a, T>
 where
-    T: std::marker::Sized + crate::deserializer::TopicType,
+    T: std::marker::Sized + TopicType,
 {
     fn entity(&self) -> &DdsEntity {
         &self.0

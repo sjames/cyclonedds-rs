@@ -54,8 +54,12 @@ pub trait TopicType : Default + Serialize + DeserializeOwned {
         h.finish() as u32
     }
     fn typename() -> std::ffi::CString {
-        std::ffi::CString::new(format!("{}", std::any::type_name::<Self>()))
-            .expect("Unable to create CString for type name")
+        let ty_name_parts : String = format!("{}", std::any::type_name::<Self>()).split("::").skip(1).collect::<Vec<_>>().join("::");
+
+        let typename = std::ffi::CString::new(ty_name_parts)
+            .expect("Unable to create CString for type name");
+        println!("Typename:{:?}",&typename);
+        typename
     }
     fn has_key() -> bool;
     // this is the key as defined in the DDS-RTPS spec.
@@ -148,16 +152,18 @@ extern "C" fn realloc_samples<T>(
     };
     let mut new = Vec::<Sample<T>>::with_capacity(new_count as usize);
 
-    let copy_count = if new_count < old_count {
-        new_count
-    } else {
-        old_count
-    };
+    if old_count > 0 {
+        let copy_count = if new_count < old_count {
+            new_count
+        } else {
+            old_count
+        };
 
-    for entry in old {
-        new.push(entry);
-        if new.len() == copy_count as usize {
-            break; // break out if we reached the allocated amount
+        for entry in old {
+            new.push(entry);
+            if new.len() == copy_count as usize {
+                break; // break out if we reached the allocated amount
+            }
         }
     }
     // leftover samples in the old vector will get freed when it goes out of scope.
