@@ -430,7 +430,7 @@ where
     match &serdata.sample {
         SampleData::Uninitialized =>panic!("Uninitialized SerData. no size possible"),
         SampleData::SDKKey => serdata.key_hash.len() as u32,
-        SampleData::SDKData(serdata) => (cdr::calc_serialized_size(&serdata.deref()) + 4) as u32,
+        SampleData::SDKData(serdata) => (cdr::calc_serialized_size(&serdata.deref())) as u32,
     }
 }
 
@@ -479,8 +479,8 @@ unsafe extern "C" fn serdata_to_ser<T>(
 #[allow(dead_code)]
 unsafe extern "C" fn serdata_to_ser_ref<T>(
     serdata: *const ddsi_serdata,
-    _offset: u64,
-    _size: u64,
+    offset: u64,
+    size: u64,
     iov: *mut iovec,
 ) -> *mut ddsi_serdata
 where
@@ -503,10 +503,14 @@ where
                     panic!("Unable to serialize type {:?} due to", T::typename());
                 }
             }
-            
             if let Some(cdr) = &serdata.cdr {
+                let offset = offset as usize;
+                let last = offset + size as usize;
+                let cdr = &cdr[offset..last];
                 iov.iov_base = cdr.as_ptr() as *mut c_void;
                 iov.iov_len = cdr.len() as u64;
+            } else {
+                panic!("Unexpected");
             }
         },
     }
