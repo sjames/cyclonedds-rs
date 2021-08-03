@@ -32,10 +32,12 @@ pub fn derive_topic(item: TokenStream) -> TokenStream {
 
     let mut ts = build_key_holder_struct(&topic_struct);
     let ts2 = create_keyhash_functions(&topic_struct);
+    let ts3 = create_topic_functions(&topic_struct);
 
     ts.extend(ts2);
+    ts.extend(ts3);
   
-    //println!("KEYHOLDER:{:?}",ts.clone().to_string());
+    println!("KEYHOLDER:{:?}",ts.clone().to_string());
     ts
 }
 
@@ -174,6 +176,27 @@ fn create_keyhash_functions(item : &syn::ItemStruct) -> TokenStream {
     ts.into()
     
 }
+
+
+fn create_topic_functions(item : &syn::ItemStruct) -> TokenStream {
+    let topic_key_ident = &item.ident;
+
+    let ts = quote!{
+        impl #topic_key_ident {
+            pub fn create_topic(
+                participant: &crate::dds_participant::DdsParticipant,
+                name: &str,
+                maybe_qos: Option<crate::dds_qos::DdsQos>,
+                maybe_listener: Option<crate::dds_listener::DdsListener>,
+            ) -> Result<crate::dds_topic::DdsTopic::<Self>, DDSError> {
+                crate::dds_topic::DdsTopic::<Self>::create(participant,name, maybe_qos,maybe_listener)
+            }
+        }
+    };
+
+    ts.into()
+}
+
 
 fn struct_has_key(it: &ItemStruct) -> bool {
     for field in &it.fields {

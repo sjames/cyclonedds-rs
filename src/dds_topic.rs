@@ -101,7 +101,7 @@ mod test {
         }
 
         let participant = DdsParticipant::create(None,None, None).unwrap();
-        let topic =  DdsTopic::<MyTopic>::create(&participant, "my_topic", None, None).unwrap();
+        let topic =  MyTopic::create_topic(&participant, "my_topic", None, None).unwrap();
         let publisher = DdsPublisher::create(&participant, None, None).expect("Unable to create publisher");
         let mut writer = DdsWriter::create(&publisher, &topic, None, None).unwrap();
 
