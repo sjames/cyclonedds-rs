@@ -16,14 +16,14 @@
 
 use crate::{dds_listener::DdsListener, dds_participant::DdsParticipant, dds_qos::DdsQos, Entity};
 
-use std::convert::From;
+use std::{convert::From, marker::PhantomPinned};
 use std::ffi::CString;
 use std::marker::PhantomData;
 
 use crate::serdes::{TopicType, SerType};
 pub use cyclonedds_sys::{DDSError, DdsEntity,ddsi_sertype};
 
-pub struct DdsTopic<T: Sized + TopicType>(DdsEntity, PhantomData<*const T>);
+pub struct DdsTopic<T: Sized + TopicType>(DdsEntity, PhantomData<T>);
 
 impl<T> DdsTopic<T>
 where

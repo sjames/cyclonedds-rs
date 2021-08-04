@@ -19,7 +19,7 @@ pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 use std::convert::From;
 use std::marker::PhantomData;
 
-pub struct DdsWaitset<T>(DdsEntity, PhantomData<*const T>);
+pub struct DdsWaitset<T>(DdsEntity, PhantomData<T>);
 
 impl<'a, T> DdsWaitset<T> {
     pub fn create(participant: &DdsParticipant) -> Result<Self, DDSError> {

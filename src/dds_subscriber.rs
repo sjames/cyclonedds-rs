@@ -16,7 +16,7 @@
 
 use crate::{DdsListener, DdsParticipant, DdsQos, DdsReadable};
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
-use std::convert::From;
+use std::{convert::From, sync::Arc};
 
 pub struct DdsSubscriber(DdsEntity);
 

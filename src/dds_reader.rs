@@ -1,5 +1,5 @@
 /*
-    Copyright 2020 Sojan James
+    Copyright 2021 Sojan James
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -16,8 +16,12 @@
 
 use cyclonedds_sys::*;
 use std::convert::From;
+use std::future::Future;
 use std::os::raw::c_void;
-use std::sync::Arc;
+use std::pin::Pin;
+use std::sync::{Arc, Condvar, Mutex};
+use std::sync::mpsc::SyncSender;
+use std::task::{Context, Poll, Waker};
 //use std::convert::TryInto;
 
 pub use cyclonedds_sys::{DDSBox, DdsDomainId, DdsEntity, DdsLoanedData};
@@ -27,11 +31,16 @@ use std::marker::PhantomData;
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable, Entity};
 use crate::serdes::{TopicType, Sample};
 
+enum ReaderType {
+    Async(Arc<Mutex<Option<Waker>>>),
+    Sync,
+}
 
 pub struct DdsReader<'a, T: Sized + TopicType> {
     entity: DdsEntity,
     listener: Option<DdsListener<'a>>,
-    _phantom: PhantomData<*const T>,
+    reader_type : ReaderType,
+    _phantom: PhantomData<T>,
     // The callback closures that can be attached to a reader
 }
 
@@ -59,12 +68,42 @@ where
                 Ok(DdsReader {
                     entity: DdsEntity::new(w),
                     listener: maybe_listener,
+                    reader_type : ReaderType::Sync,
                     _phantom: PhantomData,
                 })
             } else {
                 Err(DDSError::from(w))
             }
         }
+    }
+
+    /// Create an async reader. Use the get function on an async reader to get futures
+    pub fn create_async(
+        entity: &dyn DdsReadable,
+        topic: &DdsTopic<T>,
+        maybe_qos: Option<DdsQos>,
+    ) -> Result<Self, DDSError> {
+
+        let waker = Arc::new(Mutex::<Option<Waker>>::new(None));
+        let waker_cb = waker.clone();
+        
+        let listener = DdsListener::new()
+            .on_data_available(move|_entity| {
+                let mut maybe_waker = waker_cb.lock().unwrap();
+                if let Some(waker) = maybe_waker.take() {
+                    waker.wake();
+                }
+            })
+            .hook();
+
+        match Self::create(entity, topic, maybe_qos, Some(listener)) {
+            Ok(mut reader) => {
+                reader.reader_type = ReaderType::Async(waker);
+                Ok(reader)
+            },
+            Err(e) => Err(e),
+        }
+        
     }
 
     pub fn set_listener(&mut self, listener: DdsListener<'a>) -> Result<(), DDSError> {
@@ -145,8 +184,14 @@ where
         }
     }
 
-    pub async fn read_async(&self) -> Result<Arc<T>,DDSError> {
-        todo!()
+        pub async fn get(&self) -> Result<Arc<T>,DDSError> {
+        match &self.reader_type {
+            ReaderType::Async(waker) => {
+               let future_sample = SampleFuture::new(self.entity.clone(), waker.clone());
+               future_sample.await
+            },
+            ReaderType::Sync => return Err(DDSError::NotEnabled),
+        }
     }
 
     pub fn create_readcondition(
@@ -209,4 +254,108 @@ where
     fn entity(&self) -> &DdsEntity {
         &self.0
     }
+}
+
+
+struct SampleFuture<T> {
+    entity : DdsEntity,
+    waker : Arc<Mutex<Option<Waker>>>,
+    _phantom : PhantomData<T>
+}
+
+impl <T>SampleFuture<T> {
+    fn new(entity: DdsEntity, waker : Arc<Mutex<Option<Waker>>>) -> Self {
+        Self {
+            entity,
+            waker,
+            _phantom : PhantomData,
+        }
+    }
+}
+
+impl <T>Future for SampleFuture<T> where T: TopicType {
+    type Output = Result<Arc<T>, DDSError>;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
+        // do this first in case a callback for read complete happens
+        let mut waker = self.waker.lock().unwrap();
+        match DdsReader::<T>::read_from_entity(&self.entity)  {
+            Ok(s) => return Poll::Ready(Ok(s)),
+            Err(DDSError::NoData) => {
+                let _ = waker.replace(ctx.waker().clone()); 
+                Poll::Pending
+            },
+            Err(e) => {                // Some other error happened
+                Poll::Ready(Err(e))
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use core::panic;
+
+    use crate::{DdsParticipant, DdsSubscriber};
+    use super::*;
+    use crate::{DdsPublisher, DdsWriter};
+    use super::*;
+    use dds_derive::Topic;
+    use serde_derive::{Deserialize, Serialize};
+    use tokio::runtime::Runtime;
+
+    #[derive(Serialize,Deserialize,Topic, Default)]
+    struct TestTopic {
+        a : u32,
+        b : u16,
+        c: String,
+        d : Vec<u8>,
+        #[topic_key]
+        e : u32,
+    }
+
+    fn create_topic(participant:&DdsParticipant) -> DdsTopic<TestTopic>{
+        TestTopic::create_topic(&participant, "test_topic", None, None).unwrap()
+    }
+
+    #[test]
+    fn test_reader_async() {
+        
+        let participant = DdsParticipant::create(None, None, None).unwrap();
+        let topic = create_topic(&participant);
+        let publisher = DdsPublisher::create(&participant, None, None).unwrap();
+        let writer = DdsWriter::create(&publisher, &topic, None, None);
+
+        let subscriber = DdsSubscriber::create(&participant, None, None).unwrap();
+        let reader = DdsReader::create_async(&subscriber, &topic, None).unwrap();
+
+        let rt = Runtime::new().unwrap();
+
+        let _result = rt.block_on(async {
+            
+            let task = tokio::spawn(async move {
+                
+               // println!("Waiting for reader get");
+               // if let Ok(t) = reader.get().await {
+               //     println!("Reader received");
+               // } else {
+               //     panic!("reader get failed");
+               // }
+            });
+
+
+
+
+
+
+
+        });
+
+
+        
+
+    }
+
+    
+
 }
