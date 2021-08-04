@@ -264,12 +264,17 @@ impl From<DdsQos> for *const dds_qos_t {
         q
     }
 }
-
-impl From<&DdsQos> for *const dds_qos_t {
-    fn from(qos: &DdsQos) -> Self {
-        qos.0
+/* 
+impl From<&mut DdsQos> for *const dds_qos_t {
+    fn from(qos: &mut DdsQos) -> Self {
+        let q = qos.0;
+        // we need to forget the pointer here
+        qos.0 = std::ptr::null_mut();
+        // setting to zero will ensure drop will not deallocate it
+        q
     }
 }
+*/
 
 #[cfg(test)]
 mod dds_qos_tests {

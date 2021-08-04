@@ -26,7 +26,6 @@ use crate::serdes::{Sample, TopicType};
 pub struct DdsWriter<'a, T: Sized + TopicType>(
     DdsEntity,
     Option<DdsListener<'a>>,
-    Option<&'a DdsQos>,
     PhantomData<*const T>,
 );
 
@@ -37,7 +36,7 @@ where
     pub fn create(
         entity: &dyn DdsWritable,
         topic: &DdsTopic<T>,
-        maybe_qos: Option<&'a DdsQos>,
+        maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener<'a>>,
     ) -> Result<Self, DDSError> {
         unsafe {
@@ -54,7 +53,6 @@ where
                 Ok(DdsWriter(
                     DdsEntity::new(w),
                     maybe_listener,
-                    maybe_qos,
                     PhantomData,
                 ))
             } else {

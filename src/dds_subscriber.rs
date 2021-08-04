@@ -18,12 +18,12 @@ use crate::{DdsListener, DdsParticipant, DdsQos, DdsReadable};
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 use std::convert::From;
 
-pub struct DdsSubscriber<'a>(DdsEntity, Option<&'a DdsQos>);
+pub struct DdsSubscriber(DdsEntity);
 
-impl<'a> DdsSubscriber<'a> {
+impl<'a> DdsSubscriber {
     pub fn create(
         participant: &DdsParticipant,
-        maybe_qos: Option<&'a DdsQos>,
+        maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener>,
     ) -> Result<Self, DDSError> {
         unsafe {
@@ -33,7 +33,7 @@ impl<'a> DdsSubscriber<'a> {
                 maybe_listener.map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
-                Ok(DdsSubscriber(DdsEntity::new(p), maybe_qos))
+                Ok(DdsSubscriber(DdsEntity::new(p)))
             } else {
                 Err(DDSError::from(p))
             }
@@ -41,7 +41,7 @@ impl<'a> DdsSubscriber<'a> {
     }
 }
 
-impl<'a> Drop for DdsSubscriber<'a> {
+impl<'a> Drop for DdsSubscriber {
     fn drop(&mut self) {
         unsafe {
             let ret: DDSError = cyclonedds_sys::dds_delete(self.0.entity()).into();
@@ -54,7 +54,7 @@ impl<'a> Drop for DdsSubscriber<'a> {
     }
 }
 
-impl<'a> DdsReadable for DdsSubscriber<'a> {
+impl<'a> DdsReadable for DdsSubscriber {
     fn entity(&self) -> &DdsEntity {
         &self.0
     }

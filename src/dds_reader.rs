@@ -31,7 +31,6 @@ use crate::serdes::{TopicType, Sample};
 pub struct DdsReader<'a, T: Sized + TopicType> {
     entity: DdsEntity,
     listener: Option<DdsListener<'a>>,
-    _maybe_qos: Option<&'a DdsQos>,
     _phantom: PhantomData<*const T>,
     // The callback closures that can be attached to a reader
 }
@@ -43,7 +42,7 @@ where
     pub fn create(
         entity: &dyn DdsReadable,
         topic: &DdsTopic<T>,
-        maybe_qos: Option<&'a DdsQos>,
+        maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener<'a>>,
     ) -> Result<Self, DDSError> {
         unsafe {
@@ -60,7 +59,6 @@ where
                 Ok(DdsReader {
                     entity: DdsEntity::new(w),
                     listener: maybe_listener,
-                    _maybe_qos: maybe_qos,
                     _phantom: PhantomData,
                 })
             } else {
@@ -145,6 +143,10 @@ where
                 Err(DDSError::from(ret))
             }
         }
+    }
+
+    pub async fn read_async(&self) -> Result<Arc<T>,DDSError> {
+        todo!()
     }
 
     pub fn create_readcondition(
