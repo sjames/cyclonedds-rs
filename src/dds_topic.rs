@@ -25,7 +25,7 @@ use crate::serdes::{TopicType, SerType};
 pub use cyclonedds_sys::{DDSError, DdsEntity,ddsi_sertype};
 
 
-pub struct DdsTopic<T: Sized + TopicType>(std::sync::Arc<EntityWrapper>, PhantomData<T>);
+pub struct DdsTopic<T: Sized + TopicType>(EntityWrapper, PhantomData<T>);
 
 impl<T> DdsTopic<T>
 where
@@ -50,7 +50,7 @@ where
                 std::ptr::null_mut());
 
             if topic >= 0 {
-                Ok(DdsTopic(std::sync::Arc::new(EntityWrapper::new(DdsEntity::new(topic))), PhantomData))
+                Ok(DdsTopic(EntityWrapper::new(DdsEntity::new(topic)), PhantomData))
             } else {
                 Err(DDSError::from(topic))
             }

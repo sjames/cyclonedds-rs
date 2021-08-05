@@ -30,6 +30,7 @@ pub trait Entity {
     fn entity(&self) -> &DdsEntity;
 }
 
+#[derive(Clone)]
 pub struct  EntityWrapper(Option<DdsEntity>);
 impl Drop for EntityWrapper {
         fn drop(&mut self) {

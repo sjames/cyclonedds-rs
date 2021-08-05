@@ -18,7 +18,7 @@ use crate::{DdsListener, DdsParticipant, DdsQos, DdsReadable, common::EntityWrap
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 use std::{convert::From, sync::Arc};
 
-pub struct DdsSubscriber(Arc<EntityWrapper>);
+pub struct DdsSubscriber(EntityWrapper);
 
 impl<'a> DdsSubscriber {
     pub fn create(
@@ -33,7 +33,7 @@ impl<'a> DdsSubscriber {
                 maybe_listener.map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
-                Ok(DdsSubscriber(Arc::new(EntityWrapper::new(DdsEntity::new(p)))))
+                Ok(DdsSubscriber(EntityWrapper::new(DdsEntity::new(p))))
             } else {
                 Err(DDSError::from(p))
             }

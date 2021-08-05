@@ -22,7 +22,7 @@ use crate::{DdsReadable, DdsWritable, Entity, common::EntityWrapper, dds_listene
 
 
 #[derive(Clone)]
-pub struct DdsParticipant(std::sync::Arc<EntityWrapper>);
+pub struct DdsParticipant(EntityWrapper);
 
 impl DdsParticipant {
     pub fn create(
@@ -37,7 +37,7 @@ impl DdsParticipant {
                 maybe_listener.map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
-                Ok(DdsParticipant(std::sync::Arc::new(EntityWrapper::new(DdsEntity::new(p)))))
+                Ok(DdsParticipant(EntityWrapper::new(DdsEntity::new(p))))
             } else {
                 Err(DDSError::from(p))
             }
