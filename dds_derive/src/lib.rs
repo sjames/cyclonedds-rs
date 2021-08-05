@@ -182,6 +182,15 @@ fn create_topic_functions(item : &syn::ItemStruct) -> TokenStream {
 
     let ts = quote!{
         impl #topic_key_ident {
+            /// Create a topic using this Type
+            ///
+            /// # Arguments
+            ///
+            /// * `participant` - The participant handle onto which this topic should be created
+            /// * `name` - The name of the topic
+            /// * `maybe_qos` - A QoS structure for this topic.  The Qos is optional
+            /// * `maybe_listener` - A listener to use on this topic. The listener is optional
+            ///
             pub fn create_topic(
                 participant: DdsParticipant,
                 name: &str,
