@@ -24,7 +24,7 @@ use std::sync::mpsc::SyncSender;
 use std::task::{Context, Poll, Waker};
 //use std::convert::TryInto;
 
-pub use cyclonedds_sys::{DDSBox, DdsDomainId, DdsEntity, DdsLoanedData};
+pub use cyclonedds_sys::{DdsDomainId, DdsEntity};
 
 use std::marker::PhantomData;
 

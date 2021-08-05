@@ -17,7 +17,7 @@
 use cyclonedds_sys::*;
 use std::convert::From;
 
-pub use cyclonedds_sys::{DDSBox, DdsEntity};
+pub use cyclonedds_sys::{ DdsEntity};
 use std::marker::PhantomData;
 
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsWritable, Entity};
