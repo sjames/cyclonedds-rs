@@ -18,11 +18,12 @@ use crate::{DdsListener, DdsParticipant, DdsQos, DdsReadable};
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 use std::{convert::From};
 
+#[derive(Clone)]
 pub struct DdsSubscriber(DdsEntity);
 
 impl<'a> DdsSubscriber {
     pub fn create(
-        participant: DdsParticipant,
+        participant: &DdsParticipant,
         maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener>,
     ) -> Result<Self, DDSError> {

@@ -182,7 +182,7 @@ where
        Self::read_from_entity(self.entity()) 
     }
 
-    pub fn take(&self) -> Result<Arc<T>, DDSError> {
+    pub fn take_from_entity(entity: &DdsEntity) -> Result<Arc<T>, DDSError> {
         unsafe {
             let mut info = cyclonedds_sys::dds_sample_info::default();
             // set to null pointer to ask cyclone to allocate the buffer. All received
@@ -190,7 +190,7 @@ where
             let mut voidp: *mut c_void = std::ptr::null::<T>() as *mut c_void;
             let voidpp: *mut *mut c_void = &mut voidp;
 
-            let ret = dds_take(self.inner.entity.entity(), voidpp, &mut info as *mut _, 1, 1);
+            let ret = dds_take(entity.entity(), voidpp, &mut info as *mut _, 1, 1);
 
             if ret >= 0 {
                 if !voidp.is_null() && info.valid_data {
@@ -211,10 +211,24 @@ where
         }
     }
 
-        pub async fn get(&self) -> Result<Arc<T>,DDSError> {
+    pub fn take(&self) -> Result<Arc<T>, DDSError> {
+        Self::take_from_entity(self.entity()) 
+    }
+
+    pub async fn get(&self) -> Result<Arc<T>,DDSError> {
         match &self.inner.reader_type {
             ReaderType::Async(waker) => {
-               let future_sample = SampleFuture::new(self.inner.entity.clone(), waker.clone());
+               let future_sample = SampleFuture::new(self.inner.entity.clone(), waker.clone(), FutureType::Read);
+               future_sample.await
+            },
+            ReaderType::Sync => return Err(DDSError::NotEnabled),
+        }
+    }
+
+    pub async fn pull(&self) -> Result<Arc<T>,DDSError> {
+        match &self.inner.reader_type {
+            ReaderType::Async(waker) => {
+               let future_sample = SampleFuture::new(self.inner.entity.clone(), waker.clone(), FutureType::Take);
                future_sample.await
             },
             ReaderType::Sync => return Err(DDSError::NotEnabled),
@@ -283,18 +297,24 @@ where
     }
 }
 
+enum FutureType {
+    Take,
+    Read,
+}
 
 struct SampleFuture<T> {
     entity : DdsEntity,
     waker : Arc<Mutex<Option<Waker>>>,
+    take_or_read : FutureType,
     _phantom : PhantomData<T>
 }
 
 impl <T>SampleFuture<T> {
-    fn new(entity: DdsEntity, waker : Arc<Mutex<Option<Waker>>>) -> Self {
+    fn new(entity: DdsEntity, waker : Arc<Mutex<Option<Waker>>>, ty : FutureType) -> Self {
         Self {
             entity,
             waker,
+            take_or_read : ty,
             _phantom : PhantomData,
         }
     }
@@ -306,7 +326,11 @@ impl <T>Future for SampleFuture<T> where T: TopicType {
     fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
         // do this first in case a callback for read complete happens
         let mut waker = self.waker.lock().unwrap();
-        match DdsReader::<T>::read_from_entity(&self.entity)  {
+        let input = match &self.take_or_read {
+            FutureType::Take => DdsReader::<T>::take_from_entity(&self.entity),
+            FutureType::Read => DdsReader::<T>::read_from_entity(&self.entity),
+        };
+        match input  {
             Ok(s) => return Poll::Ready(Ok(s)),
             Err(DDSError::NoData) | Err(DDSError::OutOfResources) => {
                 let _ = waker.replace(ctx.waker().clone()); 
@@ -355,34 +379,60 @@ mod test {
         }
     }
 
-    fn create_topic(participant:DdsParticipant) -> DdsTopic<TestTopic>{
-        TestTopic::create_topic(participant, "test_topic", None, None).unwrap()
+    #[derive(Serialize,Deserialize,Topic, Debug, PartialEq)]
+    struct AnotherTopic {
+        value : u32,
+        name : String,
+        arr : [String;2],
+        vec : Vec<String>,
     }
+
+    impl Default for AnotherTopic {
+        fn default() -> Self {
+            Self {
+                value : 42,
+                name : "the answer".to_owned(),
+                arr : ["one".to_owned(), "two".to_owned()],
+                vec : vec!["Hello".to_owned(), "world".to_owned()],
+            }
+    }
+    }
+
+   
 
     #[test]
     fn test_reader_async() {
         
         let participant = DdsParticipant::create(None, None, None).unwrap();
-        let topic = create_topic(participant.clone());
-        let publisher = DdsPublisher::create(participant.clone(), None, None).unwrap();
-        let mut writer = DdsWriter::create(publisher, topic.clone(), None, None).unwrap();
 
-        let subscriber = DdsSubscriber::create(participant, None, None).unwrap();
-        let reader = DdsReader::create_async(subscriber, topic, None).unwrap();
+        let topic = TestTopic::create_topic(&participant, "test_topic", None, None).unwrap();
+        let another_topic = AnotherTopic::create_topic(&participant, "another_topic", None, None).unwrap();
+
+        let publisher = DdsPublisher::create(&participant, None, None).unwrap();
+
+        let mut writer = DdsWriter::create(&publisher, topic.clone(), None, None).unwrap();
+        let mut another_writer = DdsWriter::create(&publisher, another_topic.clone(), None, None).unwrap();
+
+
+        let subscriber = DdsSubscriber::create(&participant, None, None).unwrap();
+        let reader = DdsReader::create_async(subscriber.clone(), topic.clone(), None).unwrap();
+        let another_reader = DdsReader::create_async(subscriber, another_topic, None).unwrap();
 
         let rt = Runtime::new().unwrap();
 
         let _result = rt.block_on(async {
             
             let task = tokio::spawn(async move {
-                if let Ok(t) = reader.get().await {
+                if let Ok(t) = reader.pull().await {
                     assert_eq!(t,Arc::new(TestTopic::default()));
                 } else {
                     panic!("reader get failed");
                 }
+            });
 
-                if let Ok(t) = reader.get().await {
-                    assert_eq!(t,Arc::new(TestTopic::default()));
+            let another_task = tokio::spawn(async move {
+                if let Ok(t) = another_reader.get().await {
+                    assert_eq!(t,Arc::new(AnotherTopic::default()));
                 } else {
                     panic!("reader get failed");
                 }
@@ -392,6 +442,8 @@ mod test {
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             let data = Arc::new(TestTopic::default());
             writer.write(data).unwrap();
+
+            another_writer.write(Arc::new(AnotherTopic::default())).unwrap();
 
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 

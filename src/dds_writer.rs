@@ -34,7 +34,7 @@ where
     T: Sized + TopicType,
 {
     pub fn create(
-        entity: impl DdsWritable,
+        entity: &dyn DdsWritable,
         topic: DdsTopic<T>,
         maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener>,
@@ -76,7 +76,7 @@ where
     }
 
     pub fn write(&mut self, msg: std::sync::Arc<T>) -> Result<(), DDSError> {
-        unsafe {Self::write_to_entity(&self.0, msg)}
+        Self::write_to_entity(&self.0, msg)
 
     }
 

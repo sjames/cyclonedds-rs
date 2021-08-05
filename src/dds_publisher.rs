@@ -23,7 +23,7 @@ pub struct DdsPublisher(DdsEntity);
 
 impl<'a> DdsPublisher {
     pub fn create(
-        participant: DdsParticipant,
+        participant: &DdsParticipant,
         maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener>,
     ) -> Result<Self, DDSError> {

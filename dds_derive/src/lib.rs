@@ -192,7 +192,7 @@ fn create_topic_functions(item : &syn::ItemStruct) -> TokenStream {
             /// * `maybe_listener` - A listener to use on this topic. The listener is optional
             ///
             pub fn create_topic(
-                participant: DdsParticipant,
+                participant: &DdsParticipant,
                 name: &str,
                 maybe_qos: Option<DdsQos>,
                 maybe_listener: Option<DdsListener>,
