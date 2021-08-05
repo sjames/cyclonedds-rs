@@ -62,7 +62,7 @@ where
 {
 
     pub fn create(
-        entity: impl DdsReadable,
+        entity: &dyn DdsReadable,
         topic: DdsTopic<T>,
         maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener>,
@@ -71,7 +71,7 @@ where
     }
 
     fn create_sync_or_async(
-        entity: impl DdsReadable,
+        entity: &dyn DdsReadable,
         topic: DdsTopic<T>,
         maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener>,
@@ -102,7 +102,7 @@ where
 
     /// Create an async reader. Use the get function on an async reader to get futures
     pub fn create_async(
-        entity: impl DdsReadable,
+        entity: &dyn DdsReadable,
         topic: DdsTopic<T>,
         maybe_qos: Option<DdsQos>,
     ) -> Result<Self, DDSError> {
@@ -415,8 +415,8 @@ mod test {
 
 
         let subscriber = DdsSubscriber::create(&participant, None, None).unwrap();
-        let reader = DdsReader::create_async(subscriber.clone(), topic.clone(), None).unwrap();
-        let another_reader = DdsReader::create_async(subscriber, another_topic, None).unwrap();
+        let reader = DdsReader::create_async(&subscriber, topic.clone(), None).unwrap();
+        let another_reader = DdsReader::create_async(&subscriber, another_topic, None).unwrap();
 
         let rt = Runtime::new().unwrap();
 
