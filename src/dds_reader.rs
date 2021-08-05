@@ -28,6 +28,7 @@ pub use cyclonedds_sys::{DDSBox, DdsDomainId, DdsEntity, DdsLoanedData};
 
 use std::marker::PhantomData;
 
+use crate::common::EntityWrapper;
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable, Entity};
 use crate::serdes::{TopicType, Sample};
 
@@ -36,23 +37,46 @@ enum ReaderType {
     Sync,
 }
 
-pub struct DdsReader<'a, T: Sized + TopicType> {
+
+ struct Inner<T: Sized + TopicType> {
     entity: DdsEntity,
-    listener: Option<DdsListener<'a>>,
+    listener: Option<DdsListener>,
     reader_type : ReaderType,
     _phantom: PhantomData<T>,
     // The callback closures that can be attached to a reader
 }
 
-impl<'a, T> DdsReader<'a, T>
+pub struct DdsReader<T: Sized + TopicType> {
+    inner : Arc<Inner<T>>,
+    /* 
+    entity: DdsEntity,
+    listener: Option<Arc<DdsListener<'a>>>,
+    reader_type : ReaderType,
+    _phantom: PhantomData<T>,
+    */
+    // The callback closures that can be attached to a reader
+}
+
+impl<'a, T> DdsReader<T>
 where
     T: Sized + TopicType,
 {
+
     pub fn create(
-        entity: &dyn DdsReadable,
-        topic: &DdsTopic<T>,
+        entity: impl DdsReadable,
+        topic: DdsTopic<T>,
         maybe_qos: Option<DdsQos>,
-        maybe_listener: Option<DdsListener<'a>>,
+        maybe_listener: Option<DdsListener>,
+    ) -> Result<Self, DDSError> {
+        Self::create_sync_or_async(entity, topic, maybe_qos, maybe_listener, ReaderType::Sync)
+    }
+
+    fn create_sync_or_async(
+        entity: impl DdsReadable,
+        topic: DdsTopic<T>,
+        maybe_qos: Option<DdsQos>,
+        maybe_listener: Option<DdsListener>,
+        reader_type : ReaderType,
     ) -> Result<Self, DDSError> {
         unsafe {
             let w = dds_create_reader(
@@ -66,10 +90,10 @@ where
 
             if w >= 0 {
                 Ok(DdsReader {
-                    entity: DdsEntity::new(w),
-                    listener: maybe_listener,
-                    reader_type : ReaderType::Sync,
-                    _phantom: PhantomData,
+                    inner : Arc::new(Inner {entity: DdsEntity::new(w),
+                        listener: maybe_listener,
+                        reader_type,
+                        _phantom: PhantomData,})
                 })
             } else {
                 Err(DDSError::from(w))
@@ -79,8 +103,8 @@ where
 
     /// Create an async reader. Use the get function on an async reader to get futures
     pub fn create_async(
-        entity: &dyn DdsReadable,
-        topic: &DdsTopic<T>,
+        entity: impl DdsReadable,
+        topic: DdsTopic<T>,
         maybe_qos: Option<DdsQos>,
     ) -> Result<Self, DDSError> {
 
@@ -96,9 +120,8 @@ where
             })
             .hook();
 
-        match Self::create(entity, topic, maybe_qos, Some(listener)) {
+        match Self::create_sync_or_async(entity, topic, maybe_qos, Some(listener),ReaderType::Async(waker) ) {
             Ok(mut reader) => {
-                reader.reader_type = ReaderType::Async(waker);
                 Ok(reader)
             },
             Err(e) => Err(e),
@@ -106,18 +129,20 @@ where
         
     }
 
+    /* 
     pub fn set_listener(&mut self, listener: DdsListener<'a>) -> Result<(), DDSError> {
         unsafe {
             let refl = &listener;
-            let rc = dds_set_listener(self.entity.entity(), refl.into());
+            let rc = dds_set_listener(self.inner.entity.entity(), refl.into());
             if rc == 0 {
-                self.listener = Some(listener);
+                self.listener = Some(Arc::new(listener));
                 Ok(())
             } else {
                 Err(DDSError::from(rc))
             }
         }
     }
+    */
 
     /* */
     /// Read a buffer given a dds_entity_t.  This is useful when you want to read data
@@ -163,7 +188,7 @@ where
             let mut voidp: *mut c_void = std::ptr::null::<T>() as *mut c_void;
             let voidpp: *mut *mut c_void = &mut voidp;
 
-            let ret = dds_take(self.entity.entity(), voidpp, &mut info as *mut _, 1, 1);
+            let ret = dds_take(self.inner.entity.entity(), voidpp, &mut info as *mut _, 1, 1);
 
             if ret >= 0 {
                 if !voidp.is_null() && info.valid_data {
@@ -185,9 +210,9 @@ where
     }
 
         pub async fn get(&self) -> Result<Arc<T>,DDSError> {
-        match &self.reader_type {
+        match &self.inner.reader_type {
             ReaderType::Async(waker) => {
-               let future_sample = SampleFuture::new(self.entity.clone(), waker.clone());
+               let future_sample = SampleFuture::new(self.inner.entity.clone(), waker.clone());
                future_sample.await
             },
             ReaderType::Sync => return Err(DDSError::NotEnabled),
@@ -202,25 +227,25 @@ where
     }
 }
 
-impl<'a, T> Entity for DdsReader<'a, T>
+impl<'a, T> Entity for DdsReader<T>
 where
     T: std::marker::Sized + TopicType,
 {
     fn entity(&self) -> &DdsEntity {
-        &self.entity
+        &self.inner.entity
     }
 }
 
-impl<'a, T> Drop for DdsReader<'a, T>
+impl<'a, T> Drop for DdsReader<T>
 where
     T: Sized + TopicType,
 {
     fn drop(&mut self) {
         unsafe {
-            println!("Drop reader:{:?}", self.entity().entity());
-            let ret: DDSError = cyclonedds_sys::dds_delete(self.entity.entity()).into();
+            //println!("Drop reader:{:?}", self.entity().entity());
+            let ret: DDSError = cyclonedds_sys::dds_delete(self.inner.entity.entity()).into();
             if DDSError::DdsOk != ret {
-                panic!("cannot delete Reader: {}", ret);
+                //panic!("cannot delete Reader: {}", ret);
             } else {
                 //println!("Reader dropped");
             }
@@ -228,13 +253,13 @@ where
     }
 }
  
-pub struct DdsReadCondition<'a, T: Sized + TopicType>(DdsEntity, &'a DdsReader<'a, T>);
+pub struct DdsReadCondition<'a, T: Sized + TopicType>(DdsEntity, &'a DdsReader<T>);
 
 impl<'a, T> DdsReadCondition<'a, T>
 where
     T: Sized + TopicType,
 {
-    fn create(reader: &'a DdsReader<'a, T>, mask: StateMask) -> Result<Self, DDSError> {
+    fn create(reader: &'a DdsReader<T>, mask: StateMask) -> Result<Self, DDSError> {
         unsafe {
             let mask: u32 = *mask;
             let p = cyclonedds_sys::dds_create_readcondition(reader.entity().entity(), mask);
@@ -281,11 +306,13 @@ impl <T>Future for SampleFuture<T> where T: TopicType {
         let mut waker = self.waker.lock().unwrap();
         match DdsReader::<T>::read_from_entity(&self.entity)  {
             Ok(s) => return Poll::Ready(Ok(s)),
-            Err(DDSError::NoData) => {
+            Err(DDSError::NoData) | Err(DDSError::OutOfResources) => {
                 let _ = waker.replace(ctx.waker().clone()); 
                 Poll::Pending
             },
-            Err(e) => {                // Some other error happened
+            Err(e) => {    
+                println!("Error:{}",e);
+                // Some other error happened
                 Poll::Ready(Err(e))
             }
         }
@@ -304,7 +331,7 @@ mod test {
     use serde_derive::{Deserialize, Serialize};
     use tokio::runtime::Runtime;
 
-    #[derive(Serialize,Deserialize,Topic, Default)]
+    #[derive(Serialize,Deserialize,Topic, Debug, PartialEq)]
     struct TestTopic {
         a : u32,
         b : u16,
@@ -314,40 +341,51 @@ mod test {
         e : u32,
     }
 
-    fn create_topic(participant:&DdsParticipant) -> DdsTopic<TestTopic>{
-        TestTopic::create_topic(&participant, "test_topic", None, None).unwrap()
+    impl Default for TestTopic {
+        fn default() -> Self {
+            Self {
+                a : 10,
+                b : 20,
+                c : "TestTopic".to_owned(),
+                d : vec![1,2,3,4,5],
+                e : 0,
+            }
+        }
+    }
+
+    fn create_topic(participant:DdsParticipant) -> DdsTopic<TestTopic>{
+        TestTopic::create_topic(participant, "test_topic", None, None).unwrap()
     }
 
     #[test]
     fn test_reader_async() {
         
         let participant = DdsParticipant::create(None, None, None).unwrap();
-        let topic = create_topic(&participant);
-        let publisher = DdsPublisher::create(&participant, None, None).unwrap();
-        let writer = DdsWriter::create(&publisher, &topic, None, None);
+        let topic = create_topic(participant.clone());
+        let publisher = DdsPublisher::create(participant.clone(), None, None).unwrap();
+        let mut writer = DdsWriter::create(publisher, topic.clone(), None, None).unwrap();
 
-        let subscriber = DdsSubscriber::create(&participant, None, None).unwrap();
-        let reader = DdsReader::create_async(&subscriber, &topic, None).unwrap();
+        let subscriber = DdsSubscriber::create(participant, None, None).unwrap();
+        let reader = DdsReader::create_async(subscriber, topic, None).unwrap();
 
         let rt = Runtime::new().unwrap();
 
         let _result = rt.block_on(async {
             
             let task = tokio::spawn(async move {
-                
-               // println!("Waiting for reader get");
-               // if let Ok(t) = reader.get().await {
-               //     println!("Reader received");
-               // } else {
-               //     panic!("reader get failed");
-               // }
+                if let Ok(t) = reader.get().await {
+                    assert_eq!(t,Arc::new(TestTopic::default()));
+                } else {
+                    panic!("reader get failed");
+                }
             });
 
+            // add a delay to make sure the data is not ready immediately
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            let data = Arc::new(TestTopic::default());
+            writer.write(data).unwrap();
 
-
-
-
-
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         });
 

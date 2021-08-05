@@ -24,33 +24,33 @@ use std::convert::From;
 
 /// The callbacks are in a different structure that is always
 /// heap allocated.
-struct Callbacks<'a> {
+struct Callbacks {
     // Callbacks for readers
-    on_sample_lost: Option<Box<dyn FnMut(DdsEntity, dds_sample_lost_status_t) + 'a>>,
-    on_data_available: Option<Box<dyn FnMut(DdsEntity) + 'a>>,
-    on_sample_rejected: Option<Box<dyn FnMut(DdsEntity, dds_sample_rejected_status_t) + 'a>>,
-    on_liveliness_changed: Option<Box<dyn FnMut(DdsEntity, dds_liveliness_changed_status_t) + 'a>>,
+    on_sample_lost: Option<Box<dyn FnMut(DdsEntity, dds_sample_lost_status_t) + 'static>>,
+    on_data_available: Option<Box<dyn FnMut(DdsEntity) + 'static>>,
+    on_sample_rejected: Option<Box<dyn FnMut(DdsEntity, dds_sample_rejected_status_t) + 'static>>,
+    on_liveliness_changed: Option<Box<dyn FnMut(DdsEntity, dds_liveliness_changed_status_t) + 'static>>,
     on_requested_deadline_missed:
-        Option<Box<dyn FnMut(DdsEntity, dds_requested_deadline_missed_status_t) + 'a>>,
+        Option<Box<dyn FnMut(DdsEntity, dds_requested_deadline_missed_status_t) + 'static>>,
     on_requested_incompatible_qos:
-        Option<Box<dyn FnMut(DdsEntity, dds_requested_incompatible_qos_status_t) + 'a>>,
+        Option<Box<dyn FnMut(DdsEntity, dds_requested_incompatible_qos_status_t) + 'static>>,
     on_subscription_matched:
-        Option<Box<dyn FnMut(DdsEntity, dds_subscription_matched_status_t) + 'a>>,
+        Option<Box<dyn FnMut(DdsEntity, dds_subscription_matched_status_t) + 'static>>,
 
     //callbacks for writers
-    on_liveliness_lost: Option<Box<dyn FnMut(DdsEntity, dds_liveliness_lost_status_t) + 'a>>,
+    on_liveliness_lost: Option<Box<dyn FnMut(DdsEntity, dds_liveliness_lost_status_t) + 'static>>,
     on_offered_deadline_missed:
-        Option<Box<dyn FnMut(DdsEntity, dds_offered_deadline_missed_status_t) + 'a>>,
+        Option<Box<dyn FnMut(DdsEntity, dds_offered_deadline_missed_status_t) + 'static>>,
     on_offered_incompatible_qos:
-        Option<Box<dyn FnMut(DdsEntity, dds_offered_incompatible_qos_status_t) + 'a>>,
+        Option<Box<dyn FnMut(DdsEntity, dds_offered_incompatible_qos_status_t) + 'static>>,
     on_publication_matched:
-        Option<Box<dyn FnMut(DdsEntity, dds_publication_matched_status_t) + 'a>>,
+        Option<Box<dyn FnMut(DdsEntity, dds_publication_matched_status_t) + 'static>>,
 
-    on_inconsistent_topic: Option<Box<dyn FnMut(DdsEntity, dds_inconsistent_topic_status_t) + 'a>>,
-    on_data_on_readers: Option<Box<dyn FnMut(DdsEntity) + 'a>>,
+    on_inconsistent_topic: Option<Box<dyn FnMut(DdsEntity, dds_inconsistent_topic_status_t) + 'static>>,
+    on_data_on_readers: Option<Box<dyn FnMut(DdsEntity) + 'static>>,
 }
 
-impl<'a> Default for Callbacks<'a> {
+impl<'a> Default for Callbacks {
     fn default() -> Self {
         Self {
             on_sample_lost: None,
@@ -70,31 +70,40 @@ impl<'a> Default for Callbacks<'a> {
     }
 }
 
-pub struct DdsListener<'a> {
+unsafe impl Send for Inner {
+    
+}
+struct Inner {
     listener: Option<*mut dds_listener_t>,
-    callbacks: Option<Box<Callbacks<'a>>>,
-    raw_ptr: Option<*mut Callbacks<'a>>,
+    callbacks: Option<Box<Callbacks>>,
+    raw_ptr: Option<*mut Callbacks>,
 }
 
-impl<'a> DdsListener<'a> {
+pub struct DdsListener {
+    inner : std::sync::Arc<std::sync::Mutex<Inner>>,
+}
+
+impl<'a> DdsListener {
     pub fn new() -> Self {
-        Self {
-            listener: None,
+        Self { 
+            inner : std::sync::Arc::new( std::sync::Mutex::new( Inner {
+                listener: None,
             callbacks: Some(Box::new(Callbacks::default())),
             raw_ptr: None,
+            }))
         }
     }
-}
+} 
 
-impl<'a> Default for DdsListener<'a> {
+impl<'a> Default for DdsListener {
     fn default() -> Self {
         DdsListener::new()
     }
 }
 
-impl<'a> From<DdsListener<'a>> for *const dds_listener_t {
+impl<'a> From<DdsListener> for *const dds_listener_t {
     fn from(listener: DdsListener) -> Self {
-        if let Some(listener) = listener.listener {
+        if let Some(listener) = listener.inner.lock().unwrap().listener {
             listener
         } else {
             panic!("Attempt to convert from unitialized listener");
@@ -102,9 +111,9 @@ impl<'a> From<DdsListener<'a>> for *const dds_listener_t {
     }
 }
 
-impl<'a> From<&DdsListener<'a>> for *const dds_listener_t {
+impl<'a> From<&DdsListener> for *const dds_listener_t {
     fn from(listener: &DdsListener) -> Self {
-        if let Some(listener) = listener.listener {
+        if let Some(listener) = listener.inner.lock().unwrap().listener {
             listener
         } else {
             panic!("Attempt to convert from unitialized &listener");
@@ -112,7 +121,7 @@ impl<'a> From<&DdsListener<'a>> for *const dds_listener_t {
     }
 }
 
-impl<'a> DdsListener<'a> {
+impl<'a> DdsListener {
     // take ownership as we're going to do some bad stuff here.
     pub fn hook(mut self) -> Self {
         // we're going to grab the Boxed callbacks and keep them separately as
@@ -120,37 +129,40 @@ impl<'a> DdsListener<'a> {
         // pointer back to a box in the Drop function.
 
         // free the previous pointer if present
-        if let Some(raw) = self.raw_ptr.take() {
+        if let Some(raw) = self.inner.lock().unwrap().raw_ptr.take() {
             unsafe {
                 // take ownership and free when out of scope
                 Box::from_raw(raw);
             }
         }
 
-        if let Some(b) = self.callbacks.take() {
-            let raw = Box::into_raw(b);
-            unsafe {
-                let l = dds_create_listener(raw as *mut std::ffi::c_void);
-                if !l.is_null() {
-                    let callbacks_ptr = raw as *mut Callbacks;
-                    let callbacks = &*callbacks_ptr;
+        let inner = &self.inner;
 
-                    self.register_callbacks(l, callbacks);
-
-                    self.raw_ptr = Some(raw);
-                    self.listener = Some(l);
-                } else {
-                    panic!("Error creating listener");
+        {
+            let mut inner = inner.lock().unwrap();
+            if let Some(b) = inner.callbacks.take() {
+                let raw = Box::into_raw(b);
+                unsafe {
+                    let l = dds_create_listener(raw as *mut std::ffi::c_void);
+                    if !l.is_null() {
+                        let callbacks_ptr = raw as *mut Callbacks;
+                        let callbacks = &*callbacks_ptr;
+                        self.register_callbacks(l, callbacks);
+                        inner.raw_ptr = Some(raw);
+                        inner.listener = Some(l);
+                    } else {
+                        panic!("Error creating listener");
+                    }
                 }
+            } else {
+                println!("No callbacks to take");
             }
-        } else {
-            println!("No callbacks to take");
         }
         self
     }
 
     /// register the callbacks for the closures that have been set.DdsListener
-    unsafe fn register_callbacks(&mut self, listener: *mut dds_listener_t, callbacks: &Callbacks) {
+    unsafe fn register_callbacks(& self, listener: *mut dds_listener_t, callbacks: &Callbacks) {
         if callbacks.on_data_available.is_some() {
             println!("Listener hooked for data available");
             dds_lset_data_available(listener, Some(Self::call_data_available_closure));
@@ -212,12 +224,12 @@ impl<'a> DdsListener<'a> {
 }
 
 //////
-impl<'a> DdsListener<'a> {
+impl DdsListener {
     pub fn on_data_available<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(DdsEntity) + 'a,
+        F: FnMut(DdsEntity) + 'static ,
     {
-        if let Some(callbacks) = &mut self.callbacks {
+        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
             callbacks.on_data_available = Some(Box::new(callback));
         }
 
@@ -237,13 +249,13 @@ impl<'a> DdsListener<'a> {
     }
 }
 
-impl<'a> DdsListener<'a> {
+impl<'a> DdsListener {
     /////
     pub fn on_sample_lost<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(DdsEntity, dds_sample_lost_status_t) + 'a,
+        F: FnMut(DdsEntity, dds_sample_lost_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.callbacks {
+        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
             callbacks.on_sample_lost = Some(Box::new(callback));
         }
         self
@@ -263,13 +275,13 @@ impl<'a> DdsListener<'a> {
     }
 }
 
-impl<'a> DdsListener<'a> {
+impl<'a> DdsListener {
     //////
     pub fn on_sample_rejected<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(DdsEntity, dds_sample_rejected_status_t) + 'a,
+        F: FnMut(DdsEntity, dds_sample_rejected_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.callbacks {
+        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
             callbacks.on_sample_rejected = Some(Box::new(callback));
         }
         self
@@ -290,12 +302,12 @@ impl<'a> DdsListener<'a> {
 }
 
 // Liveliness changed
-impl<'a> DdsListener<'a> {
+impl<'a> DdsListener {
     pub fn on_liveliness_changed<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(DdsEntity, dds_liveliness_changed_status_t) + 'a,
+        F: FnMut(DdsEntity, dds_liveliness_changed_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.callbacks {
+        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
             callbacks.on_liveliness_changed = Some(Box::new(callback));
         }
         self
@@ -315,12 +327,12 @@ impl<'a> DdsListener<'a> {
     }
 }
 
-impl<'a> DdsListener<'a> {
+impl<'a> DdsListener {
     pub fn on_requested_deadline_missed<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(DdsEntity, dds_requested_deadline_missed_status_t) + 'a,
+        F: FnMut(DdsEntity, dds_requested_deadline_missed_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.callbacks {
+        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
             callbacks.on_requested_deadline_missed = Some(Box::new(callback));
         }
         self
@@ -340,12 +352,12 @@ impl<'a> DdsListener<'a> {
     }
 }
 
-impl<'a> DdsListener<'a> {
+impl<'a> DdsListener {
     pub fn on_requested_incompatible_qos<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(DdsEntity, dds_requested_incompatible_qos_status_t) + 'a,
+        F: FnMut(DdsEntity, dds_requested_incompatible_qos_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.callbacks {
+        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
             callbacks.on_requested_incompatible_qos = Some(Box::new(callback));
         }
         self
@@ -365,12 +377,12 @@ impl<'a> DdsListener<'a> {
     }
 }
 
-impl<'a> DdsListener<'a> {
+impl<'a> DdsListener {
     pub fn on_subscription_matched<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(DdsEntity, dds_subscription_matched_status_t) + 'a,
+        F: FnMut(DdsEntity, dds_subscription_matched_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.callbacks {
+        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
             callbacks.on_subscription_matched = Some(Box::new(callback));
         }
         self
@@ -390,12 +402,12 @@ impl<'a> DdsListener<'a> {
     }
 }
 
-impl<'a> DdsListener<'a> {
+impl<'a> DdsListener {
     pub fn on_liveliness_lost<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(DdsEntity, dds_liveliness_lost_status_t) + 'a,
+        F: FnMut(DdsEntity, dds_liveliness_lost_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.callbacks {
+        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
             callbacks.on_liveliness_lost = Some(Box::new(callback));
         }
         self
@@ -415,12 +427,12 @@ impl<'a> DdsListener<'a> {
     }
 }
 
-impl<'a> DdsListener<'a> {
+impl<'a> DdsListener {
     pub fn on_offered_deadline_missed<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(DdsEntity, dds_offered_deadline_missed_status_t) + 'a,
+        F: FnMut(DdsEntity, dds_offered_deadline_missed_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.callbacks {
+        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
             callbacks.on_offered_deadline_missed = Some(Box::new(callback));
         }
         self
@@ -440,12 +452,12 @@ impl<'a> DdsListener<'a> {
     }
 }
 
-impl<'a> DdsListener<'a> {
+impl<'a> DdsListener {
     pub fn on_offered_incompatible_qos<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(DdsEntity, dds_offered_incompatible_qos_status_t) + 'a,
+        F: FnMut(DdsEntity, dds_offered_incompatible_qos_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.callbacks {
+        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
             callbacks.on_offered_incompatible_qos = Some(Box::new(callback));
         }
         self
@@ -465,12 +477,12 @@ impl<'a> DdsListener<'a> {
     }
 }
 
-impl<'a> DdsListener<'a> {
+impl<'a> DdsListener {
     pub fn on_publication_matched<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(DdsEntity, dds_publication_matched_status_t) + 'a,
+        F: FnMut(DdsEntity, dds_publication_matched_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.callbacks {
+        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
             callbacks.on_publication_matched = Some(Box::new(callback));
         }
         self
@@ -490,12 +502,12 @@ impl<'a> DdsListener<'a> {
     }
 }
 
-impl<'a> DdsListener<'a> {
+impl<'a> DdsListener {
     pub fn on_inconsistent_topic<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(DdsEntity, dds_inconsistent_topic_status_t) + 'a,
+        F: FnMut(DdsEntity, dds_inconsistent_topic_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.callbacks {
+        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
             callbacks.on_inconsistent_topic = Some(Box::new(callback));
         }
         self
@@ -515,12 +527,12 @@ impl<'a> DdsListener<'a> {
     }
 }
 
-impl<'a> DdsListener<'a> {
+impl<'a> DdsListener {
     pub fn on_data_on_readers<F>(mut self, callback: F) -> Self
     where
         F: FnMut(DdsEntity) + 'static,
     {
-        if let Some(callbacks) = &mut self.callbacks {
+        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
             callbacks.on_data_on_readers = Some(Box::new(callback));
         }
         self
@@ -539,18 +551,18 @@ impl<'a> DdsListener<'a> {
     }
 }
 
-impl<'a> Drop for DdsListener<'a> {
+impl<'a> Drop for DdsListener {
     fn drop(&mut self) {
         // delete the listener so we are sure of not
         // getting any callbacks
-        if let Some(listener) = &self.listener {
+        if let Some(listener) = &self.inner.lock().unwrap().listener {
             unsafe {
                 dds_reset_listener(*listener);
                 dds_delete_listener(*listener);
             }
         }
         // gain back control of the Callback structure
-        if let Some(raw) = self.raw_ptr.take() {
+        if let Some(raw) = self.inner.lock().unwrap().raw_ptr.take() {
             unsafe {
                 // take ownership and free when out of scope
                 Box::from_raw(raw);

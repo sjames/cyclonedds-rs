@@ -23,21 +23,21 @@ use std::marker::PhantomData;
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsWritable, Entity};
 use crate::serdes::{Sample, TopicType};
 
-pub struct DdsWriter<'a, T: Sized + TopicType>(
+pub struct DdsWriter<T: Sized + TopicType>(
     DdsEntity,
-    Option<DdsListener<'a>>,
-    PhantomData<*const T>,
+    Option<DdsListener>,
+    PhantomData<T>,
 );
 
-impl<'a, T> DdsWriter<'a, T>
+impl<'a, T> DdsWriter<T>
 where
     T: Sized + TopicType,
 {
     pub fn create(
-        entity: &dyn DdsWritable,
-        topic: &DdsTopic<T>,
+        entity: impl DdsWritable,
+        topic: DdsTopic<T>,
         maybe_qos: Option<DdsQos>,
-        maybe_listener: Option<DdsListener<'a>>,
+        maybe_listener: Option<DdsListener>,
     ) -> Result<Self, DDSError> {
         unsafe {
             let w = dds_create_writer(
@@ -80,7 +80,7 @@ where
 
     }
 
-    pub fn set_listener(&mut self, listener: DdsListener<'a>) -> Result<(), DDSError> {
+    pub fn set_listener(&mut self, listener: DdsListener) -> Result<(), DDSError> {
         unsafe {
             let refl = &listener;
             let rc = dds_set_listener(self.0.entity(), refl.into());
@@ -94,7 +94,7 @@ where
     }
 }
 
-impl<'a, T> Entity for DdsWriter<'a, T>
+impl<'a, T> Entity for DdsWriter<T>
 where
     T: std::marker::Sized + TopicType,
 {
@@ -103,7 +103,7 @@ where
     }
 }
 
-impl<'a, T> Drop for DdsWriter<'a, T>
+impl<'a, T> Drop for DdsWriter<T>
 where
     T: std::marker::Sized + TopicType,
 {
@@ -111,7 +111,7 @@ where
         unsafe {
             let ret: DDSError = cyclonedds_sys::dds_delete(self.0.entity()).into();
             if DDSError::DdsOk != ret && DDSError::AlreadyDeleted != ret {
-                panic!("cannot delete Writer: {}", ret);
+                //panic!("cannot delete Writer: {}", ret);
             }
         }
     }

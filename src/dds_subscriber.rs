@@ -14,15 +14,15 @@
     limitations under the License.
 */
 
-use crate::{DdsListener, DdsParticipant, DdsQos, DdsReadable};
+use crate::{DdsListener, DdsParticipant, DdsQos, DdsReadable, common::EntityWrapper};
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 use std::{convert::From, sync::Arc};
 
-pub struct DdsSubscriber(DdsEntity);
+pub struct DdsSubscriber(Arc<EntityWrapper>);
 
 impl<'a> DdsSubscriber {
     pub fn create(
-        participant: &DdsParticipant,
+        participant: DdsParticipant,
         maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener>,
     ) -> Result<Self, DDSError> {
@@ -33,7 +33,7 @@ impl<'a> DdsSubscriber {
                 maybe_listener.map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
-                Ok(DdsSubscriber(DdsEntity::new(p)))
+                Ok(DdsSubscriber(Arc::new(EntityWrapper::new(DdsEntity::new(p)))))
             } else {
                 Err(DDSError::from(p))
             }
@@ -41,21 +41,9 @@ impl<'a> DdsSubscriber {
     }
 }
 
-impl<'a> Drop for DdsSubscriber {
-    fn drop(&mut self) {
-        unsafe {
-            let ret: DDSError = cyclonedds_sys::dds_delete(self.0.entity()).into();
-            if DDSError::DdsOk != ret {
-                panic!("cannot delete DdsSubscriber: {}", ret);
-            } else {
-                //println!("Participant dropped");
-            }
-        }
-    }
-}
 
 impl<'a> DdsReadable for DdsSubscriber {
     fn entity(&self) -> &DdsEntity {
-        &self.0
+        &self.0.get()
     }
 }

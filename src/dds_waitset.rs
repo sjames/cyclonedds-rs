@@ -22,7 +22,7 @@ use std::marker::PhantomData;
 pub struct DdsWaitset<T>(DdsEntity, PhantomData<T>);
 
 impl<'a, T> DdsWaitset<T> {
-    pub fn create(participant: &DdsParticipant) -> Result<Self, DDSError> {
+    pub fn create(participant: DdsParticipant) -> Result<Self, DDSError> {
         unsafe {
             let p = cyclonedds_sys::dds_create_waitset(participant.entity().entity());
             if p >= 0 {
@@ -105,7 +105,8 @@ impl<T> Drop for DdsWaitset<T> {
         unsafe {
             let ret: DDSError = cyclonedds_sys::dds_delete(self.0.entity()).into();
             if DDSError::DdsOk != ret {
-                panic!("cannot delete DdsWaitset: {}", ret);
+                //we ignore the error here as the waitset may be deleted by cyclone
+                //panic!("cannot delete DdsWaitset: {}", ret);
             } else {
             }
         }

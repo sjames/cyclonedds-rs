@@ -183,7 +183,7 @@ fn create_topic_functions(item : &syn::ItemStruct) -> TokenStream {
     let ts = quote!{
         impl #topic_key_ident {
             pub fn create_topic(
-                participant: &DdsParticipant,
+                participant: DdsParticipant,
                 name: &str,
                 maybe_qos: Option<DdsQos>,
                 maybe_listener: Option<DdsListener>,

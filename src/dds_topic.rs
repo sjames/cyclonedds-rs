@@ -14,6 +14,7 @@
     limitations under the License.
 */
 
+use crate::common::EntityWrapper;
 use crate::{dds_listener::DdsListener, dds_participant::DdsParticipant, dds_qos::DdsQos, Entity};
 
 use std::{convert::From, marker::PhantomPinned};
@@ -23,14 +24,15 @@ use std::marker::PhantomData;
 use crate::serdes::{TopicType, SerType};
 pub use cyclonedds_sys::{DDSError, DdsEntity,ddsi_sertype};
 
-pub struct DdsTopic<T: Sized + TopicType>(DdsEntity, PhantomData<T>);
+
+pub struct DdsTopic<T: Sized + TopicType>(std::sync::Arc<EntityWrapper>, PhantomData<T>);
 
 impl<T> DdsTopic<T>
 where
     T: std::marker::Sized + TopicType,
 {
     pub fn create(
-        participant: &DdsParticipant,
+        participant: DdsParticipant,
         name: &str,
         maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener>,
@@ -48,7 +50,7 @@ where
                 std::ptr::null_mut());
 
             if topic >= 0 {
-                Ok(DdsTopic(DdsEntity::new(topic), PhantomData))
+                Ok(DdsTopic(std::sync::Arc::new(EntityWrapper::new(DdsEntity::new(topic))), PhantomData))
             } else {
                 Err(DDSError::from(topic))
             }
@@ -62,24 +64,18 @@ where
     T: std::marker::Sized + TopicType,
 {
     fn entity(&self) -> &DdsEntity {
-        &self.0
+        &self.0.get()
     }
 }
 
-impl<T> Drop for DdsTopic<T>
-where
-    T: std::marker::Sized + TopicType,
+impl<T> Clone for DdsTopic<T> 
+where T: std::marker::Sized + TopicType
 {
-    fn drop(&mut self) {
-        unsafe {
-            let ret: DDSError = cyclonedds_sys::dds_delete(self.0.entity()).into();
-            if DDSError::DdsOk != ret {
-                panic!("cannot delete Topic: {}", ret);
-            } else {
-            }
-        }
+    fn clone(&self) -> Self {
+        Self(self.0.clone(),PhantomData)
     }
 }
+
 
 #[cfg(test)]
 mod test {
@@ -101,9 +97,9 @@ mod test {
         }
 
         let participant = DdsParticipant::create(None,None, None).unwrap();
-        let topic =  MyTopic::create_topic(&participant, "my_topic", None, None).unwrap();
-        let publisher = DdsPublisher::create(&participant, None, None).expect("Unable to create publisher");
-        let mut writer = DdsWriter::create(&publisher, &topic, None, None).unwrap();
+        let topic =  MyTopic::create_topic(participant.clone(), "my_topic", None, None).unwrap();
+        let publisher = DdsPublisher::create(participant.clone(), None, None).expect("Unable to create publisher");
+        let mut writer = DdsWriter::create(publisher, topic, None, None).unwrap();
 
        // MyTopic::create_writer()
 

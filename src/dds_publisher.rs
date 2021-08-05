@@ -14,15 +14,16 @@
     limitations under the License.
 */
 
-use crate::{DdsListener, DdsParticipant, DdsQos, DdsWritable};
+use crate::{DdsListener, DdsParticipant, DdsQos, DdsWritable, common::EntityWrapper};
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 use std::convert::From;
 
-pub struct DdsPublisher(DdsEntity);
+#[derive(Clone)]
+pub struct DdsPublisher(std::sync::Arc<EntityWrapper>);
 
 impl<'a> DdsPublisher {
     pub fn create(
-        participant: &DdsParticipant,
+        participant: DdsParticipant,
         maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener>,
     ) -> Result<Self, DDSError> {
@@ -33,7 +34,7 @@ impl<'a> DdsPublisher {
                 maybe_listener.map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
-                Ok(DdsPublisher(DdsEntity::new(p)))
+                Ok(DdsPublisher(std::sync::Arc::new(EntityWrapper::new(DdsEntity::new(p)))))
             } else {
                 Err(DDSError::from(p))
             }
@@ -43,19 +44,7 @@ impl<'a> DdsPublisher {
 
 impl<'a> DdsWritable for DdsPublisher {
     fn entity(&self) -> &DdsEntity {
-        &self.0
+        &self.0.get()
     }
 }
 
-impl<'a> Drop for DdsPublisher {
-    fn drop(&mut self) {
-        unsafe {
-            let ret: DDSError = cyclonedds_sys::dds_delete(self.0.entity()).into();
-            if DDSError::DdsOk != ret {
-                panic!("cannot delete DdsPublisher: {}", ret);
-            } else {
-                //println!("Participant dropped");
-            }
-        }
-    }
-}

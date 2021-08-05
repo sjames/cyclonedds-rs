@@ -18,9 +18,11 @@ use std::convert::From;
 
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 
-use crate::{dds_listener::DdsListener, dds_qos::DdsQos, DdsReadable, DdsWritable, Entity};
+use crate::{DdsReadable, DdsWritable, Entity, common::EntityWrapper, dds_listener::DdsListener, dds_qos::DdsQos};
 
-pub struct DdsParticipant(DdsEntity);
+
+#[derive(Clone)]
+pub struct DdsParticipant(std::sync::Arc<EntityWrapper>);
 
 impl DdsParticipant {
     pub fn create(
@@ -35,7 +37,7 @@ impl DdsParticipant {
                 maybe_listener.map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
-                Ok(DdsParticipant(DdsEntity::new(p)))
+                Ok(DdsParticipant(std::sync::Arc::new(EntityWrapper::new(DdsEntity::new(p)))))
             } else {
                 Err(DDSError::from(p))
             }
@@ -43,6 +45,7 @@ impl DdsParticipant {
     }
 }
 
+/* 
 impl Drop for DdsParticipant {
     fn drop(&mut self) {
         unsafe {
@@ -55,22 +58,23 @@ impl Drop for DdsParticipant {
         }
     }
 }
+*/
 
 impl DdsWritable for DdsParticipant {
     fn entity(&self) -> &DdsEntity {
-        &self.0
+        &self.0.get()
     }
 }
 
 impl DdsReadable for DdsParticipant {
     fn entity(&self) -> &DdsEntity {
-        &self.0
+        &self.0.get()
     }
 }
 
 impl Entity for DdsParticipant {
     fn entity(&self) -> &DdsEntity {
-        &self.0
+        &self.0.get()
     }
 }
 
