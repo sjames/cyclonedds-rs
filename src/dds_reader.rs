@@ -117,6 +117,9 @@ where
                     waker.wake();
                 }
             })
+            .on_requested_deadline_missed(|entity, status| {
+                println!("Deadline missed: Entity:{:?} Status:{:?}", unsafe {entity.entity()}, status);
+            })
             .hook();
 
         match Self::create_sync_or_async(entity, topic, maybe_qos, Some(listener),ReaderType::Async(waker) ) {
