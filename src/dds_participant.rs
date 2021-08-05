@@ -18,11 +18,11 @@ use std::convert::From;
 
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 
-use crate::{DdsReadable, DdsWritable, Entity, common::EntityWrapper, dds_listener::DdsListener, dds_qos::DdsQos};
+use crate::{DdsReadable, DdsWritable, Entity, dds_listener::DdsListener, dds_qos::DdsQos};
 
 
 #[derive(Clone)]
-pub struct DdsParticipant(EntityWrapper);
+pub struct DdsParticipant(DdsEntity);
 
 impl DdsParticipant {
     pub fn create(
@@ -37,7 +37,7 @@ impl DdsParticipant {
                 maybe_listener.map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
-                Ok(DdsParticipant(EntityWrapper::new(DdsEntity::new(p))))
+                Ok(DdsParticipant(DdsEntity::new(p)))
             } else {
                 Err(DDSError::from(p))
             }
@@ -62,19 +62,19 @@ impl Drop for DdsParticipant {
 
 impl DdsWritable for DdsParticipant {
     fn entity(&self) -> &DdsEntity {
-        &self.0.get()
+        &self.0
     }
 }
 
 impl DdsReadable for DdsParticipant {
     fn entity(&self) -> &DdsEntity {
-        &self.0.get()
+        &self.0
     }
 }
 
 impl Entity for DdsParticipant {
     fn entity(&self) -> &DdsEntity {
-        &self.0.get()
+        &self.0
     }
 }
 

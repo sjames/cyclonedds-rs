@@ -28,7 +28,6 @@ pub use cyclonedds_sys::{DDSBox, DdsDomainId, DdsEntity, DdsLoanedData};
 
 use std::marker::PhantomData;
 
-use crate::common::EntityWrapper;
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable, Entity};
 use crate::serdes::{TopicType, Sample};
 
@@ -40,7 +39,7 @@ enum ReaderType {
 
  struct Inner<T: Sized + TopicType> {
     entity: DdsEntity,
-    listener: Option<DdsListener>,
+    _listener: Option<DdsListener>,
     reader_type : ReaderType,
     _phantom: PhantomData<T>,
     // The callback closures that can be attached to a reader
@@ -91,7 +90,7 @@ where
             if w >= 0 {
                 Ok(DdsReader {
                     inner : Arc::new(Inner {entity: DdsEntity::new(w),
-                        listener: maybe_listener,
+                        _listener: maybe_listener,
                         reader_type,
                         _phantom: PhantomData,})
                 })
@@ -373,6 +372,12 @@ mod test {
         let _result = rt.block_on(async {
             
             let task = tokio::spawn(async move {
+                if let Ok(t) = reader.get().await {
+                    assert_eq!(t,Arc::new(TestTopic::default()));
+                } else {
+                    panic!("reader get failed");
+                }
+
                 if let Ok(t) = reader.get().await {
                     assert_eq!(t,Arc::new(TestTopic::default()));
                 } else {

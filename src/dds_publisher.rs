@@ -14,12 +14,12 @@
     limitations under the License.
 */
 
-use crate::{DdsListener, DdsParticipant, DdsQos, DdsWritable, common::EntityWrapper};
+use crate::{DdsListener, DdsParticipant, DdsQos, DdsWritable};
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 use std::convert::From;
 
 #[derive(Clone)]
-pub struct DdsPublisher(EntityWrapper);
+pub struct DdsPublisher(DdsEntity);
 
 impl<'a> DdsPublisher {
     pub fn create(
@@ -34,7 +34,7 @@ impl<'a> DdsPublisher {
                 maybe_listener.map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
-                Ok(DdsPublisher(EntityWrapper::new(DdsEntity::new(p))))
+                Ok(DdsPublisher(DdsEntity::new(p)))
             } else {
                 Err(DDSError::from(p))
             }
@@ -44,7 +44,7 @@ impl<'a> DdsPublisher {
 
 impl<'a> DdsWritable for DdsPublisher {
     fn entity(&self) -> &DdsEntity {
-        &self.0.get()
+        &self.0
     }
 }
 

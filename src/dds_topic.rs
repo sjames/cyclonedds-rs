@@ -14,10 +14,9 @@
     limitations under the License.
 */
 
-use crate::common::EntityWrapper;
 use crate::{dds_listener::DdsListener, dds_participant::DdsParticipant, dds_qos::DdsQos, Entity};
 
-use std::{convert::From, marker::PhantomPinned};
+use std::{convert::From};
 use std::ffi::CString;
 use std::marker::PhantomData;
 
@@ -25,7 +24,7 @@ use crate::serdes::{TopicType, SerType};
 pub use cyclonedds_sys::{DDSError, DdsEntity,ddsi_sertype};
 
 
-pub struct DdsTopic<T: Sized + TopicType>(EntityWrapper, PhantomData<T>);
+pub struct DdsTopic<T: Sized + TopicType>(DdsEntity, PhantomData<T>);
 
 impl<T> DdsTopic<T>
 where
@@ -50,7 +49,7 @@ where
                 std::ptr::null_mut());
 
             if topic >= 0 {
-                Ok(DdsTopic(EntityWrapper::new(DdsEntity::new(topic)), PhantomData))
+                Ok(DdsTopic(DdsEntity::new(topic), PhantomData))
             } else {
                 Err(DDSError::from(topic))
             }
@@ -64,7 +63,7 @@ where
     T: std::marker::Sized + TopicType,
 {
     fn entity(&self) -> &DdsEntity {
-        &self.0.get()
+        &self.0
     }
 }
 

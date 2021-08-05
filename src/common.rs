@@ -30,35 +30,3 @@ pub trait Entity {
     fn entity(&self) -> &DdsEntity;
 }
 
-#[derive(Clone)]
-pub struct  EntityWrapper(Option<DdsEntity>);
-impl Drop for EntityWrapper {
-        fn drop(&mut self) {
-            if let Some(entity) = &mut self.0 {
-            //unsafe {
-            //let ret: DDSError = cyclonedds_sys::dds_delete(entity.entity()).into();
-            //    if DDSError::DdsOk != ret {
-            //        panic!("cannot delete participant: {}", ret);
-            //    } else {
-            //        println!("Entity dropped");
-            //    }
-            //}
-        }
-    }
-}
-
-impl EntityWrapper {
-    pub fn new(entity: DdsEntity) -> Self {
-        Self(Some(entity)) 
-    }
-
-    pub fn get(&self) -> &DdsEntity {
-        self.0.as_ref().expect("Attempt to get invalid Entity")
-    }
-}
-
-impl Into<DdsEntity> for EntityWrapper {
-    fn into(mut self) -> DdsEntity {
-        self.0.take().expect("Attempt to convert uninitialized EntityWrapper to Entity")
-    }
-}

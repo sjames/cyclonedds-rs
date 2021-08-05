@@ -14,11 +14,11 @@
     limitations under the License.
 */
 
-use crate::{DdsListener, DdsParticipant, DdsQos, DdsReadable, common::EntityWrapper};
+use crate::{DdsListener, DdsParticipant, DdsQos, DdsReadable};
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
-use std::{convert::From, sync::Arc};
+use std::{convert::From};
 
-pub struct DdsSubscriber(EntityWrapper);
+pub struct DdsSubscriber(DdsEntity);
 
 impl<'a> DdsSubscriber {
     pub fn create(
@@ -33,7 +33,7 @@ impl<'a> DdsSubscriber {
                 maybe_listener.map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
-                Ok(DdsSubscriber(EntityWrapper::new(DdsEntity::new(p))))
+                Ok(DdsSubscriber(DdsEntity::new(p)))
             } else {
                 Err(DDSError::from(p))
             }
@@ -44,6 +44,6 @@ impl<'a> DdsSubscriber {
 
 impl<'a> DdsReadable for DdsSubscriber {
     fn entity(&self) -> &DdsEntity {
-        &self.0.get()
+        &self.0
     }
 }
