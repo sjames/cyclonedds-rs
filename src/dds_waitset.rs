@@ -22,7 +22,7 @@ use std::marker::PhantomData;
 pub struct DdsWaitset<T>(DdsEntity, PhantomData<T>);
 
 impl<'a, T> DdsWaitset<T> {
-    pub fn create(participant: DdsParticipant) -> Result<Self, DDSError> {
+    pub fn create(participant: &DdsParticipant) -> Result<Self, DDSError> {
         unsafe {
             let p = cyclonedds_sys::dds_create_waitset(participant.entity().entity());
             if p >= 0 {
