@@ -357,6 +357,20 @@ mod test {
     use serde_derive::{Deserialize, Serialize};
     use tokio::runtime::Runtime;
 
+
+    #[repr(C)]
+    #[derive(Serialize,Deserialize,Debug, PartialEq, Clone)]
+    enum Position {
+        Front,
+        Back,
+    }
+
+    impl Default for Position {
+        fn default() -> Self {
+            Self::Front
+        }
+    }
+
     #[derive(Serialize,Deserialize,Topic, Debug, PartialEq)]
     struct TestTopic {
         a : u32,
@@ -365,6 +379,8 @@ mod test {
         d : Vec<u8>,
         #[topic_key]
         e : u32,
+        #[topic_key_enum]
+        pos : Position,
     }
 
     impl Default for TestTopic {
@@ -375,6 +391,7 @@ mod test {
                 c : "TestTopic".to_owned(),
                 d : vec![1,2,3,4,5],
                 e : 0,
+                pos : Position::default(),
             }
         }
     }

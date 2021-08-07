@@ -22,7 +22,7 @@ use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{Field, Ident, ItemStruct, parse_macro_input};
 
-#[proc_macro_derive(Topic, attributes(topic_key))]
+#[proc_macro_derive(Topic, attributes(topic_key, topic_key_enum))]
 pub fn derive_topic(item: TokenStream) -> TokenStream {
     let topic_struct = parse_macro_input!(item as syn::ItemStruct);
 
@@ -63,7 +63,7 @@ fn build_key_holder_struct(item : &syn::ItemStruct) -> TokenStream {
     for field in fields {
         if is_key(field) {
             field_idents.push(field.ident.as_ref().unwrap().clone());
-            if is_primitive(field) {
+            if is_primitive(field) || is_key_enum(field) {
                 field_types.push(field.ty.clone());
                 clone_or_into.push(quote!{clone()});
                 ref_or_value.push(quote!{ });
@@ -218,7 +218,21 @@ fn struct_has_key(it: &ItemStruct) -> bool {
 fn is_key(field : &Field) -> bool {
     for attr in &field.attrs {
         if let Some(ident) = attr.path.get_ident() {
-            if ident == "topic_key" {
+            if ident == "topic_key" || ident == "topic_key_enum"{
+                return true
+            }
+        } 
+    }
+    false
+}
+
+// There is no way to find out if the field is an enum or a struct,
+// so we need a special marker to indicate key enums
+// which we will treat like primitives.
+fn is_key_enum(field : &Field) -> bool {
+    for attr in &field.attrs {
+        if let Some(ident) = attr.path.get_ident() {
+            if ident == "topic_key_enum" {
                 return true
             }
         } 
