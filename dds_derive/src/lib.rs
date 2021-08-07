@@ -113,7 +113,7 @@ fn build_key_holder_struct(item : &syn::ItemStruct) -> TokenStream {
     //println!("Filtered fields:{:?}", &filtered_fields);
 
     let ts = quote! {
-        #[derive(Default, Deserialize, Serialize, PartialEq, Clone, Debug)]
+        #[derive(Default, Deserialize, Serialize, PartialEq, Clone)]
         struct #holder_name {
             #(#field_idents:#field_types,)*
         }
@@ -152,8 +152,6 @@ fn create_keyhash_functions(item : &syn::ItemStruct) -> TokenStream {
             /// encapsulation string.
             fn key_cdr(&self) -> Vec<u8> {
                 let holder_struct : #topic_key_holder_ident = self.into();
-                
-                println!("TopicKeyHolder:{:?}  size:{}", &holder_struct,std::mem::size_of::<#topic_key_holder_ident>());
                 
                 let encoded = cdr::serialize::<_, _, cdr::CdrBe>(&holder_struct, cdr::Infinite).expect("Unable to serialize key");
                encoded
