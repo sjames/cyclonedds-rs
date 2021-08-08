@@ -136,19 +136,22 @@ where
     /// Read multiple samples from the reader synchronously. The buffer for the sampes must be passed in.
     /// On success, returns the number of samples read.
     pub fn readn_from_entity_now(entity: &DdsEntity, buf: &mut [Sample<T>], take: bool) -> Result<usize,DDSError> {
-        let mut info = cyclonedds_sys::dds_sample_info::default();
+        //let mut info = cyclonedds_sys::dds_sample_info::default();
+        let mut info = vec![cyclonedds_sys::dds_sample_info::default();buf.len()];
+        let info_ptr = info.as_mut_ptr();
+
         let mut voidp = buf.as_mut_ptr() as *mut c_void;
         let voidpp = &mut voidp;
 
         let ret = unsafe {
             if take {
-                dds_take(entity.entity(), voidpp , &mut info as *mut _, buf.len() as u64, buf.len() as u32)
+                dds_take(entity.entity(), voidpp ,  info_ptr as *mut _, buf.len() as u64, buf.len() as u32)
             } else {
-                dds_read(entity.entity(), voidpp , &mut info as *mut _, buf.len() as u64, buf.len() as u32)
+                dds_read(entity.entity(), voidpp ,  info_ptr as *mut _, buf.len() as u64, buf.len() as u32)
             }
         };
         if ret >= 0 {
-            if info.valid_data {
+            if info[0].valid_data {
                    Ok(ret as usize) 
             } else {
                     Err(DDSError::NoData)
