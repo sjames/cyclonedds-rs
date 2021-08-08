@@ -19,8 +19,7 @@ use std::convert::From;
 use std::future::Future;
 use std::os::raw::c_void;
 use std::pin::Pin;
-use std::sync::{Arc, Condvar, Mutex};
-use std::sync::mpsc::SyncSender;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 //use std::convert::TryInto;
 
@@ -123,7 +122,7 @@ where
             .hook();
 
         match Self::create_sync_or_async(entity, topic, maybe_qos, Some(listener),ReaderType::Async(waker) ) {
-            Ok(mut reader) => {
+            Ok(reader) => {
                 Ok(reader)
             },
             Err(e) => Err(e),
@@ -146,71 +145,78 @@ where
     }
     */
 
+    pub fn readn_from_entity(entity: &DdsEntity, buf: &mut [Sample<T>], take: bool) -> Result<usize,DDSError> {
+        let mut info = cyclonedds_sys::dds_sample_info::default();
+        let mut voidp = buf.as_mut_ptr() as *mut c_void;
+        let voidpp = &mut voidp;
+
+        let ret = unsafe {
+            if take {
+                dds_take(entity.entity(), voidpp , &mut info as *mut _, buf.len() as u64, buf.len() as u32)
+            } else {
+                dds_read(entity.entity(), voidpp , &mut info as *mut _, buf.len() as u64, buf.len() as u32)
+            }
+        };
+        if ret >= 0 {
+            if info.valid_data {
+                   Ok(ret as usize) 
+            } else {
+                    Err(DDSError::NoData)
+            }
+        } else {
+                Err(DDSError::OutOfResources)
+        } 
+    }
+
+
     /* */
     /// Read a buffer given a dds_entity_t.  This is useful when you want to read data
     /// within a closure.
-    pub fn read_from_entity(entity: &DdsEntity) -> Result<Arc<T>, DDSError> {
-        unsafe {
-            let mut info = cyclonedds_sys::dds_sample_info::default();
-            let mut sample_buf = Vec::<Sample<T>>::with_capacity(1);
-            sample_buf.set_len(1);
-            let mut voidp = sample_buf.as_mut_ptr() as *mut c_void;
-            let voidpp = &mut voidp;
-
-            let ret = dds_read(entity.entity(), voidpp , &mut info as *mut _, 1, 1);
-
-            if ret >= 0 {
-                if info.valid_data {
-
-                    if let Some(sample) = sample_buf[0].get() {
-                       Ok(sample) 
-                    } else {
-                        Err(DDSError::NoData)
-                    }
-                    
-                } else {
-                    Err(DDSError::OutOfResources)
-                }
-            } else {
-                Err(DDSError::from(ret))
+    pub fn read_from_entity(entity: &DdsEntity,) -> Result<Arc<T>, DDSError> {
+        let mut samples = [Sample::<T>::default();1];
+        match Self::readn_from_entity(entity, &mut samples, false) {
+            Ok(1) => {
+                Ok(samples[0].get().unwrap())
+            },
+            Ok(_n) => {
+                panic!("Expected only one sample");
             }
+            Err(e) => Err(e),
         }
     }
 
+    
     pub fn read(&self) -> Result<Arc<T>, DDSError> {
        Self::read_from_entity(self.entity()) 
     }
 
+    
     pub fn take_from_entity(entity: &DdsEntity) -> Result<Arc<T>, DDSError> {
-        unsafe {
-            let mut info = cyclonedds_sys::dds_sample_info::default();
-            let mut sample_buf = Vec::<Sample<T>>::with_capacity(1);
-            sample_buf.set_len(1);
-            let mut voidp = sample_buf.as_mut_ptr() as *mut c_void;
-            let voidpp = &mut voidp;
-
-            let ret = dds_take(entity.entity(), voidpp, &mut info as *mut _, 1, 1);
-
-            if ret >= 0 {
-                if info.valid_data {
-
-                    if let Some(sample) = sample_buf[0].get() {
-                       Ok(sample) 
-                    } else {
-                        Err(DDSError::NoData)
-                    }
-                    
-                } else {
-                    Err(DDSError::OutOfResources)
-                }
-            } else {
-                Err(DDSError::from(ret))
+        let mut samples = [Sample::<T>::default();1];
+        match Self::readn_from_entity(entity, &mut samples, true) {
+            Ok(1) => {
+                Ok(samples[0].get().unwrap())
+            },
+            Ok(_n) => {
+                panic!("Expected only one sample");
             }
+            Err(e) => Err(e),
         }
     }
+    
 
     pub fn take(&self) -> Result<Arc<T>, DDSError> {
-        Self::take_from_entity(self.entity()) 
+        let mut samples = [Sample::<T>::default();1];
+        match Self::readn_from_entity(self.entity(), &mut samples, true) {
+            Ok(1) => {
+                Ok(samples[0].get().unwrap())
+            },
+            Ok(_n) => {
+                panic!("Expected only one sample");
+            }
+            Err(e) => Err(e),
+
+        }
     }
 
     pub async fn get(&self) -> Result<Arc<T>,DDSError> {
