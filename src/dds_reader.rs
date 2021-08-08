@@ -443,8 +443,8 @@ mod test {
         
         let participant = DdsParticipant::create(None, None, None).unwrap();
 
-        let topic = TestTopic::create_topic(&participant, "test_topic", None, None).unwrap();
-        let another_topic = AnotherTopic::create_topic(&participant, "another_topic", None, None).unwrap();
+        let topic = TestTopic::create_topic(&participant, Some("test_topic"), None, None).unwrap();
+        let another_topic = AnotherTopic::create_topic(&participant, None, None, None).unwrap();
 
         let publisher = DdsPublisher::create(&participant, None, None).unwrap();
 

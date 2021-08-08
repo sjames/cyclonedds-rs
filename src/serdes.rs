@@ -49,6 +49,8 @@ pub trait TopicType : Default + Serialize + DeserializeOwned {
         h.write(&cdr[..]);
         h.finish() as u32
     }
+
+    /// The type name for this topic
     fn typename() -> std::ffi::CString {
         let ty_name_parts : String = format!("{}", std::any::type_name::<Self>()).split("::").skip(1).collect::<Vec<_>>().join("::");
 
@@ -57,6 +59,24 @@ pub trait TopicType : Default + Serialize + DeserializeOwned {
         println!("Typename:{:?}",&typename);
         typename
     }
+
+    /// The default topic_name to use when creating a topic of this type. The default
+    /// implementation uses '/' instead of '::' to form a unix like path.
+    /// A prefix can optionally be added
+    fn topic_name(maybe_prefix : Option<&str>) -> String {
+        let topic_name_parts : String = format!("/{}",format!("{}", std::any::type_name::<Self>()).split("::").skip(1).collect::<Vec<_>>().join("/"));
+        let path = if let Some(prefix) = maybe_prefix {
+            let mut path = String::from(prefix);
+            path.push_str(&topic_name_parts);
+            path
+
+        } else {
+            topic_name_parts
+        };
+
+        path
+    }
+
     fn has_key() -> bool;
     // this is the key as defined in the DDS-RTPS spec.
     // KeyHash (PID_KEY_HASH). This function does not

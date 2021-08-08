@@ -95,8 +95,11 @@ mod test {
             d : u32,
         }
 
+        assert_eq!(MyTopic::topic_name(None),String::from("/dds_topic/test/test_topic_creation/MyTopic"));
+        assert_eq!(MyTopic::topic_name(Some("prefix")),String::from("prefix/dds_topic/test/test_topic_creation/MyTopic"));
+
         let participant = DdsParticipant::create(None,None, None).unwrap();
-        let topic =  MyTopic::create_topic(&participant, "my_topic", None, None).unwrap();
+        let topic =  MyTopic::create_topic(&participant, None, None, None).unwrap();
         let publisher = DdsPublisher::create(&participant, None, None).expect("Unable to create publisher");
         let mut writer = DdsWriter::create(&publisher, topic, None, None).unwrap();
 

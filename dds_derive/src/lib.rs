@@ -37,7 +37,7 @@ pub fn derive_topic(item: TokenStream) -> TokenStream {
     ts.extend(ts2);
     ts.extend(ts3);
   
-    //("KEYHOLDER:{:?}",ts.clone().to_string());
+    //println!("KEYHOLDER:{:?}",ts.clone().to_string());
     ts
 }
 
@@ -180,7 +180,7 @@ fn create_topic_functions(item : &syn::ItemStruct) -> TokenStream {
 
     let ts = quote!{
         impl #topic_key_ident {
-            /// Create a topic using this Type
+            /// Create a topic using of this Type specifying the topic name
             ///
             /// # Arguments
             ///
@@ -189,13 +189,32 @@ fn create_topic_functions(item : &syn::ItemStruct) -> TokenStream {
             /// * `maybe_qos` - A QoS structure for this topic.  The Qos is optional
             /// * `maybe_listener` - A listener to use on this topic. The listener is optional
             ///
-            pub fn create_topic(
+            pub fn create_topic_with_name(
                 participant: &DdsParticipant,
                 name: &str,
                 maybe_qos: Option<DdsQos>,
                 maybe_listener: Option<DdsListener>,
             ) -> Result<DdsTopic::<Self>, DDSError> {
                 DdsTopic::<Self>::create(participant,name, maybe_qos,maybe_listener)
+            }
+
+            /// Create a topic of this Type using the default topic name. The default topic
+            /// name is provided by the Self::topic_name function.
+            /// # Arguments
+            ///
+            /// * `participant` - The participant handle onto which this topic should be created
+            /// * `maybe_topic_prefix` - An additional prefix to be added to the topic name. This can be None
+            /// * `maybe_qos` - A QoS structure for this topic.  The Qos is optional
+            /// * `maybe_listener` - A listener to use on this topic. The listener is optional
+            ///
+            pub fn create_topic(
+                participant: &DdsParticipant,
+                maybe_topic_prefix: Option<&str>,
+                maybe_qos: Option<DdsQos>,
+                maybe_listener: Option<DdsListener>,
+            ) -> Result<DdsTopic::<Self>, DDSError> {
+                let name = #topic_key_ident::topic_name(maybe_topic_prefix);
+                DdsTopic::<Self>::create(participant,&name, maybe_qos,maybe_listener)
             }
         }
     };
