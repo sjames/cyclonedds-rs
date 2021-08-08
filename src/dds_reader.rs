@@ -145,7 +145,7 @@ where
     }
     */
 
-    pub fn readn_from_entity(entity: &DdsEntity, buf: &mut [Sample<T>], take: bool) -> Result<usize,DDSError> {
+    pub fn readn_from_entity_now(entity: &DdsEntity, buf: &mut [Sample<T>], take: bool) -> Result<usize,DDSError> {
         let mut info = cyclonedds_sys::dds_sample_info::default();
         let mut voidp = buf.as_mut_ptr() as *mut c_void;
         let voidpp = &mut voidp;
@@ -170,11 +170,11 @@ where
 
 
     /* */
-    /// Read a buffer given a dds_entity_t.  This is useful when you want to read data
+    /// Read a sample given a DdsEntity.  This is useful when you want to read data
     /// within a closure.
-    pub fn read_from_entity(entity: &DdsEntity,) -> Result<Arc<T>, DDSError> {
+    pub fn read1_from_entity_now(entity: &DdsEntity,) -> Result<Arc<T>, DDSError> {
         let mut samples = [Sample::<T>::default();1];
-        match Self::readn_from_entity(entity, &mut samples, false) {
+        match Self::readn_from_entity_now(entity, &mut samples, false) {
             Ok(1) => {
                 Ok(samples[0].get().unwrap())
             },
@@ -185,15 +185,15 @@ where
         }
     }
 
-    
-    pub fn read(&self) -> Result<Arc<T>, DDSError> {
-       Self::read_from_entity(self.entity()) 
+    /// Read one sample from the reader
+    pub fn read1_now(&self) -> Result<Arc<T>, DDSError> {
+       Self::read1_from_entity_now(self.entity()) 
     }
 
-    
-    pub fn take_from_entity(entity: &DdsEntity) -> Result<Arc<T>, DDSError> {
+    // Take one sample from the reader given a DdsEntity
+    pub fn take1_from_entity_now(entity: &DdsEntity) -> Result<Arc<T>, DDSError> {
         let mut samples = [Sample::<T>::default();1];
-        match Self::readn_from_entity(entity, &mut samples, true) {
+        match Self::readn_from_entity_now(entity, &mut samples, true) {
             Ok(1) => {
                 Ok(samples[0].get().unwrap())
             },
@@ -204,10 +204,10 @@ where
         }
     }
     
-
-    pub fn take(&self) -> Result<Arc<T>, DDSError> {
+    /// Take one sample from the reader.
+    pub fn take1_now(&self) -> Result<Arc<T>, DDSError> {
         let mut samples = [Sample::<T>::default();1];
-        match Self::readn_from_entity(self.entity(), &mut samples, true) {
+        match Self::readn_from_entity_now(self.entity(), &mut samples, true) {
             Ok(1) => {
                 Ok(samples[0].get().unwrap())
             },
@@ -331,8 +331,8 @@ impl <T>Future for SampleFuture<T> where T: TopicType {
         // do this first in case a callback for read complete happens
         let mut waker = self.waker.lock().unwrap();
         let input = match &self.take_or_read {
-            FutureType::Take => DdsReader::<T>::take_from_entity(&self.entity),
-            FutureType::Read => DdsReader::<T>::read_from_entity(&self.entity),
+            FutureType::Take => DdsReader::<T>::take1_from_entity_now(&self.entity),
+            FutureType::Read => DdsReader::<T>::read1_from_entity_now(&self.entity),
         };
         match input  {
             Ok(s) => return Poll::Ready(Ok(s)),

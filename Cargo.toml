@@ -1,6 +1,6 @@
 [package]
 name = "cyclonedds-rs"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Sojan James <Sojan.James@gmail.com>"]
 edition = "2018"
 description = "Safe Rust bindings for cyclonedds"
@@ -22,7 +22,6 @@ dds_derive = {path = "dds_derive"}
 
 
 [dev-dependencies]
-#helloworld_data = { path = "./testdata/helloworld_data" }
 tokio = { version = "1", features = ["full"] }
 
 
