@@ -46,13 +46,6 @@ enum ReaderType {
 
 pub struct DdsReader<T: Sized + TopicType> {
     inner : Arc<Inner<T>>,
-    /* 
-    entity: DdsEntity,
-    listener: Option<Arc<DdsListener<'a>>>,
-    reader_type : ReaderType,
-    _phantom: PhantomData<T>,
-    */
-    // The callback closures that can be attached to a reader
 }
 
 impl<'a, T> DdsReader<T>
@@ -99,7 +92,7 @@ where
         }
     }
 
-    /// Create an async reader. Use the get function on an async reader to get futures
+    /// Create an async reader. This constructor must be used if using any of the async functions.
     pub fn create_async(
         entity: &dyn DdsReadable,
         topic: DdsTopic<T>,
@@ -130,21 +123,8 @@ where
         
     }
 
-    /* 
-    pub fn set_listener(&mut self, listener: DdsListener<'a>) -> Result<(), DDSError> {
-        unsafe {
-            let refl = &listener;
-            let rc = dds_set_listener(self.inner.entity.entity(), refl.into());
-            if rc == 0 {
-                self.listener = Some(Arc::new(listener));
-                Ok(())
-            } else {
-                Err(DDSError::from(rc))
-            }
-        }
-    }
-    */
-
+    /// Read multiple samples from the reader synchronously. The buffer for the sampes must be passed in.
+    /// On success, returns the number of samples read.
     pub fn readn_from_entity_now(entity: &DdsEntity, buf: &mut [Sample<T>], take: bool) -> Result<usize,DDSError> {
         let mut info = cyclonedds_sys::dds_sample_info::default();
         let mut voidp = buf.as_mut_ptr() as *mut c_void;
@@ -169,7 +149,6 @@ where
     }
 
 
-    /* */
     /// Read a sample given a DdsEntity.  This is useful when you want to read data
     /// within a closure.
     pub fn read1_from_entity_now(entity: &DdsEntity,) -> Result<Arc<T>, DDSError> {
@@ -219,23 +198,42 @@ where
         }
     }
 
-    pub async fn get(&self) -> Result<Arc<T>,DDSError> {
-        match &self.inner.reader_type {
-            ReaderType::Async(waker) => {
-               let future_sample = SampleFuture::new(self.inner.entity.clone(), waker.clone(), FutureType::Read);
-               future_sample.await
-            },
-            ReaderType::Sync => return Err(DDSError::NotEnabled),
+    /// Read samples asynchronously. The number of samples actually read is returned.
+    pub async fn read(&self, samples : &mut[Sample<T>]) -> Result<usize,DDSError> {
+        if let ReaderType::Async(waker) = &self.inner.reader_type {
+               let future_sample = SampleArrayFuture::new(self.inner.entity.clone(), waker.clone(),samples ,FutureType::Read);
+                future_sample.await
+           } else {
+            panic!("This reader was not constructed with async constructor");
         }
     }
 
-    pub async fn pull(&self) -> Result<Arc<T>,DDSError> {
-        match &self.inner.reader_type {
-            ReaderType::Async(waker) => {
-               let future_sample = SampleFuture::new(self.inner.entity.clone(), waker.clone(), FutureType::Take);
-               future_sample.await
-            },
-            ReaderType::Sync => return Err(DDSError::NotEnabled),
+    /// Get samples asynchronously. The number of samples actually read is returned.
+    pub async fn take(&self, samples : &mut[Sample<T>]) -> Result<usize,DDSError> {
+        if let ReaderType::Async(waker) = &self.inner.reader_type {
+            let future_sample = SampleArrayFuture::new(self.inner.entity.clone(), waker.clone(),samples ,FutureType::Take);
+             future_sample.await
+        } else {
+         panic!("This reader was not constructed with async constructor");
+     }
+    }
+
+    // Get one sample
+    pub async fn read1(&self) -> Result<Arc<T>,DDSError> {
+        let mut sample = [Sample::<T>::default()];
+        match self.read(&mut sample).await {
+            Ok(1) => Ok(sample[0].get().unwrap()),
+            Ok(_) => Err(DDSError::NoData),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub async fn take1(&self) -> Result<Arc<T>,DDSError> {
+        let mut sample = [Sample::<T>::default()];
+        match self.take(&mut sample).await {
+            Ok(1) => Ok(sample[0].get().unwrap()),
+            Ok(_) => Err(DDSError::NoData),
+            Err(e) => Err(e),
         }
     }
 
@@ -306,48 +304,63 @@ enum FutureType {
     Read,
 }
 
-struct SampleFuture<T> {
-    entity : DdsEntity,
-    waker : Arc<Mutex<Option<Waker>>>,
-    take_or_read : FutureType,
-    _phantom : PhantomData<T>
-}
-
-impl <T>SampleFuture<T> {
-    fn new(entity: DdsEntity, waker : Arc<Mutex<Option<Waker>>>, ty : FutureType) -> Self {
-        Self {
-            entity,
-            waker,
-            take_or_read : ty,
-            _phantom : PhantomData,
+impl FutureType {
+    fn is_take(&self) -> bool {
+        match self {
+            FutureType::Take => true,
+            FutureType::Read => false,
         }
     }
 }
 
-impl <T>Future for SampleFuture<T> where T: TopicType {
-    type Output = Result<Arc<T>, DDSError>;
 
-    fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
-        // do this first in case a callback for read complete happens
-        let mut waker = self.waker.lock().unwrap();
-        let input = match &self.take_or_read {
-            FutureType::Take => DdsReader::<T>::take1_from_entity_now(&self.entity),
-            FutureType::Read => DdsReader::<T>::read1_from_entity_now(&self.entity),
-        };
-        match input  {
-            Ok(s) => return Poll::Ready(Ok(s)),
+struct SampleArrayFuture<'a,T> {
+    entity : DdsEntity,
+    waker : Arc<Mutex<Option<Waker>>>,
+    take_or_read : FutureType,
+    buffer : &'a mut [Sample<T>]
+}
+
+
+impl <'a,T>SampleArrayFuture<'a,T> {
+    fn new(entity: DdsEntity, waker : Arc<Mutex<Option<Waker>>>, buffer: &'a mut [Sample<T>], ty : FutureType) -> Self {
+        Self {
+            entity,
+            waker,
+            take_or_read : ty,
+            buffer,
+        }
+    }
+}
+
+impl <'a,T>Future for SampleArrayFuture<'a,T> where T: TopicType {
+    type Output = Result<usize,DDSError>;
+
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
+
+        // Lock the waker first in case a callback for read complete happens and we miss it
+        // clone to avoid the lifetime problem with self
+        let waker = self.waker.clone();
+        let mut waker = waker.lock().unwrap();
+        let is_take = self.take_or_read.is_take();
+        let entity = self.entity.clone();
+
+        match DdsReader::<T>::readn_from_entity_now(&entity, self.buffer, is_take) {
+            Ok(len) =>  return Poll::Ready(Ok(len)),
             Err(DDSError::NoData) | Err(DDSError::OutOfResources) => {
                 let _ = waker.replace(ctx.waker().clone()); 
                 Poll::Pending
             },
             Err(e) => {    
-                println!("Error:{}",e);
+                //println!("Error:{}",e);
                 // Some other error happened
                 Poll::Ready(Err(e))
             }
         }
     }
 }
+
+
 
 #[cfg(test)]
 mod test {
@@ -402,19 +415,23 @@ mod test {
 
     #[derive(Serialize,Deserialize,Topic, Debug, PartialEq)]
     struct AnotherTopic {
-        value : u32,
-        name : String,
-        arr : [String;2],
-        vec : Vec<String>,
+        pub value : u32,
+        pub name : String,
+        pub arr : [String;2],
+        pub vec : Vec<String>,
+        #[topic_key]
+        pub key : u32,
     }
 
     impl Default for AnotherTopic {
         fn default() -> Self {
+            assert!(Self::has_key());
             Self {
                 value : 42,
                 name : "the answer".to_owned(),
                 arr : ["one".to_owned(), "two".to_owned()],
                 vec : vec!["Hello".to_owned(), "world".to_owned()],
+                key : 0,
             }
     }
     }
@@ -444,7 +461,7 @@ mod test {
         let _result = rt.block_on(async {
             
             let task = tokio::spawn(async move {
-                if let Ok(t) = reader.pull().await {
+                if let Ok(t) = reader.take1().await {
                     assert_eq!(t,Arc::new(TestTopic::default()));
                 } else {
                     panic!("reader get failed");
@@ -452,11 +469,19 @@ mod test {
             });
 
             let another_task = tokio::spawn(async move {
-                if let Ok(t) = another_reader.get().await {
-                    assert_eq!(t,Arc::new(AnotherTopic::default()));
+
+                let mut two_samples = [Sample::<AnotherTopic>::default(),Sample::<AnotherTopic>::default() ];
+                if let Ok(t) = another_reader.read(&mut two_samples).await {
+                    assert_eq!(t,1);
+                    let samples = &two_samples[..t];
+                    assert_eq!(samples[0].get().unwrap(), Arc::new(AnotherTopic::default()));
                 } else {
                     panic!("reader get failed");
                 }
+
+                
+
+             
             });
 
             // add a delay to make sure the data is not ready immediately
@@ -466,7 +491,8 @@ mod test {
 
             another_writer.write(Arc::new(AnotherTopic::default())).unwrap();
 
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
 
         });
 
