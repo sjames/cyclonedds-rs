@@ -123,6 +123,16 @@ where
         
     }
 
+    // read synchronously
+    pub fn read_now(&self,buf: &mut [Sample<T>]) -> Result<usize,DDSError> {
+        Self::readn_from_entity_now(self.entity(),buf,false)
+    }
+
+    // read synchronously
+    pub fn take_now(&self,buf: &mut [Sample<T>]) -> Result<usize,DDSError> {
+        Self::readn_from_entity_now(self.entity(),buf,true)
+    }
+
     /// Read multiple samples from the reader synchronously. The buffer for the sampes must be passed in.
     /// On success, returns the number of samples read.
     pub fn readn_from_entity_now(entity: &DdsEntity, buf: &mut [Sample<T>], take: bool) -> Result<usize,DDSError> {
