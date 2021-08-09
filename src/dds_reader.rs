@@ -28,7 +28,7 @@ pub use cyclonedds_sys::{DdsDomainId, DdsEntity};
 use std::marker::PhantomData;
 
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable, Entity};
-use crate::serdes::{TopicType, Sample};
+use crate::serdes::{TopicType, Sample, SampleBuffer};
 
 enum ReaderType {
     Async(Arc<Mutex<Option<Waker>>>),
@@ -124,24 +124,22 @@ where
     }
 
     // read synchronously
-    pub fn read_now(&self,buf: &mut [Sample<T>]) -> Result<usize,DDSError> {
+    pub fn read_now(&self,buf: &mut SampleBuffer<T>) -> Result<usize,DDSError> {
         Self::readn_from_entity_now(self.entity(),buf,false)
     }
 
     // read synchronously
-    pub fn take_now(&self,buf: &mut [Sample<T>]) -> Result<usize,DDSError> {
+    pub fn take_now(&self,buf: &mut SampleBuffer<T>) -> Result<usize,DDSError> {
         Self::readn_from_entity_now(self.entity(),buf,true)
     }
 
     /// Read multiple samples from the reader synchronously. The buffer for the sampes must be passed in.
     /// On success, returns the number of samples read.
-    pub fn readn_from_entity_now(entity: &DdsEntity, buf: &mut [Sample<T>], take: bool) -> Result<usize,DDSError> {
-        //let mut info = cyclonedds_sys::dds_sample_info::default();
-        let mut info = vec![cyclonedds_sys::dds_sample_info::default();buf.len()];
-        let info_ptr = info.as_mut_ptr();
+    pub fn readn_from_entity_now(entity: &DdsEntity, buf: &mut SampleBuffer<T>, take: bool) -> Result<usize,DDSError> {
 
-        let mut voidp = buf.as_mut_ptr() as *mut c_void;
-        let voidpp = &mut voidp;
+        let (voidp, info_ptr) = unsafe {buf.as_mut_ptr()};
+        let voidpp = voidp as *mut *mut c_void;
+        //println!("Infoptr:{:?}",info_ptr);
 
         let ret = unsafe {
             if take {
@@ -151,7 +149,8 @@ where
             }
         };
         if ret >= 0 {
-            if info[0].valid_data {
+            // If first sample is value we assume all are
+            if buf.is_valid_sample(0) {
                    Ok(ret as usize) 
             } else {
                     Err(DDSError::NoData)
@@ -165,10 +164,16 @@ where
     /// Read a sample given a DdsEntity.  This is useful when you want to read data
     /// within a closure.
     pub fn read1_from_entity_now(entity: &DdsEntity,) -> Result<Arc<T>, DDSError> {
-        let mut samples = [Sample::<T>::default();1];
-        match Self::readn_from_entity_now(entity, &mut samples, false) {
+        //let sample = Box::new(Sample::<T>::default());
+        //let mut sample = Box::into_raw(sample);
+        //let slice = unsafe {std::slice::from_raw_parts_mut(&mut sample, 1)};
+        let mut sample_buffer = SampleBuffer::<T>::new(1);
+        
+        let read = Self::readn_from_entity_now(entity, &mut sample_buffer, false);
+
+        match read {
             Ok(1) => {
-                Ok(samples[0].get().unwrap())
+                Ok(sample_buffer.get(0).get().unwrap())
             },
             Ok(_n) => {
                 panic!("Expected only one sample");
@@ -184,10 +189,11 @@ where
 
     // Take one sample from the reader given a DdsEntity
     pub fn take1_from_entity_now(entity: &DdsEntity) -> Result<Arc<T>, DDSError> {
-        let mut samples = [Sample::<T>::default();1];
-        match Self::readn_from_entity_now(entity, &mut samples, true) {
+        let mut sample_buffer = SampleBuffer::<T>::new(1);
+        let read = Self::readn_from_entity_now(entity, &mut sample_buffer, true);
+        match read {
             Ok(1) => {
-                Ok(samples[0].get().unwrap())
+                Ok(sample_buffer.get(0).get().unwrap())
             },
             Ok(_n) => {
                 panic!("Expected only one sample");
@@ -198,21 +204,11 @@ where
     
     /// Take one sample from the reader.
     pub fn take1_now(&self) -> Result<Arc<T>, DDSError> {
-        let mut samples = [Sample::<T>::default();1];
-        match Self::readn_from_entity_now(self.entity(), &mut samples, true) {
-            Ok(1) => {
-                Ok(samples[0].get().unwrap())
-            },
-            Ok(_n) => {
-                panic!("Expected only one sample");
-            }
-            Err(e) => Err(e),
-
-        }
+        Self::take1_from_entity_now(self.entity())
     }
 
     /// Read samples asynchronously. The number of samples actually read is returned.
-    pub async fn read(&self, samples : &mut[Sample<T>]) -> Result<usize,DDSError> {
+    pub async fn read(&self, samples : &mut SampleBuffer<T>) -> Result<usize,DDSError> {
         if let ReaderType::Async(waker) = &self.inner.reader_type {
                let future_sample = SampleArrayFuture::new(self.inner.entity.clone(), waker.clone(),samples ,FutureType::Read);
                 future_sample.await
@@ -222,7 +218,7 @@ where
     }
 
     /// Get samples asynchronously. The number of samples actually read is returned.
-    pub async fn take(&self, samples : &mut[Sample<T>]) -> Result<usize,DDSError> {
+    pub async fn take(&self, samples : &mut SampleBuffer<T>) -> Result<usize,DDSError> {
         if let ReaderType::Async(waker) = &self.inner.reader_type {
             let future_sample = SampleArrayFuture::new(self.inner.entity.clone(), waker.clone(),samples ,FutureType::Take);
              future_sample.await
@@ -233,18 +229,22 @@ where
 
     // Get one sample
     pub async fn read1(&self) -> Result<Arc<T>,DDSError> {
-        let mut sample = [Sample::<T>::default()];
-        match self.read(&mut sample).await {
-            Ok(1) => Ok(sample[0].get().unwrap()),
+        let mut sample_buffer = SampleBuffer::<T>::new(1);
+        let read = self.read(&mut sample_buffer).await;
+
+        match read {
+            Ok(1) => Ok(sample_buffer.get(0).get().unwrap()), 
             Ok(_) => Err(DDSError::NoData),
             Err(e) => Err(e),
         }
     }
 
     pub async fn take1(&self) -> Result<Arc<T>,DDSError> {
-        let mut sample = [Sample::<T>::default()];
-        match self.take(&mut sample).await {
-            Ok(1) => Ok(sample[0].get().unwrap()),
+        let mut sample_buffer = SampleBuffer::<T>::new(1);
+        let read = self.take(&mut sample_buffer).await;
+
+        match read {
+            Ok(1) => Ok(sample_buffer.get(0).get().unwrap()), 
             Ok(_) => Err(DDSError::NoData),
             Err(e) => Err(e),
         }
@@ -331,12 +331,12 @@ struct SampleArrayFuture<'a,T> {
     entity : DdsEntity,
     waker : Arc<Mutex<Option<Waker>>>,
     take_or_read : FutureType,
-    buffer : &'a mut [Sample<T>]
+    buffer : &'a mut SampleBuffer<T>,
 }
 
 
 impl <'a,T>SampleArrayFuture<'a,T> {
-    fn new(entity: DdsEntity, waker : Arc<Mutex<Option<Waker>>>, buffer: &'a mut [Sample<T>], ty : FutureType) -> Self {
+    fn new(entity: DdsEntity, waker : Arc<Mutex<Option<Waker>>>, buffer: &'a mut SampleBuffer<T>, ty : FutureType) -> Self {
         Self {
             entity,
             waker,
@@ -358,7 +358,7 @@ impl <'a,T>Future for SampleArrayFuture<'a,T> where T: TopicType {
         let is_take = self.take_or_read.is_take();
         let entity = self.entity.clone();
 
-        match DdsReader::<T>::readn_from_entity_now(&entity, self.buffer, is_take) {
+        match DdsReader::<T>::readn_from_entity_now(&entity, &mut self.buffer, is_take) {
             Ok(len) =>  return Poll::Ready(Ok(len)),
             Err(DDSError::NoData) | Err(DDSError::OutOfResources) => {
                 let _ = waker.replace(ctx.waker().clone()); 
@@ -482,19 +482,17 @@ mod test {
             });
 
             let another_task = tokio::spawn(async move {
-
-                let mut two_samples = [Sample::<AnotherTopic>::default(),Sample::<AnotherTopic>::default() ];
-                if let Ok(t) = another_reader.read(&mut two_samples).await {
+                let mut samples = SampleBuffer::<AnotherTopic>::new(10);
+                if let Ok(t) = another_reader.read(&mut samples).await {
                     assert_eq!(t,1);
-                    let samples = &two_samples[..t];
-                    assert_eq!(samples[0].get().unwrap(), Arc::new(AnotherTopic::default()));
+                    for s in samples.iter() {
+
+                        println!("Got sample {}", s.get().unwrap().key);
+                    }
+                   
                 } else {
                     panic!("reader get failed");
                 }
-
-                
-
-             
             });
 
             // add a delay to make sure the data is not ready immediately

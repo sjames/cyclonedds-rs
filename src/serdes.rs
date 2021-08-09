@@ -28,9 +28,11 @@ use std::{
 };
 
 use std::hash::Hasher;
+use std::ops::{Index, IndexMut};
 
 use cyclonedds_sys::*;
 use fasthash::{murmur3::Hasher32, FastHasher};
+
 
 
 
@@ -148,6 +150,80 @@ impl <T> Default for Sample<T> {
     }
 }
 
+/// TODO TODO : Must make this truly Sendable
+/// UNSAFE WARNING. Forcing SampleBuffer<T> to be Send now
+/// to proceed with the implementation.
+unsafe impl <T> Send for SampleBuffer<T> {}
+pub struct SampleBuffer<T> {
+    buffer : Vec<*mut Sample<T>>,
+    sample_info : Vec<cyclonedds_sys::dds_sample_info>,
+}
+
+impl <'a,T>SampleBuffer<T> {
+    pub fn new(len: usize) -> Self {
+        let mut buf = Self {
+            buffer: Vec::new(),
+            sample_info : vec![cyclonedds_sys::dds_sample_info::default();len],
+        };
+
+        for i in 0..len {
+            let p = Box::into_raw(Box::new(Sample::<T>::default()));
+            buf.buffer.push(p);
+        }
+        buf
+    }
+
+    /// Check if sample is valid. Will panic if out of
+    /// bounds.
+    pub fn is_valid_sample(&self,index:usize) -> bool {
+        self.sample_info[index].valid_data
+    }
+
+    pub fn len(&self) -> usize {
+        self.buffer.len()
+    }
+
+    pub fn iter(&'a self) -> impl Iterator<Item = &Sample<T>>  {
+        let p = self.buffer.iter().filter_map(|p| {
+            let sample =  unsafe{&*(*p)};
+            match sample {
+                Sample::Uninitialized => None,
+                Sample::Value(_) => Some(sample),
+            }
+    });
+        p
+    }
+
+    /// Get a sample
+    pub fn get(&self, index : usize) -> &Sample<T> {
+        let p_sample = self.buffer[index];
+        unsafe {&*p_sample}
+    }
+
+    /// return a raw pointer to the buffer and the sample info
+    /// to be used in unsafe code that calls the CycloneDDS
+    /// API 
+    pub unsafe fn as_mut_ptr(&mut self) -> (*mut *mut Sample<T>,*mut dds_sample_info){
+        (self.buffer.as_mut_ptr(),self.sample_info.as_mut_ptr())
+    }
+}
+
+impl <'a,T> Drop for SampleBuffer<T> {
+    fn drop(&mut self) {
+       for p in &self.buffer {
+           unsafe {Box::from_raw(*p);}
+       }
+    }
+}
+/* 
+impl <'a,T>Index<usize> for SampleBuffer<T> {
+    type Output = &'a Sample<T>;
+    fn index<'a>(&'a self, i: usize) -> &'a Sample<T> {
+        &self.e[i]
+    }
+}
+*/
+
 
 #[allow(dead_code)]
 unsafe extern "C" fn zero_samples<T>(
@@ -166,13 +242,13 @@ extern "C" fn realloc_samples<T>(
     new_count: u64,
 ) {
     let old = unsafe {
-        Vec::<Sample<T>>::from_raw_parts(
-            old as *mut Sample<T>,
+        Vec::<*mut Sample<T>>::from_raw_parts(
+            old as *mut *mut Sample<T>,
             old_count as usize,
             old_count as usize,
         )
     };
-    let mut new = Vec::<Sample<T>>::with_capacity(new_count as usize);
+    let mut new = Vec::<*mut Sample<T>>::with_capacity(new_count as usize);
 
     if new_count >= old_count {
         for entry in old {
@@ -180,7 +256,7 @@ extern "C" fn realloc_samples<T>(
         }
 
         for _i in 0..(new_count - old_count) {
-            new.push(Sample::<T>::default());
+            new.push(Box::into_raw(Box::new(Sample::<T>::default())));
         }
     } else {
         for e in old.into_iter().take(new_count as usize) {
@@ -551,13 +627,19 @@ unsafe extern "C" fn serdata_to_sample<T>(
     _buflim: *mut c_void,
 ) -> bool {
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
-    let sample = &mut *(sample as *mut Sample<T>);
-    if let SampleData::SDKData(data) = &serdata.sample {
-        *sample = Sample::Value(data.clone()) ;
+    //let sample = &mut *(sample as *mut Sample<T>);
+    let mut s = Box::<Sample<T>>::from_raw(sample as *mut Sample<T>);
+    let ret = if let SampleData::SDKData(data) = &serdata.sample {
+        *s = Sample::Value(data.clone()) ;
         false
     } else {
         true
-    }
+    };
+
+    let _intentional_leak = Box::into_raw(s);
+    ret
+
+    
 }
 
 #[allow(dead_code)]
