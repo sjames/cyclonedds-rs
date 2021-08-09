@@ -42,7 +42,7 @@ pub use dds_subscriber::DdsSubscriber;
 pub use dds_topic::DdsTopic;
 pub use dds_waitset::DdsWaitset;
 pub use dds_writer::DdsWriter;
-pub use serdes::TopicType;
+pub use serdes::{TopicType, SampleBuffer, Sample};
 
 pub use cdr;
 pub use cyclonedds_sys::dds_error::DDSError;
