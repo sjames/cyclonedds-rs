@@ -150,11 +150,20 @@ impl <T> Default for Sample<T> {
     }
 }
 
-/// TODO TODO : Must make this truly Sendable
-/// UNSAFE WARNING. Forcing SampleBuffer<T> to be Send now
-/// to proceed with the implementation.
+/// 
+/// TODO: UNSAFE WARNING Review needed. Forcing SampleBuffer<T> to be Send
+/// DDS read API uses an array of void* pointers. The SampleBuffer<T> structure
+/// is used to create the sample array in the necessary format.
+/// We allocate the Sample<T> structure and set it to deallocated here.
+/// Cyclone does not allocate the sample, it only sets the value of the Arc<T>
+/// inside the Sample<T>::Value<Arc<T>>. 
+/// So this structure always points to a valid sample memory, but the serdes callbacks
+/// can change the value of the sample under us.
+/// To be absolutely sure, I think we must put each sample into an Arc<RwLock<T>> instead of
+/// an Arc<T>, I guess this is the cost we pay for zero copy.
 unsafe impl <T> Send for SampleBuffer<T> {}
 pub struct SampleBuffer<T> {
+    /// This is !Send. This is the only way to punch through the Cyclone API
     buffer : Vec<*mut Sample<T>>,
     sample_info : Vec<cyclonedds_sys::dds_sample_info>,
 }
