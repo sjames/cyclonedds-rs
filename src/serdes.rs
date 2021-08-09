@@ -28,7 +28,7 @@ use std::{
 };
 
 use std::hash::Hasher;
-use std::ops::{Index, IndexMut};
+
 
 use cyclonedds_sys::*;
 use fasthash::{murmur3::Hasher32, FastHasher};
@@ -54,7 +54,7 @@ pub trait TopicType : Default + Serialize + DeserializeOwned {
 
     /// The type name for this topic
     fn typename() -> std::ffi::CString {
-        let ty_name_parts : String = format!("{}", std::any::type_name::<Self>()).split("::").skip(1).collect::<Vec<_>>().join("::");
+        let ty_name_parts : String = std::any::type_name::<Self>().to_string().split("::").skip(1).collect::<Vec<_>>().join("::");
 
         let typename = std::ffi::CString::new(ty_name_parts)
             .expect("Unable to create CString for type name");
@@ -66,17 +66,17 @@ pub trait TopicType : Default + Serialize + DeserializeOwned {
     /// implementation uses '/' instead of '::' to form a unix like path.
     /// A prefix can optionally be added
     fn topic_name(maybe_prefix : Option<&str>) -> String {
-        let topic_name_parts : String = format!("/{}",format!("{}", std::any::type_name::<Self>()).split("::").skip(1).collect::<Vec<_>>().join("/"));
-        let path = if let Some(prefix) = maybe_prefix {
+        let topic_name_parts : String = format!("/{}",std::any::type_name::<Self>().to_string().split("::").skip(1).collect::<Vec<_>>().join("/"));
+        
+
+        if let Some(prefix) = maybe_prefix {
             let mut path = String::from(prefix);
             path.push_str(&topic_name_parts);
             path
 
         } else {
             topic_name_parts
-        };
-
-        path
+        }
     }
 
     fn has_key() -> bool;
@@ -166,7 +166,7 @@ impl <'a,T>SampleBuffer<T> {
             sample_info : vec![cyclonedds_sys::dds_sample_info::default();len],
         };
 
-        for i in 0..len {
+        for _i in 0..len {
             let p = Box::into_raw(Box::new(Sample::<T>::default()));
             buf.buffer.push(p);
         }
@@ -305,9 +305,9 @@ unsafe extern "C" fn free_sertype<T>(sertype: *mut cyclonedds_sys::ddsi_sertype)
     
     ddsi_sertype_fini(sertype);
 
-    let _sertype_ops = Box::<ddsi_sertype_ops>::from_raw((&*sertype).ops as *mut ddsi_sertype_ops);
+    let _sertype_ops = Box::<ddsi_sertype_ops>::from_raw((*sertype).ops as *mut ddsi_sertype_ops);
     let _serdata_ops =
-        Box::<ddsi_serdata_ops>::from_raw((&*sertype).serdata_ops as *mut ddsi_serdata_ops);
+        Box::<ddsi_serdata_ops>::from_raw((*sertype).serdata_ops as *mut ddsi_serdata_ops);
     // this sertype is always constructed in Rust. During destruction,
     // the Box takes over the pointer and frees it when it goes out
     // of scope.
@@ -403,7 +403,7 @@ unsafe extern "C" fn serdata_from_keyhash<T>(
     keyhash: *const ddsi_keyhash,
 ) -> *mut ddsi_serdata where T: TopicType {
  
-    let keyhash = (&*keyhash).value;
+    let keyhash = (*keyhash).value;
     
     if T::force_md5_keyhash() {
         // this means keyhas fits in 16 bytes
@@ -475,8 +475,8 @@ where
         .iter()
         .map(|iov| {
             let iov = &**iov;
-            let slice = std::slice::from_raw_parts(iov.iov_base as *const u8, iov.iov_len as usize);
-            slice
+            
+            std::slice::from_raw_parts(iov.iov_base as *const u8, iov.iov_len as usize)
         })
         .collect();
 
@@ -563,7 +563,7 @@ unsafe extern "C" fn serdata_to_ser<T>(
             
             let buf_slice = std::slice::from_raw_parts_mut(buf, size as usize);
             if let Err(e) =
-                cdr::serialize_into::<_, T, _, CdrBe>(buf_slice, &serdata.deref(), Bounded(size as u64))
+                cdr::serialize_into::<_, T, _, CdrBe>(buf_slice, serdata.deref(), Bounded(size as u64))
             {
                 panic!("Unable to serialize type {:?} due to {}", T::typename(), e);
             }
@@ -593,7 +593,7 @@ where
         }
         SampleData::SDKData(sample) => {
             if serdata.cdr.is_none() {
-                if let Ok(data) = cdr::serialize::<T, _, CdrBe>(&sample.as_ref(), Infinite) {
+                if let Ok(data) = cdr::serialize::<T, _, CdrBe>(sample.as_ref(), Infinite) {
                     serdata.cdr = Some(data);
                 } else {
                     panic!("Unable to serialize type {:?} due to", T::typename());
@@ -814,7 +814,7 @@ impl<'a, T> SerData<T> {
     Some discussions here: https://github.com/eclipse-cyclonedds/cyclonedds/issues/830
 */
 fn nn_rdata_payload_offset(rdata: *const nn_rdata) -> usize {
-    unsafe { (&*rdata).payload_zoff as usize }
+    unsafe { (*rdata).payload_zoff as usize }
 }
 
 fn nn_rmsg_payload(rmsg: *const nn_rmsg) -> *const u8 {
@@ -1058,7 +1058,7 @@ mod test {
             #[topic_key]
             inner : NestedFoo,
         }
-        let foo = Foo { id: 0x12345678,x: 10,s: String::from("boo"),  y:20, inner: NestedFoo::new()};
+        let _foo = Foo { id: 0x12345678,x: 10,s: String::from("boo"),  y:20, inner: NestedFoo::new()};
         let t = SerType::<Foo>::new();
         let mut t = SerType::into_sertype(t);
         let tt = &mut t as *mut *mut ddsi_sertype;

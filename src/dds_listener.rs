@@ -123,7 +123,7 @@ impl<'a> From<&DdsListener> for *const dds_listener_t {
 
 impl<'a> DdsListener {
     // take ownership as we're going to do some bad stuff here.
-    pub fn hook(mut self) -> Self {
+    pub fn hook(self) -> Self {
         // we're going to grab the Boxed callbacks and keep them separately as
         // we will send a pointer to the callback array into C. We convert the
         // pointer back to a box in the Drop function.
@@ -225,7 +225,7 @@ impl<'a> DdsListener {
 
 //////
 impl DdsListener {
-    pub fn on_data_available<F>(mut self, callback: F) -> Self
+    pub fn on_data_available<F>(self, callback: F) -> Self
     where
         F: FnMut(DdsEntity) + 'static ,
     {
@@ -251,7 +251,7 @@ impl DdsListener {
 
 impl<'a> DdsListener {
     /////
-    pub fn on_sample_lost<F>(mut self, callback: F) -> Self
+    pub fn on_sample_lost<F>(self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_sample_lost_status_t) + 'static,
     {
@@ -277,7 +277,7 @@ impl<'a> DdsListener {
 
 impl<'a> DdsListener {
     //////
-    pub fn on_sample_rejected<F>(mut self, callback: F) -> Self
+    pub fn on_sample_rejected<F>(self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_sample_rejected_status_t) + 'static,
     {
@@ -303,7 +303,7 @@ impl<'a> DdsListener {
 
 // Liveliness changed
 impl<'a> DdsListener {
-    pub fn on_liveliness_changed<F>(mut self, callback: F) -> Self
+    pub fn on_liveliness_changed<F>(self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_liveliness_changed_status_t) + 'static,
     {
@@ -328,7 +328,7 @@ impl<'a> DdsListener {
 }
 
 impl<'a> DdsListener {
-    pub fn on_requested_deadline_missed<F>(mut self, callback: F) -> Self
+    pub fn on_requested_deadline_missed<F>(self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_requested_deadline_missed_status_t) + 'static,
     {
@@ -353,7 +353,7 @@ impl<'a> DdsListener {
 }
 
 impl<'a> DdsListener {
-    pub fn on_requested_incompatible_qos<F>(mut self, callback: F) -> Self
+    pub fn on_requested_incompatible_qos<F>(self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_requested_incompatible_qos_status_t) + 'static,
     {
@@ -378,7 +378,7 @@ impl<'a> DdsListener {
 }
 
 impl<'a> DdsListener {
-    pub fn on_subscription_matched<F>(mut self, callback: F) -> Self
+    pub fn on_subscription_matched<F>(self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_subscription_matched_status_t) + 'static,
     {
@@ -403,7 +403,7 @@ impl<'a> DdsListener {
 }
 
 impl<'a> DdsListener {
-    pub fn on_liveliness_lost<F>(mut self, callback: F) -> Self
+    pub fn on_liveliness_lost<F>(self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_liveliness_lost_status_t) + 'static,
     {
@@ -428,7 +428,7 @@ impl<'a> DdsListener {
 }
 
 impl<'a> DdsListener {
-    pub fn on_offered_deadline_missed<F>(mut self, callback: F) -> Self
+    pub fn on_offered_deadline_missed<F>(self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_offered_deadline_missed_status_t) + 'static,
     {
@@ -453,7 +453,7 @@ impl<'a> DdsListener {
 }
 
 impl<'a> DdsListener {
-    pub fn on_offered_incompatible_qos<F>(mut self, callback: F) -> Self
+    pub fn on_offered_incompatible_qos<F>(self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_offered_incompatible_qos_status_t) + 'static,
     {
@@ -478,7 +478,7 @@ impl<'a> DdsListener {
 }
 
 impl<'a> DdsListener {
-    pub fn on_publication_matched<F>(mut self, callback: F) -> Self
+    pub fn on_publication_matched<F>(self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_publication_matched_status_t) + 'static,
     {
@@ -503,7 +503,7 @@ impl<'a> DdsListener {
 }
 
 impl<'a> DdsListener {
-    pub fn on_inconsistent_topic<F>(mut self, callback: F) -> Self
+    pub fn on_inconsistent_topic<F>(self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_inconsistent_topic_status_t) + 'static,
     {
@@ -528,7 +528,7 @@ impl<'a> DdsListener {
 }
 
 impl<'a> DdsListener {
-    pub fn on_data_on_readers<F>(mut self, callback: F) -> Self
+    pub fn on_data_on_readers<F>(self, callback: F) -> Self
     where
         F: FnMut(DdsEntity) + 'static,
     {

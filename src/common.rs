@@ -14,7 +14,7 @@
     limitations under the License.
 */
 
-use cyclonedds_sys::{DDSError, DdsEntity};
+use cyclonedds_sys::{DdsEntity};
 
 /// An entity on which you can attach a DdsWriter
 pub trait DdsWritable {

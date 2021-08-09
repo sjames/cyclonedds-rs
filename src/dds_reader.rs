@@ -28,7 +28,7 @@ pub use cyclonedds_sys::{DdsDomainId, DdsEntity};
 use std::marker::PhantomData;
 
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable, Entity};
-use crate::serdes::{TopicType, Sample, SampleBuffer};
+use crate::serdes::{TopicType, SampleBuffer};
 
 enum ReaderType {
     Async(Arc<Mutex<Option<Waker>>>),
@@ -360,7 +360,7 @@ impl <'a,T>Future for SampleArrayFuture<'a,T> where T: TopicType {
         let entity = self.entity.clone();
 
         match DdsReader::<T>::readn_from_entity_now(&entity, &mut self.buffer, is_take) {
-            Ok(len) =>  return Poll::Ready(Ok(len)),
+            Ok(len) =>  Poll::Ready(Ok(len)),
             Err(DDSError::NoData) | Err(DDSError::OutOfResources) => {
                 let _ = waker.replace(ctx.waker().clone()); 
                 Poll::Pending
@@ -383,7 +383,7 @@ mod test {
     use crate::{DdsParticipant, DdsSubscriber};
     use super::*;
     use crate::{DdsPublisher, DdsWriter};
-    use super::*;
+    
     use dds_derive::Topic;
     use serde_derive::{Deserialize, Serialize};
     use tokio::runtime::Runtime;
@@ -467,14 +467,14 @@ mod test {
 
 
         let subscriber = DdsSubscriber::create(&participant, None, None).unwrap();
-        let reader = DdsReader::create_async(&subscriber, topic.clone(), None).unwrap();
+        let reader = DdsReader::create_async(&subscriber, topic, None).unwrap();
         let another_reader = DdsReader::create_async(&subscriber, another_topic, None).unwrap();
 
         let rt = Runtime::new().unwrap();
 
         let _result = rt.block_on(async {
             
-            let task = tokio::spawn(async move {
+            let _task = tokio::spawn(async move {
                 if let Ok(t) = reader.take1().await {
                     assert_eq!(t,Arc::new(TestTopic::default()));
                 } else {
@@ -482,7 +482,7 @@ mod test {
                 }
             });
 
-            let another_task = tokio::spawn(async move {
+            let _another_task = tokio::spawn(async move {
                 let mut samples = SampleBuffer::<AnotherTopic>::new(10);
                 if let Ok(t) = another_reader.read(&mut samples).await {
                     assert_eq!(t,1);

@@ -78,7 +78,7 @@ impl Drop for DdsDomain {
 
 #[cfg(test)]
 mod dds_domain_tests {
-    use super::*;
+    
 
     #[test]
     fn test_create_domain_with_bad_config() {

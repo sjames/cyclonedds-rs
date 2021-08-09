@@ -290,7 +290,7 @@ mod dds_qos_tests {
     #[test]
     fn test_clone_qos() {
         if let Ok(qos) = DdsQos::create() {
-            let _c = qos.clone();
+            let _c = qos;
         } else {
             assert!(false);
         }
@@ -309,7 +309,7 @@ mod dds_qos_tests {
     #[test]
     fn test_set() {
         if let Ok(qos) = DdsQos::create() {
-            let qos = qos.set_durability(dds_durability_kind::DDS_DURABILITY_VOLATILE)
+            let _qos = qos.set_durability(dds_durability_kind::DDS_DURABILITY_VOLATILE)
             .set_history(dds_history_kind::DDS_HISTORY_KEEP_LAST, 3)
             .set_resource_limits(10, 1, 10)
             .set_presentation(
