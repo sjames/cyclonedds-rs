@@ -19,7 +19,7 @@ pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 use std::convert::From;
 
 #[derive(Clone)]
-pub struct DdsPublisher(DdsEntity);
+pub struct DdsPublisher(DdsEntity, Option<DdsListener>);
 
 impl<'a> DdsPublisher {
     pub fn create(
@@ -31,10 +31,10 @@ impl<'a> DdsPublisher {
             let p = cyclonedds_sys::dds_create_publisher(
                 participant.entity().entity(),
                 maybe_qos.map_or(std::ptr::null(), |d| d.into()),
-                maybe_listener.map_or(std::ptr::null(), |l| l.into()),
+                maybe_listener.as_ref().map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
-                Ok(DdsPublisher(DdsEntity::new(p)))
+                Ok(DdsPublisher(DdsEntity::new(p), maybe_listener))
             } else {
                 Err(DDSError::from(p))
             }

@@ -79,6 +79,7 @@ struct Inner {
     raw_ptr: Option<*mut Callbacks>,
 }
 
+#[derive(Clone)]
 pub struct DdsListener {
     inner : std::sync::Arc<std::sync::Mutex<Inner>>,
 }
@@ -98,16 +99,6 @@ impl<'a> DdsListener {
 impl<'a> Default for DdsListener {
     fn default() -> Self {
         DdsListener::new()
-    }
-}
-
-impl<'a> From<DdsListener> for *const dds_listener_t {
-    fn from(listener: DdsListener) -> Self {
-        if let Some(listener) = listener.inner.lock().unwrap().listener {
-            listener
-        } else {
-            panic!("Attempt to convert from unitialized listener");
-        }
     }
 }
 

@@ -21,8 +21,8 @@ pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 use crate::{DdsReadable, DdsWritable, Entity, dds_listener::DdsListener, dds_qos::DdsQos};
 
 
-#[derive(Clone)]
-pub struct DdsParticipant(DdsEntity);
+//#[derive(Clone)]
+pub struct DdsParticipant(DdsEntity, Option<DdsListener>);
 
 impl DdsParticipant {
     pub fn create(
@@ -30,14 +30,15 @@ impl DdsParticipant {
         maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener>,
     ) -> Result<Self, DDSError> {
+
         unsafe {
             let p = cyclonedds_sys::dds_create_participant(
                 maybe_domain.unwrap_or(0xFFFF_FFFF),
                 maybe_qos.map_or(std::ptr::null(), |d| d.into()),
-                maybe_listener.map_or(std::ptr::null(), |l| l.into()),
+                maybe_listener.as_ref().map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
-                Ok(DdsParticipant(DdsEntity::new(p)))
+                Ok(DdsParticipant(DdsEntity::new(p), maybe_listener))
             } else {
                 Err(DDSError::from(p))
             }

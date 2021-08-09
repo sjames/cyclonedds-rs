@@ -24,7 +24,7 @@ use crate::serdes::{TopicType, SerType};
 pub use cyclonedds_sys::{DDSError, DdsEntity,ddsi_sertype};
 
 
-pub struct DdsTopic<T: Sized + TopicType>(DdsEntity, PhantomData<T>);
+pub struct DdsTopic<T: Sized + TopicType>(DdsEntity, PhantomData<T>, Option<DdsListener>);
 
 impl<T> DdsTopic<T>
 where
@@ -45,11 +45,11 @@ where
             let topic = cyclonedds_sys::dds_create_topic_sertype(participant.entity().entity()
                 , strname.as_ptr(), tt , 
                 maybe_qos.map_or(std::ptr::null(), |q| q.into()), 
-                maybe_listener.map_or(std::ptr::null(), |l| l.into()),
+                maybe_listener.as_ref().map_or(std::ptr::null(), |l| l.into()),
                 std::ptr::null_mut());
 
             if topic >= 0 {
-                Ok(DdsTopic(DdsEntity::new(topic), PhantomData))
+                Ok(DdsTopic(DdsEntity::new(topic), PhantomData, maybe_listener))
             } else {
                 Err(DDSError::from(topic))
             }
@@ -71,7 +71,7 @@ impl<T> Clone for DdsTopic<T>
 where T: std::marker::Sized + TopicType
 {
     fn clone(&self) -> Self {
-        Self(self.0.clone(),PhantomData)
+        Self(self.0.clone(),PhantomData, self.2.clone())
     }
 }
 
