@@ -483,7 +483,7 @@ mod test {
             });
 
             let _another_task = tokio::spawn(async move {
-                let mut samples = SampleBuffer::<AnotherTopic>::new(10);
+                let mut samples = AnotherTopic::create_sample_buffer(5);
                 if let Ok(t) = another_reader.read(&mut samples).await {
                     assert_eq!(t,1);
                     for s in samples.iter() {

@@ -81,6 +81,7 @@ mod test {
     use std::sync::Arc;
     use crate::{DdsPublisher, DdsWriter};
     use super::*;
+    use crate::SampleBuffer;
     use dds_derive::Topic;
     use serde_derive::{Deserialize, Serialize};
     #[test]

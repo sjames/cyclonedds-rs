@@ -216,6 +216,15 @@ fn create_topic_functions(item : &syn::ItemStruct) -> TokenStream {
                 let name = #topic_key_ident::topic_name(maybe_topic_prefix);
                 DdsTopic::<Self>::create(participant,&name, maybe_qos,maybe_listener)
             }
+
+            /// Create a sample buffer for storing an array of samples
+            /// You can pass the sample buffer into a read to read multiple
+            /// samples. Multiple samples are useful when you have one or more
+            /// keys in your topic structure. Each value of the key will result in
+            /// the storage of another sample.
+            pub fn create_sample_buffer(len: usize) -> SampleBuffer<#topic_key_ident> {
+                SampleBuffer::new(len)
+            }
         }
     };
 
