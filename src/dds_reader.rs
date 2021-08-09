@@ -277,6 +277,7 @@ where
             let ret: DDSError = cyclonedds_sys::dds_delete(self.inner.entity.entity()).into();
             if DDSError::DdsOk != ret {
                 //panic!("cannot delete Reader: {}", ret);
+                println!("Ignoring dds_delete failure for DdsReader");
             } else {
                 //println!("Reader dropped");
             }

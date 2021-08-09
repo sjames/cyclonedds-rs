@@ -104,11 +104,12 @@ impl<T> Drop for DdsWaitset<T> {
     fn drop(&mut self) {
         unsafe {
             let ret: DDSError = cyclonedds_sys::dds_delete(self.0.entity()).into();
-            if DDSError::DdsOk != ret {
-                //we ignore the error here as the waitset may be deleted by cyclone
-                //panic!("cannot delete DdsWaitset: {}", ret);
-            } else {
-            }
+            //if DDSError::DdsOk != ret {
+            //    //we ignore the error here as the waitset may be deleted by cyclone
+            //    //panic!("cannot delete DdsWaitset: {}", ret);
+            //} else {
+            //
+            //}
         }
     }
 }
