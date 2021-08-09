@@ -13,4 +13,13 @@
     See the License for the specific language governing permissions and
     limitations under the License.
 */
-// This file is empty. Contents moved to cyclonedds-sys
+
+use thiserror::Error;
+
+#[derive(Error, Debug, Clone)]
+pub enum ReaderError {
+    #[error("Missed a requested deadline")]
+    RequestedDeadLineMissed,
+    #[error("DDS Binding error")]
+    DdsError(#[from] crate::DDSError )
+}

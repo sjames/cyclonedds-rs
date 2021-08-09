@@ -19,6 +19,8 @@ serde = "1.0.126"
 serde_derive = "1.0.126"
 fasthash = "0.4.0"
 dds_derive = {path = "dds_derive"}
+thiserror = "1.0.26"
+
 
 
 [dev-dependencies]
