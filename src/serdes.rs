@@ -20,6 +20,7 @@
 use cdr::{Bounded, CdrBe, Infinite};
 use serde::{Serialize, de::DeserializeOwned};
 use std::io::prelude::*;
+use std::sync::RwLock;
 use std::{
     ffi::{c_void, CStr},
     marker::PhantomData,
@@ -126,27 +127,45 @@ impl<'a, T> SerType<T> {
 /// A sample is simply a smart pointer. The storage for the sample
 /// is in the serdata structure.
 
-pub enum Sample<T> {
-    Uninitialized,
-    Value(Arc<T>),
+pub struct Sample<T> {
+    sample : RwLock<Option<Arc<T>>>,
 }
 
 impl <T> Sample <T> {
     pub fn get(&self) -> Option<Arc<T>> {
-        match self {
-            Sample::Uninitialized => None,
-            Sample::Value(t) => Some(t.clone()),
+        let t = self.sample.read().unwrap();
+        match &*t {
+            None => None,
+            Some(t) => {
+                Some(t.clone())},
         }
     }
 
-    pub fn from(it: Arc<T>) -> Self {
-        Self::Value(it)
+    pub fn set(&mut self, t: Arc<T>) {
+        let mut sample = self.sample.write().unwrap();
+        sample.replace(t);
     }
+
+    pub fn clear(&mut self) {
+        let mut sample = self.sample.write().unwrap();
+        let _t = sample.take();
+    }
+
+ 
+    pub fn from(it: Arc<T>) -> Self {
+        //Self::Value(it)
+        Self {
+            sample : RwLock::new(Some(it)),
+        }
+    }
+    
 }
 
 impl <T> Default for Sample<T> {
     fn default() -> Self {
-        Self::Uninitialized
+        Self {
+            sample : RwLock::new(None),
+        }
     }
 }
 
@@ -159,11 +178,12 @@ impl <T> Default for Sample<T> {
 /// inside the Sample<T>::Value<Arc<T>>. 
 /// So this structure always points to a valid sample memory, but the serdes callbacks
 /// can change the value of the sample under us.
-/// To be absolutely sure, I think we must put each sample into an Arc<RwLock<T>> instead of
+/// To be absolutely sure, I think we must put each sample into an RwLock<Arc<T>> instead of
 /// an Arc<T>, I guess this is the cost we pay for zero copy.
+
 unsafe impl <T> Send for SampleBuffer<T> {}
 pub struct SampleBuffer<T> {
-    /// This is !Send. This is the only way to punch through the Cyclone API
+    /// This is !Send. This is the only way to punch through the Cyclone API as we need an array of pointers
     buffer : Vec<*mut Sample<T>>,
     sample_info : Vec<cyclonedds_sys::dds_sample_info>,
 }
@@ -195,9 +215,10 @@ impl <'a,T>SampleBuffer<T> {
     pub fn iter(&'a self) -> impl Iterator<Item = &Sample<T>>  {
         let p = self.buffer.iter().filter_map(|p| {
             let sample =  unsafe{&*(*p)};
-            match sample {
-                Sample::Uninitialized => None,
-                Sample::Value(_) => Some(sample),
+            let s = sample.sample.read().unwrap();
+            match *s {
+                Some(_) => Some(sample),
+                None => None,
             }
     });
         p
@@ -639,7 +660,7 @@ unsafe extern "C" fn serdata_to_sample<T>(
     //let sample = &mut *(sample as *mut Sample<T>);
     let mut s = Box::<Sample<T>>::from_raw(sample as *mut Sample<T>);
     let ret = if let SampleData::SDKData(data) = &serdata.sample {
-        *s = Sample::Value(data.clone()) ;
+        s.set(data.clone()) ;
         false
     } else {
         true
@@ -686,7 +707,7 @@ unsafe extern "C" fn untyped_to_sample<T>(_sertype: *const ddsi_sertype,
     
     // hmm. We don't store serialized data in serdata. I'm not really sure how
     // to implement this. For now, invalidate the sample.
-    *sample = Sample::Uninitialized;
+    sample.clear();
 
     true
 }
