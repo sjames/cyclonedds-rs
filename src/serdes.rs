@@ -32,9 +32,9 @@ use std::hash::Hasher;
 
 
 use cyclonedds_sys::*;
-use fasthash::{murmur3::Hasher32, FastHasher};
-
-
+//use fasthash::{murmur3::Hasher32, FastHasher};
+use murmur3::murmur3_32;
+use std::io::Cursor;
 
 
 #[repr(C)]
@@ -47,10 +47,9 @@ pub trait TopicType : Default + Serialize + DeserializeOwned {
     // generate a non-cryptographic hash of the key values to be used internally
     // in cyclonedds
     fn hash(&self) -> u32 {
-        let mut h = Hasher32::new();
-        let cdr = self.key_cdr();
-        h.write(&cdr[..]);
-        h.finish() as u32
+        let cdr =  self.key_cdr();
+        let mut cursor = Cursor::new(cdr.as_slice());
+        murmur3_32(&mut cursor,0).unwrap()
     }
 
     /// The type name for this topic
