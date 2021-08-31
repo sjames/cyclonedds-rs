@@ -723,7 +723,7 @@ unsafe extern "C" fn get_keyhash<T>(serdata: *const ddsi_serdata, keyhash: *mut 
 }
 
 #[allow(dead_code)]
-unsafe extern "C" fn print<T>(_sertype: *const ddsi_sertype, _serdata:  *const ddsi_serdata, _buf:  *mut i8, _bufsize: u64) -> u64 {
+unsafe extern "C" fn print<T>(_sertype: *const ddsi_sertype, _serdata:  *const ddsi_serdata, _buf:  *mut std::os::raw::c_char, _bufsize: u64) -> u64 {
     0
 }
 
@@ -780,8 +780,8 @@ unsafe extern "C" fn hash<T>(_acmn: *const ddsi_sertype) -> u32 {
 }
 
 unsafe extern "C" fn equal<T>(acmn: *const ddsi_sertype, bcmn: *const ddsi_sertype) -> bool {
-    let acmn = CStr::from_ptr((*acmn).type_name as *mut i8);
-    let bcmn = CStr::from_ptr((*bcmn).type_name as *mut i8);
+    let acmn = CStr::from_ptr((*acmn).type_name as *mut std::os::raw::c_char);
+    let bcmn = CStr::from_ptr((*bcmn).type_name as *mut std::os::raw::c_char);
     acmn == bcmn
 }
 
