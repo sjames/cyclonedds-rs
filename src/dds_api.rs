@@ -14,7 +14,6 @@
     limitations under the License.
 */
 
-use bit_field::BitField;
 use std::convert::From;
 
 use crate::common::Entity;
@@ -46,12 +45,18 @@ pub struct DdsStatus(u32);
 
 impl DdsStatus {
     pub fn set(mut self, id: dds_status_id) -> Self {
-        self.0.set_bit(id as usize, true);
+        let mask = 1 << id;
+        self.0 |= mask;
         self
     }
 
     pub fn is_set(&self, id: dds_status_id) -> bool {
-        self.0.get_bit(id as usize)
+        let mask = 1 << id;
+        if mask & self.0 == 0 {
+            false
+        } else {
+            true
+        }
     }
 }
 
