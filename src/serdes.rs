@@ -707,7 +707,7 @@ unsafe extern "C" fn untyped_to_sample<T>(_sertype: *const ddsi_sertype,
         
         // hmm. We don't store serialized data in serdata. I'm not really sure how
         // to implement this. For now, invalidate the sample.
-        sample.clear();
+        //sample.clear();
         true
 
     } else {
