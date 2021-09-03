@@ -702,12 +702,10 @@ unsafe extern "C" fn untyped_to_sample<T>(_sertype: *const ddsi_sertype,
     _buflim: *mut c_void) -> bool {
 
     if !sample.is_null() {
-        let sample = sample as *mut Sample<T>;
-        let sample = &mut *sample;
-        
+        let mut sample = Box::<Sample<T>>::from_raw(sample as *mut Sample<T>);
         // hmm. We don't store serialized data in serdata. I'm not really sure how
         // to implement this. For now, invalidate the sample.
-        //sample.clear();
+        sample.clear();
         true
 
     } else {
