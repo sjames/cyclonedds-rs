@@ -323,9 +323,11 @@ extern "C" fn free_samples<T>(
         let mut samples =
             unsafe { Vec::<Sample<T>>::from_raw_parts(*ptrs_v, len as usize, len as usize) };
         for sample in samples.iter_mut() {
-            let _old_sample = std::mem::take(sample);
+            //let _old_sample = std::mem::take(sample);
+            sample.clear()
             //_old_sample goes out of scope and the content is freed. The pointer is replaced with a default constructed sample
         }
+        let _intentional_leak = samples.leak();
     }
 }
 
@@ -657,6 +659,7 @@ unsafe extern "C" fn serdata_to_sample<T>(
 ) -> bool {
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
     //let sample = &mut *(sample as *mut Sample<T>);
+    assert!(!sample.is_null());
     let mut s = Box::<Sample<T>>::from_raw(sample as *mut Sample<T>);
     let ret = if let SampleData::SDKData(data) = &serdata.sample {
         s.set(data.clone()) ;
