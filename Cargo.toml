@@ -20,7 +20,9 @@ murmur3 = "0.5.1"
 dds_derive = {path = "dds_derive"}
 thiserror = "1.0.26"
 
-
+[features]
+# Shared memory support
+shm = []
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }

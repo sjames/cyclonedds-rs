@@ -776,6 +776,10 @@ where
         free: Some(free_serdata::<T>),
         print: Some(print::<T>),
         get_keyhash: Some(get_keyhash::<T>),
+        #[cfg(feature = "shm")]
+        from_iox_buffer : None,
+        #[cfg(feature = "shm")]
+        get_sample_size : None,
     })
 }
 
