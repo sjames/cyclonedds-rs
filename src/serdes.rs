@@ -43,7 +43,7 @@ pub struct SerType<T> {
     _phantom: PhantomData<T>,
 }
 
-pub trait TopicType : Default + Serialize + DeserializeOwned {
+pub trait TopicType : Serialize + DeserializeOwned {
     // generate a non-cryptographic hash of the key values to be used internally
     // in cyclonedds
     fn hash(&self) -> u32 {
@@ -95,7 +95,7 @@ pub trait TopicType : Default + Serialize + DeserializeOwned {
 impl<'a, T> SerType<T> {
     pub fn new() -> Box<SerType<T>>
     where
-        T: Default + DeserializeOwned + Serialize + TopicType,
+        T: DeserializeOwned + Serialize + TopicType,
     {
         Box::<SerType<T>>::new(SerType {
             sertype: {
@@ -309,9 +309,7 @@ extern "C" fn free_samples<T>(
     ptrs: *mut *mut std::ffi::c_void,
     len: u64,
     op: dds_free_op_t,
-) where
-    T: Default,
-{
+) {
     let ptrs_v: *mut *mut Sample<T> = ptrs as *mut *mut Sample<T>;
 
     if (op & DDS_FREE_ALL_BIT) != 0 {
@@ -736,8 +734,6 @@ unsafe extern "C" fn print<T>(_sertype: *const ddsi_sertype, _serdata:  *const d
 
 
 fn create_sertype_ops<T>() -> Box<ddsi_sertype_ops>
-where
-    T: Default,
 {
     Box::new(ddsi_sertype_ops {
         version: Some(ddsi_sertype_v0),
