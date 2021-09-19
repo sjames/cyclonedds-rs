@@ -24,6 +24,11 @@ pub use cyclonedds_sys::{
     dds_presentation_access_scope_kind, dds_reliability_kind,
 };
 
+/// Safety Check: 
+/// The dds_qos_t pointer is not accesible externally. I'm assuming the Qos structure created
+/// by Cyclone is Sendable here.
+unsafe impl Send for DdsQos{}
+
 #[derive(Debug)]
 pub struct DdsQos(*mut dds_qos_t);
 
