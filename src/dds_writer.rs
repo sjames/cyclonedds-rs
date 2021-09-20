@@ -23,6 +23,38 @@ use std::marker::PhantomData;
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsWritable, Entity};
 use crate::serdes::{Sample, TopicType};
 
+pub struct WriterBuilder<T: TopicType> {
+    maybe_qos: Option<DdsQos>,
+    maybe_listener: Option<DdsListener>,
+    phantom : PhantomData<T>,
+}
+
+impl <T>WriterBuilder<T> where T: TopicType {
+    pub fn new() -> Self {
+        Self {
+            maybe_qos: None,
+            maybe_listener: None,
+            phantom: PhantomData,
+        }
+    }
+
+    pub fn with_qos(mut self, qos : DdsQos) -> Self {
+        self.maybe_qos = Some(qos);
+        self
+    }
+
+    pub fn with_listener(mut self, listener : DdsListener) -> Self {
+        self.maybe_listener = Some(listener);
+        self
+    }
+
+    pub fn create(self,  
+        entity: &dyn DdsWritable,
+        topic: DdsTopic<T>) -> Result<DdsWriter<T>, DDSError> {
+            DdsWriter::create(entity, topic, self.maybe_qos, self.maybe_listener)
+        }
+}
+
 pub struct DdsWriter<T: Sized + TopicType>(
     DdsEntity,
     Option<DdsListener>,
