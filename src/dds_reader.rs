@@ -31,6 +31,53 @@ use crate::error::ReaderError;
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable, Entity};
 use crate::serdes::{TopicType, SampleBuffer};
 
+
+
+pub struct ReaderBuilder<T: TopicType> {
+    maybe_qos: Option<DdsQos>,
+    maybe_listener: Option<DdsListener>,
+    is_async  : bool,
+    phantom : PhantomData<T>,
+}
+
+impl <T>ReaderBuilder<T> where T: TopicType {
+    pub fn new() -> Self {
+        Self {
+            maybe_qos: None,
+            maybe_listener: None,
+            is_async : false,
+            phantom: PhantomData,
+        }
+    }
+
+    pub fn as_async(mut self) -> Self {
+        self.is_async = true;
+        self
+    }
+
+    pub fn with_qos(mut self, qos : DdsQos) -> Self {
+        self.maybe_qos = Some(qos);
+        self
+    }
+
+    pub fn with_listener(mut self, listener : DdsListener) -> Self {
+        self.maybe_listener = Some(listener);
+        self
+    }
+
+    pub fn create(self,  
+        entity: &dyn DdsReadable,
+        topic: DdsTopic<T>) -> Result<DdsReader<T>, DDSError> {
+            if self.is_async {
+                DdsReader::create_async(entity,topic,self.maybe_qos)
+            } else {
+                DdsReader::create_sync_or_async(entity, topic, self.maybe_qos, self.maybe_listener, ReaderType::Sync)
+            }
+            
+        }
+}
+
+
 enum ReaderType {
     Async(Arc<Mutex<(Option<Waker>,Result<(),crate::error::ReaderError>)>>),
     Sync,
