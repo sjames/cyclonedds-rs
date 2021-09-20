@@ -41,7 +41,7 @@ pub use dds_reader::{DdsReadCondition, DdsReader};
 pub use dds_subscriber::DdsSubscriber;
 pub use dds_topic::DdsTopic;
 pub use dds_waitset::DdsWaitset;
-pub use dds_writer::DdsWriter;
+pub use dds_writer::{DdsWriter,WriterBuilder};
 pub use serdes::{TopicType, SampleBuffer, Sample};
 
 pub use cdr;
