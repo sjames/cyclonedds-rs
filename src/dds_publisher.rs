@@ -18,6 +18,35 @@ use crate::{DdsListener, DdsParticipant, DdsQos, DdsWritable};
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 use std::convert::From;
 
+pub struct PublisherBuilder {
+    maybe_qos: Option<DdsQos>,
+    maybe_listener: Option<DdsListener>,
+}
+
+impl PublisherBuilder {
+    pub fn new() -> Self {
+        Self {
+            maybe_qos: None,
+            maybe_listener: None,
+        }
+    }
+
+    pub fn with_qos(mut self, qos : DdsQos) -> Self {
+        self.maybe_qos = Some(qos);
+        self
+    }
+
+    pub fn with_listener(mut self, listener : DdsListener) -> Self {
+        self.maybe_listener = Some(listener);
+        self
+    }
+
+    pub fn create(self,participant: &DdsParticipant) -> Result<DdsPublisher, DDSError> {
+        DdsPublisher::create(participant, self.maybe_qos, self.maybe_listener)
+    }
+}
+
+
 #[derive(Clone)]
 pub struct DdsPublisher(DdsEntity, Option<DdsListener>);
 
