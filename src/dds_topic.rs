@@ -26,19 +26,35 @@ pub use cyclonedds_sys::{ddsi_sertype, DDSError, DdsEntity};
 pub struct TopicBuilder<T: TopicType> {
     maybe_qos: Option<DdsQos>,
     maybe_listener: Option<DdsListener>,
+    topic_name: String,
     phantom: PhantomData<T>,
 }
 
-impl<T> TopicBuilder<T> where T: TopicType {
+impl<T> TopicBuilder<T>
+where
+    T: TopicType,
+{
     pub fn new() -> Self {
         Self {
-            maybe_qos : None,
-            maybe_listener : None,
-            phantom : PhantomData,
+            maybe_qos: None,
+            maybe_listener: None,
+            topic_name: T::topic_name(None),
+            phantom: PhantomData,
         }
     }
 
-    pub fn with_qos(mut self, qos : DdsQos) -> Self {
+    pub fn with_name(mut self, name: String) -> Self {
+        self.topic_name = name;
+        self
+    }
+
+    pub fn with_name_prefix(mut self, mut prefix_name: String) -> Self {
+        prefix_name.push_str(self.topic_name.as_str());
+        self.topic_name = prefix_name;
+        self
+    }
+
+    pub fn with_qos(mut self, qos: DdsQos) -> Self {
         self.maybe_qos = Some(qos);
         self
     }
@@ -48,11 +64,14 @@ impl<T> TopicBuilder<T> where T: TopicType {
         self
     }
 
-    pub fn create(self, 
-                participant: &DdsParticipant,
-                name: &str) -> Result<DdsTopic<T>, DDSError> { 
-                    DdsTopic::<T>::create(participant,name,self.maybe_qos, self.maybe_listener)
-                }
+    pub fn create(self, participant: &DdsParticipant) -> Result<DdsTopic<T>, DDSError> {
+        DdsTopic::<T>::create(
+            participant,
+            self.topic_name.as_str(),
+            self.maybe_qos,
+            self.maybe_listener,
+        )
+    }
 }
 
 pub struct DdsTopic<T: Sized + TopicType>(DdsEntity, PhantomData<T>, Option<DdsListener>);
