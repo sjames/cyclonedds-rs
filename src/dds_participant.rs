@@ -15,13 +15,46 @@
 */
 
 use std::convert::From;
-
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
-
 use crate::{DdsReadable, DdsWritable, Entity, dds_listener::DdsListener, dds_qos::DdsQos};
 
+pub struct ParticipantBuilder {
+    maybe_domain : Option<DdsDomainId>,
+    maybe_qos : Option<DdsQos>,
+    maybe_listener : Option<DdsListener>,
+}
 
-//#[derive(Clone)]
+impl ParticipantBuilder {
+
+    pub fn new() -> Self {
+        ParticipantBuilder {
+            maybe_domain: None,
+            maybe_qos: None,
+            maybe_listener: None,
+        }
+    }
+
+    pub fn with_domain(mut self, domain: DdsDomainId) -> Self {
+        self.maybe_domain = Some(domain);
+        self
+    }
+
+    pub fn with_qos(mut self, qos : DdsQos) -> Self {
+        self.maybe_qos = Some(qos);
+        self
+    }
+
+    pub fn with_listener(mut self, listener: DdsListener) -> Self {
+        self.maybe_listener = Some(listener);
+        self
+    }
+
+    pub fn create(self) -> Result<DdsParticipant, DDSError> {
+        DdsParticipant::create(self.maybe_domain, self.maybe_qos, self.maybe_listener)
+    }
+}
+
+
 pub struct DdsParticipant(DdsEntity, Option<DdsListener>);
 
 impl DdsParticipant {
