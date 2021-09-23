@@ -51,5 +51,5 @@ pub use serdes::{TopicType, SampleBuffer, Sample};
 pub use cdr;
 pub use cyclonedds_sys::dds_error::DDSError;
 
-pub use dds_derive::Topic;
+pub use cdds_derive::Topic;
 pub use serde_derive::{Deserialize, Serialize};
