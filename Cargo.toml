@@ -1,6 +1,6 @@
 [package]
 name = "cyclonedds-rs"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Sojan James <Sojan.James@gmail.com>"]
 edition = "2018"
 description = "Safe Rust bindings for cyclonedds"
