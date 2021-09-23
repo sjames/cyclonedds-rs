@@ -209,7 +209,7 @@ where
                 dds_read(entity.entity(), voidpp ,  info_ptr as *mut _, buf.len() as u64, buf.len() as u32)
             }
         };
-        if ret >= 0 {
+        if ret > 0 {
             // If first sample is value we assume all are
             if buf.is_valid_sample(0) {
                    Ok(ret as usize) 
