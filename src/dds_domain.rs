@@ -14,9 +14,7 @@
     limitations under the License.
 */
 
-//use crate::error::DDSError;
-/// Rust wrapper for DDS Domain
-///
+
 use cyclonedds_sys::{dds_error::DDSError, DdsDomainId, DdsEntity};
 use std::convert::From;
 use std::ffi::CString;
@@ -49,14 +47,6 @@ impl DdsDomain {
     }
 }
 
-/*
-impl From<DdsDomain> for DdsEntity {
-    fn from(domain: DdsDomain) -> Self {
-        domain.0
-    }
-}
-*/
-
 impl PartialEq for DdsDomain {
     fn eq(&self, other: &Self) -> bool {
         unsafe { self.0.entity() == other.0.entity() }
@@ -78,17 +68,14 @@ impl Drop for DdsDomain {
 
 #[cfg(test)]
 mod dds_domain_tests {
-    
+    use cyclonedds_sys::{DDSError};
+    use crate::dds_domain::DdsDomain;
 
     #[test]
     fn test_create_domain_with_bad_config() {
-        //assert_ne!(Err(DDSError::DdsOk), DdsDomain::create(0, Some("blah")));
+        assert!(Err(DDSError::DdsOk) != DdsDomain::create(0, Some("blah")));
     }
-    /*
-        #[test]
-        fn test_create_domain_with_id() {
-            let dom = DdsDomain::create(10, None);
-            let _entity: DdsEntity = DdsEntity::from(dom.unwrap());
-        }
-    */
+    
+    
+    
 }

@@ -14,6 +14,10 @@
     limitations under the License.
 */
 
+//! Safe Rust bindings to cyclonedds
+//! 
+//! 
+
 pub mod alloc;
 mod common;
 pub mod dds_api;

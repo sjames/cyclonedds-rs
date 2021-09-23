@@ -31,8 +31,7 @@ use crate::error::ReaderError;
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable, Entity};
 use crate::serdes::{TopicType, SampleBuffer};
 
-
-
+/// Builder structure for reader
 pub struct ReaderBuilder<T: TopicType> {
     maybe_qos: Option<DdsQos>,
     maybe_listener: Option<DdsListener>,
@@ -49,17 +48,24 @@ impl <T>ReaderBuilder<T> where T: TopicType {
             phantom: PhantomData,
         }
     }
-
+    /// Create a reader with async support.  If this is enabled,
+    /// the builder creates listeners internally. Any listener
+    /// passed separately via the `with_listener` api will be
+    /// ignored. 
     pub fn as_async(mut self) -> Self {
         self.is_async = true;
         self
     }
 
+    /// Create a reader with the specified Qos
     pub fn with_qos(mut self, qos : DdsQos) -> Self {
         self.maybe_qos = Some(qos);
         self
     }
 
+    /// Created a reader with the specified listener.
+    /// Note that this is ignored if an async reader
+    /// is created.
     pub fn with_listener(mut self, listener : DdsListener) -> Self {
         self.maybe_listener = Some(listener);
         self
@@ -178,12 +184,12 @@ where
         
     }
 
-    // read synchronously
+    /// read synchronously
     pub fn read_now(&self,buf: &mut SampleBuffer<T>) -> Result<usize,DDSError> {
         Self::readn_from_entity_now(self.entity(),buf,false)
     }
 
-    // read synchronously
+    /// take synchronously
     pub fn take_now(&self,buf: &mut SampleBuffer<T>) -> Result<usize,DDSError> {
         Self::readn_from_entity_now(self.entity(),buf,true)
     }
@@ -282,7 +288,7 @@ where
      }
     }
 
-    // Get one sample
+    // Read one sample asynchronously
     pub async fn read1(&self) -> Result<Arc<T>,ReaderError> {
         let mut sample_buffer = SampleBuffer::<T>::new(1);
         let read = self.read(&mut sample_buffer).await;
@@ -294,6 +300,7 @@ where
         }
     }
 
+    // Take one sample asynchronously
     pub async fn take1(&self) -> Result<Arc<T>,ReaderError> {
         let mut sample_buffer = SampleBuffer::<T>::new(1);
         let read = self.take(&mut sample_buffer).await;

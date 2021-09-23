@@ -10,9 +10,7 @@ homepage = "https://github.com/sjames/cyclonedds-rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-#cyclonedds-sys = "0.1.1"
-cyclonedds-sys = {git = "https://github.com/sjames/cyclonedds-sys.git"}
-#cyclonedds-sys = {path = "../cyclonedds-sys"}
+cyclonedds-sys = "0.1.2"
 cdr = "0.2.4"
 serde = "1.0.126"
 serde_derive = "1.0.126"
@@ -21,7 +19,7 @@ dds_derive = {path = "dds_derive"}
 thiserror = "1.0.26"
 
 [features]
-# Shared memory support
+# Shared memory support (for future use. Not implemented yet)
 shm = []
 
 [dev-dependencies]

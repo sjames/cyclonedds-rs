@@ -14,6 +14,21 @@
     limitations under the License.
 */
 
+//! A Listner can be attached to different types of entities. The callbacks that
+//! are supported depends on the type of entity. There is no checking for whether 
+//! an entity supports the callback.
+//! # Example
+//! ```
+//! use cyclonedds_rs::DdsListener;
+//! let listener = DdsListener::new()
+//!   .on_subscription_matched(|a,b| {
+//!     println!("Subscription matched!");
+//! }).on_publication_matched(|a,b|{
+//!     println!("Publication matched");
+//! }).
+//! hook(); // The hook call will finalize the listener. No more callbacks can be attached after this.
+//! ```
+
 use cyclonedds_sys::dds_listener_t;
 use cyclonedds_sys::*;
 use std::convert::From;

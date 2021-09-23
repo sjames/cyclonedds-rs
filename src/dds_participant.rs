@@ -18,6 +18,24 @@ use std::convert::From;
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 use crate::{DdsReadable, DdsWritable, Entity, dds_listener::DdsListener, dds_qos::DdsQos};
 
+/// Builder struct for a Participant. 
+/// #Example
+/// ```
+/// use cyclonedds_rs::{DdsListener, ParticipantBuilder};
+/// let listener = DdsListener::new()
+///   .on_subscription_matched(|a,b| {
+///     println!("Subscription matched!");
+/// }).on_publication_matched(|a,b|{
+///     println!("Publication matched");
+/// }).
+/// hook(); 
+/// let participant = ParticipantBuilder::new()
+///         .with_listener(listener)
+///         .create()
+///         .expect("Unable to create participant");
+///
+///```
+///
 pub struct ParticipantBuilder {
     maybe_domain : Option<DdsDomainId>,
     maybe_qos : Option<DdsQos>,
