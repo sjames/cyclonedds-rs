@@ -18,9 +18,9 @@
 // See discussion at https://github.com/eclipse-cyclonedds/cyclonedds/issues/830
 
 use proc_macro::TokenStream;
-use proc_macro2::{Span, TokenStream as TokenStream2};
+use proc_macro2::{Span,};
 use quote::quote;
-use syn::{Field, Ident, ItemStruct, parse_macro_input};
+use syn::{Field, Ident, parse_macro_input};
 
 #[proc_macro_derive(Topic, attributes(topic_key, topic_key_enum))]
 pub fn derive_topic(item: TokenStream) -> TokenStream {
@@ -231,7 +231,7 @@ fn create_topic_functions(item : &syn::ItemStruct) -> TokenStream {
     ts.into()
 }
 
-
+/*
 fn struct_has_key(it: &ItemStruct) -> bool {
     for field in &it.fields {
         if is_key(field) {
@@ -240,6 +240,7 @@ fn struct_has_key(it: &ItemStruct) -> bool {
     }
     false
 }
+*/
 
 fn is_key(field : &Field) -> bool {
     for attr in &field.attrs {
