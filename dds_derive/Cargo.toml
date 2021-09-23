@@ -3,7 +3,6 @@ name = "dds_derive"
 version = "0.1.0"
 edition = "2018"
 authors = ["Sojan James <Sojan.James@gmail.com>"]
-edition = "2018"
 description = "Derive macros for cyclonedds-rs"
 license-file = "LICENSE"
 homepage = "https://github.com/sjames/cyclonedds-rs"
