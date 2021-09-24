@@ -23,7 +23,5 @@ cyclone serialization/deserialization interface for high performance and IDL fre
 
 # Examples
 
-Complete example code implementing RoundTripPong is available at https://github.com/sjames/roundtrip-example . This works with
-the CycloneDDS Ping example.
-
-Links to additional examples will be available in the projects github location.
+1. https://github.com/sjames/demo-vehicle-speed-subscriber  (Vehicle speed subscriber with async reader)
+2. https://github.com/sjames/demo-vehicle-speed-publisher (Vehicle speed publisher)
