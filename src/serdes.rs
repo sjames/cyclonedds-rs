@@ -264,7 +264,7 @@ impl <'a,T>Index<usize> for SampleBuffer<T> {
 unsafe extern "C" fn zero_samples<T>(
     _sertype: *const ddsi_sertype,
     _ptr: *mut std::ffi::c_void,
-    _len: u64,
+    _len: size_t,
 ) {
 } // empty implementation
 
@@ -273,8 +273,8 @@ extern "C" fn realloc_samples<T>(
     ptrs: *mut *mut std::ffi::c_void,
     _sertype: *const ddsi_sertype,
     old: *mut std::ffi::c_void,
-    old_count: u64,
-    new_count: u64,
+    old_count: size_t,
+    new_count: size_t,
 ) {
     let old = unsafe {
         Vec::<*mut Sample<T>>::from_raw_parts(
@@ -313,7 +313,7 @@ extern "C" fn realloc_samples<T>(
 extern "C" fn free_samples<T>(
     _sertype: *const ddsi_sertype,
     ptrs: *mut *mut std::ffi::c_void,
-    len: u64,
+    len: size_t,
     op: dds_free_op_t,
 ) {
     let ptrs_v: *mut *mut Sample<T> = ptrs as *mut *mut Sample<T>;
@@ -497,7 +497,7 @@ unsafe extern "C" fn serdata_from_iov<T>(
     kind: u32,
     niov: u64,
     iov: *const iovec,
-    size: u64,
+    size: size_t,
 ) -> *mut ddsi_serdata
 where
     T: DeserializeOwned + TopicType,
@@ -632,7 +632,7 @@ where
         SampleData::Uninitialized => panic!("Attempt to serialize uninitialized Sample"),
         SampleData::SDKKey => {
             iov.iov_base = serdata.key_hash.as_ptr() as *mut c_void;
-            iov.iov_len = serdata.key_hash.len() as u64;
+            iov.iov_len = serdata.key_hash.len() as size_t;
         }
         SampleData::SDKData(sample) => {
             if serdata.cdr.is_none() {
@@ -660,7 +660,7 @@ where
                 let last = offset + size as usize;
                 let cdr = &cdr[offset..last];
                 iov.iov_base = cdr.as_ptr() as *mut c_void;
-                iov.iov_len = cdr.len() as u64;
+                iov.iov_len = cdr.len() as size_t;
             } else {
                 panic!("Unexpected");
             }
@@ -760,8 +760,8 @@ unsafe extern "C" fn print<T>(
     _sertype: *const ddsi_sertype,
     _serdata: *const ddsi_serdata,
     _buf: *mut std::os::raw::c_char,
-    _bufsize: u64,
-) -> u64 {
+    _bufsize: size_t,
+) -> size_t {
     0
 }
 
