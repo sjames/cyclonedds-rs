@@ -453,7 +453,7 @@ mod test {
     use super::*;
     use crate::{DdsPublisher, DdsWriter};
     
-    use dds_derive::Topic;
+    use cdds_derive::Topic;
     use serde_derive::{Deserialize, Serialize};
     use tokio::runtime::Runtime;
 

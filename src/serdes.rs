@@ -775,11 +775,12 @@ fn create_sertype_ops<T>() -> Box<ddsi_sertype_ops> {
         free_samples: Some(free_samples::<T>),
         equal: Some(equal::<T>),
         hash: Some(hash::<T>),
-        typeid_hash: None,
-        serialized_size: None,
-        serialize: None,
-        deserialize: None,
-        assignable_from: None,
+        type_id: None,
+        type_map: None,
+        type_info: None,
+        derive_sertype: None,
+        get_serialized_size: None,
+        serialize_into: None,
     })
 }
 
@@ -951,7 +952,7 @@ impl<'a> Read for SGReader<'a> {
 mod test {
     use super::*;
     use crate::{DdsListener, DdsParticipant, DdsQos, DdsTopic};
-    use dds_derive::Topic;
+    use cdds_derive::Topic;
     use serde_derive::{Deserialize, Serialize};
     use std::ffi::CString;
 

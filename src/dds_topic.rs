@@ -135,7 +135,7 @@ mod test {
     use super::*;
     use crate::SampleBuffer;
     use crate::{DdsPublisher, DdsWriter};
-    use dds_derive::Topic;
+    use cdds_derive::Topic;
     use serde_derive::{Deserialize, Serialize};
     use std::sync::Arc;
     #[test]
