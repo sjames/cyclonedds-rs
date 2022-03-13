@@ -355,7 +355,7 @@ unsafe extern "C" fn serdata_from_fragchain<T>(
     sertype: *const ddsi_sertype,
     kind: u32,
     mut fragchain: *const nn_rdata,
-    size: u64,
+    size: size_t,
 ) -> *mut ddsi_serdata
 where
     T: DeserializeOwned + TopicType,
@@ -495,7 +495,7 @@ unsafe extern "C" fn serdata_from_sample<T>(
 unsafe extern "C" fn serdata_from_iov<T>(
     sertype: *const ddsi_sertype,
     kind: u32,
-    niov: u64,
+    niov: size_t,
     iov: *const iovec,
     size: size_t,
 ) -> *mut ddsi_serdata
@@ -584,8 +584,8 @@ unsafe extern "C" fn eqkey<T>(
 #[allow(dead_code)]
 unsafe extern "C" fn serdata_to_ser<T>(
     serdata: *const ddsi_serdata,
-    size: u64,
-    offset: u64,
+    size: size_t,
+    offset: size_t,
     buf: *mut c_void,
 ) where
     T: Serialize + TopicType,
@@ -618,8 +618,8 @@ unsafe extern "C" fn serdata_to_ser<T>(
 #[allow(dead_code)]
 unsafe extern "C" fn serdata_to_ser_ref<T>(
     serdata: *const ddsi_serdata,
-    offset: u64,
-    size: u64,
+    offset: size_t,
+    size: size_t,
     iov: *mut iovec,
 ) -> *mut ddsi_serdata
 where
@@ -775,12 +775,7 @@ fn create_sertype_ops<T>() -> Box<ddsi_sertype_ops> {
         free_samples: Some(free_samples::<T>),
         equal: Some(equal::<T>),
         hash: Some(hash::<T>),
-        type_id: None,
-        type_map: None,
-        type_info: None,
-        derive_sertype: None,
-        get_serialized_size: None,
-        serialize_into: None,
+        ..Default::default()
     })
 }
 
