@@ -507,12 +507,12 @@ where
 
     let mut serdata = SerData::<T>::new(sertype, kind);
 
-    let iovs = std::slice::from_raw_parts(iov as *mut *const cyclonedds_sys::iovec, niov as usize);
+    let iovs = std::slice::from_raw_parts(iov as *const cyclonedds_sys::iovec, niov as usize);
 
     let iov_slices: Vec<&[u8]> = iovs
         .iter()
         .map(|iov| {
-            let iov = &**iov;
+            let iov = &*iov;
 
             std::slice::from_raw_parts(iov.iov_base as *const u8, iov.iov_len as usize)
         })
@@ -1168,4 +1168,5 @@ mod test {
             dds_delete(topic);
         }
     }
+
 }
