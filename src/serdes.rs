@@ -519,11 +519,8 @@ where
         .collect();
 
     // make a reader out of the sg_list
-    let mut reader = SGReader::new(iov_slices);
-    // skip the cdr_encoding options that cyclone inserts.
-    let mut cdr_encoding_options = [0u8; 4];
-    let _ = reader.read_exact(&mut cdr_encoding_options);
-
+    let reader = SGReader::new(iov_slices);
+    
     if let Ok(decoded) = cdr::deserialize_from::<_, T, _>(reader, Bounded(size as u64)) {
         if T::has_key() {
             serdata.serdata.hash = decoded.hash();
