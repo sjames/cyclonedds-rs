@@ -50,14 +50,14 @@ impl DdsQos {
         }
     }
 
-    pub fn set_durability( self, durability: dds_durability_kind) -> Self {
+    pub fn set_durability( &mut self, durability: dds_durability_kind) -> &mut Self {
         unsafe {
             dds_qset_durability(self.0, durability);
         }
         self
     }
 
-    pub fn set_history(self, history: dds_history_kind, depth: i32) -> Self {
+    pub fn set_history(&mut self, history: dds_history_kind, depth: i32) -> &mut Self {
         unsafe {
             dds_qset_history(self.0, history, depth);
         }
@@ -65,11 +65,11 @@ impl DdsQos {
     }
 
     pub fn set_resource_limits(
-        self,
+        &mut self,
         max_samples: i32,
         max_instances: i32,
         max_samples_per_instance: i32,
-    ) -> Self {
+    ) -> &mut Self {
         unsafe {
             dds_qset_resource_limits(self.0, max_samples, max_instances, max_samples_per_instance);
         }
@@ -77,60 +77,60 @@ impl DdsQos {
     }
 
     pub fn set_presentation(
-        self,
+        &mut self,
         access_scope: dds_presentation_access_scope_kind,
         coherent_access: bool,
         ordered_access: bool,
-    ) -> Self {
+    ) -> &mut Self {
         unsafe {
             dds_qset_presentation(self.0, access_scope, coherent_access, ordered_access);
         }
         self
     }
 
-    pub fn set_lifespan(self, lifespan: std::time::Duration) -> Self {
+    pub fn set_lifespan(&mut self, lifespan: std::time::Duration) -> &mut Self {
         unsafe {
             dds_qset_lifespan(self.0, lifespan.as_nanos() as i64);
         }
         self
     }
 
-    pub fn set_deadline(self, deadline: std::time::Duration) -> Self {
+    pub fn set_deadline(&mut self, deadline: std::time::Duration) -> &mut Self {
         unsafe {
             dds_qset_deadline(self.0, deadline.as_nanos() as i64);
         }
         self
     }
 
-    pub fn set_latency_budget( self, duration: dds_duration_t) -> Self {
+    pub fn set_latency_budget( &mut self, duration: dds_duration_t) -> &mut Self {
         unsafe {
             dds_qset_latency_budget(self.0, duration);
         }
         self
     }
 
-    pub fn set_ownership(self, kind: dds_ownership_kind) -> Self {
+    pub fn set_ownership(&mut self, kind: dds_ownership_kind) -> &mut Self {
         unsafe {
             dds_qset_ownership(self.0, kind);
         }
         self
     }
 
-    pub fn set_ownership_strength(self, value: i32) -> Self {
+    pub fn set_ownership_strength(&mut self, value: i32) -> &mut Self {
         unsafe {
             dds_qset_ownership_strength(self.0, value);
         }
         self
     }
 
-    pub fn set_liveliness( self, kind: dds_liveliness_kind, lease_duration: dds_duration_t) -> Self {
+    pub fn set_liveliness( &mut self, kind: dds_liveliness_kind, lease_duration: dds_duration_t) -> &mut Self {
         unsafe {
             dds_qset_liveliness(self.0, kind, lease_duration);
         }
         self
     }
 
-    pub fn set_time_based_filter( self, minimum_separation: dds_duration_t) -> Self {
+    pub fn set_time_based_filter( &mut self, minimum_separation: dds_duration_t) -> &mut Self {
         unsafe {
             dds_qset_time_based_filter(self.0, minimum_separation);
         }
@@ -138,31 +138,31 @@ impl DdsQos {
     }
 
     pub fn set_reliability(
-        self,
+        &mut self,
         kind: dds_reliability_kind,
         max_blocking_time: std::time::Duration,
-    ) -> Self {
+    ) -> &mut Self {
         unsafe {
             dds_qset_reliability(self.0, kind, max_blocking_time.as_nanos() as i64);
         }
         self
     }
 
-    pub fn set_transport_priority(self, value: i32) -> Self {
+    pub fn set_transport_priority(&mut self, value: i32) -> &mut Self {
         unsafe {
             dds_qset_transport_priority(self.0, value);
         }
         self
     }
 
-    pub fn set_destination_order( self, kind: dds_destination_order_kind) -> Self {
+    pub fn set_destination_order( &mut self, kind: dds_destination_order_kind) -> &mut Self {
         unsafe {
             dds_qset_destination_order(self.0, kind);
         }
         self
     }
 
-    pub fn set_writer_data_lifecycle(self, autodispose: bool) -> Self {
+    pub fn set_writer_data_lifecycle(&mut self, autodispose: bool) -> &mut Self {
         unsafe {
             dds_qset_writer_data_lifecycle(self.0, autodispose);
         }
@@ -170,10 +170,10 @@ impl DdsQos {
     }
 
     pub fn set_reader_data_lifecycle(
-        self,
+        &mut self,
         autopurge_nowriter_samples_delay: dds_duration_t,
         autopurge_disposed_samples_delay: dds_duration_t,
-    ) -> Self {
+    ) -> &mut Self {
         unsafe {
             dds_qset_reader_data_lifecycle(
                 self.0,
@@ -185,14 +185,14 @@ impl DdsQos {
     }
 
     pub fn set_durability_service(
-        self,
+        &mut self,
         service_cleanup_delay: dds_duration_t,
         history_kind: dds_history_kind,
         history_depth: i32,
         max_samples: i32,
         max_instances: i32,
         max_samples_per_instance: i32,
-    ) -> Self {
+    ) -> &mut Self {
         unsafe {
             dds_qset_durability_service(
                 self.0,
@@ -207,14 +207,14 @@ impl DdsQos {
         self
     }
 
-    pub fn set_ignorelocal(self, ignore: dds_ignorelocal_kind) -> Self {
+    pub fn set_ignorelocal(&mut self, ignore: dds_ignorelocal_kind) -> &mut Self {
         unsafe {
             dds_qset_ignorelocal(self.0, ignore);
         }
         self
     }
 
-    pub fn set_partition( self, name: &std::ffi::CStr) -> Self {
+    pub fn set_partition( &mut self, name: &std::ffi::CStr) -> &mut Self {
         unsafe { dds_qset_partition1(self.0, name.as_ptr()) }
         self
     }
@@ -313,7 +313,7 @@ mod dds_qos_tests {
 
     #[test]
     fn test_set() {
-        if let Ok(qos) = DdsQos::create() {
+        if let Ok(mut qos) = DdsQos::create() {
             let _qos = qos.set_durability(dds_durability_kind::DDS_DURABILITY_VOLATILE)
             .set_history(dds_history_kind::DDS_HISTORY_KEEP_LAST, 3)
             .set_resource_limits(10, 1, 10)
