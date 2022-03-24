@@ -16,10 +16,12 @@
 
 use cyclonedds_sys::*;
 use std::convert::From;
+use std::ffi::c_void;
 
 pub use cyclonedds_sys::{ DdsEntity};
 use std::marker::PhantomData;
 
+use crate::SampleBuffer;
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsWritable, Entity};
 use crate::serdes::{Sample, TopicType};
 
@@ -110,6 +112,21 @@ where
     pub fn write(&mut self, msg: std::sync::Arc<T>) -> Result<(), DDSError> {
         Self::write_to_entity(&self.0, msg)
 
+    }
+
+    // Loan memory buffers for zero copy operation
+    pub fn loan(&mut self, buf: &mut SampleBuffer<T>) -> Result<(), DDSError> {
+
+        let (voidp, _) = unsafe {buf.as_mut_ptr()};
+        let voidpp = voidp as *mut *mut c_void;
+        let res = unsafe {
+            dds_loan_shared_memory_buffer(self.0.entity(), buf.len() as size_t, voidpp)
+        };
+        if res == 0 {
+            Ok(())        
+        } else {
+            Err(DDSError::from(res))
+        } 
     }
 
     pub fn set_listener(&mut self, listener: DdsListener) -> Result<(), DDSError> {

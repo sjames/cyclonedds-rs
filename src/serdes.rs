@@ -51,6 +51,9 @@ pub trait TopicType: Serialize + DeserializeOwned {
         murmur3_32(&mut cursor, 0).unwrap()
     }
 
+    fn is_fixed_size() -> bool {
+        false
+    }
     /// The type name for this topic
     fn typename() -> std::ffi::CString {
         let ty_name_parts: String = std::any::type_name::<Self>()
@@ -111,14 +114,17 @@ impl<'a, T> SerType<T> {
             sertype: {
                 let mut sertype = std::mem::MaybeUninit::uninit();
                 unsafe {
+                    let type_name = T::typename();
                     ddsi_sertype_init(
                         sertype.as_mut_ptr(),
-                        T::typename().as_ptr(),
+                        type_name.as_ptr(),
                         Box::into_raw(create_sertype_ops::<T>()),
                         Box::into_raw(create_serdata_ops::<T>()),
                         !T::has_key(),
                     );
-                    sertype.assume_init()
+                    let mut sertype = sertype.assume_init();
+                    sertype.set_fixed_size(if T::is_fixed_size() {1} else {0});
+                    sertype
                 }
             },
             _phantom: PhantomData,
