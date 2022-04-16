@@ -18,9 +18,11 @@
 // See discussion at https://github.com/eclipse-cyclonedds/cyclonedds/issues/830
 
 use cdr::{Bounded, CdrBe, Infinite};
+use rc_box::ArcBox;
 use serde::Deserialize;
 use serde::{de::DeserializeOwned, Serialize};
 use std::io::prelude::*;
+use std::mem::{MaybeUninit};
 use std::ptr::NonNull;
 use std::sync::RwLock;
 use std::{
@@ -110,7 +112,7 @@ impl<'a, T> SerType<T> {
     where
         T: DeserializeOwned + Serialize + TopicType,
     {
-        Box::<SerType<T>>::new(SerType {
+         Box::<SerType<T>>::new(SerType {
             sertype: {
                 let mut sertype = std::mem::MaybeUninit::uninit();
                 unsafe {
@@ -124,6 +126,7 @@ impl<'a, T> SerType<T> {
                     );
                     let mut sertype = sertype.assume_init();
                     sertype.set_fixed_size(if T::is_fixed_size() {1} else {0});
+                    sertype.iox_size = std::mem::size_of::<T>() as u32;
                     sertype
                 }
             },
@@ -150,58 +153,117 @@ impl<'a, T> SerType<T> {
 
 /// A sample is simply a smart pointer. The storage for the sample
 /// is in the serdata structure, or allocated by iceoryx in the shared memory
-enum SampleStorage<T> {
+
+/* 
+pub struct LoanedSample<T>(NonNull<T>, DdsEntity);
+
+impl <'a,T>LoanedSample<T> {
+    pub fn from_raw_loan(ptr : * mut T, entity: DdsEntity) -> Self {
+        LoanedSample(NonNull::new(ptr).unwrap(), entity)
+    }
+
+    // marking this as unsafe as the T is unitialized . 
+    // will change to MaybeUninit once the feature is stable (see https://github.com/rust-lang/rust/issues/75402)
+    pub unsafe fn as_raw_mut(&'a mut self) -> &'a mut T {
+        self.0.as_mut()
+    }
+
+    pub fn write(&self) -> Result<(), DDSError> {
+        let sample = self.0.as_ptr();
+        let sample = Sample::new_loaned(NonNull::new(sample).unwrap());
+        let sample = std::ptr::addr_of!(sample) as * const c_void;
+     
+        let ret = unsafe {dds_write(self.1.entity(), sample)};
+
+        // now leak the pointer as we don't want it to be deallocated
+    
+
+        if ret >= 0 {
+            Ok(())
+        } else {
+            Err(DDSError::from(ret))
+        }
+    }
+}
+
+impl <T> Drop for LoanedSample<T> {
+    fn drop(&mut self) {
+        println!("Dropping LoanedSample");
+        let mut p_sample : *mut T = self.0.as_ptr();
+        let p_p_sample = std::ptr::addr_of_mut!(p_sample);
+        let voidpp  = p_p_sample as *mut *mut c_void; 
+
+         
+        let res = unsafe {
+            dds_return_loan(self.1.entity(), voidpp, 1)
+        };
+
+        if res != 0 {
+            println!("Error returning loan");
+        } 
+        
+    }
+}
+*/
+
+#[derive(Clone)]
+pub enum SampleStorage<T> {
     Owned(Arc<T>),
-    Loaned(NonNull<T>), 
+    Loaned(NonNull<T>),
+}
+
+impl <T>Deref for SampleStorage<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            SampleStorage::Owned(t) => t.deref(),
+            SampleStorage::Loaned(t) => unsafe {t.as_ref()},
+        }
+    }
+}
+
+impl <T>Drop for SampleStorage<T> {
+    fn drop(&mut self) {
+        match self {
+            SampleStorage::Loaned( t) => {
+                
+            },
+            _ => {}
+        }
+    }
 }
 
 pub struct Sample<T> {
-    //sample: RwLock<Option<Arc<T>>>,
+    //sample : RwLock<Option<Arc<T>>>,
     sample : RwLock<Option<SampleStorage<T>>>,
 }
 
 impl<T> Sample<T> {
-    pub fn is_loaned(&self) -> bool {
-        let t = self.sample.read().unwrap();
-        match &*t {
-            None => false,
-            Some(t) =>  match t {
-                SampleStorage::Owned(_) => false,
-                SampleStorage::Loaned(_) => true,
-            }  
-        }   
-    }
-
+    
     pub fn get(&self) -> Option<Arc<T>> {
         let t = self.sample.read().unwrap();
         match &*t {
-            None => None,
-            Some(t) =>  match t {
-                SampleStorage::Owned(t) => Some(t.clone()),
-                SampleStorage::Loaned(t) => None,
-            }  
+            Some(SampleStorage::Owned(t)) =>  Some(t.clone()),
+            Some(SampleStorage::Loaned(t)) => 
+            {   println!("Loaned");
+                None},
+            None => {
+                println!("None");
+                None
+            }
         }
     }
 
-    pub fn get_loaned_mut(&self) -> Option<&T> {
-        let t = self.sample.read().unwrap();
-        match &*t {
-            None => None,
-            Some(t) =>  match t {
-                SampleStorage::Owned(_) => None,
-                SampleStorage::Loaned(t) => unsafe {Some(t.as_ref())},
-            }  
-        }
-    }
-
+    
     pub fn set(&mut self, t: Arc<T>) {
         let mut sample = self.sample.write().unwrap();
-        sample.replace(SampleStorage::<T>::Owned(t));
+        sample.replace(SampleStorage::Owned(t));
     }
 
-    pub unsafe fn set_loaned(&mut self, ptr : *mut T) {
+    pub fn set_loaned(&mut self, t: NonNull<T>) {
         let mut sample = self.sample.write().unwrap();
-        sample.replace(SampleStorage::<T>::Loaned(NonNull::new(ptr).unwrap()));
+        sample.replace(SampleStorage::Loaned(t));
     }
 
     pub fn clear(&mut self) {
@@ -209,31 +271,18 @@ impl<T> Sample<T> {
         let _t = sample.take();
     }
 
-    pub fn from(it: Arc<T>) -> Self {
-        //Self::Value(it)
+    fn new_loaned(it: NonNull<T>) -> Self {
         Self {
-            sample: RwLock::new(Some(SampleStorage::<T>::Owned(it))),
+            sample :RwLock::new(Some(SampleStorage::Loaned(it))), 
         }
     }
-}
-
-impl<T> Drop  for Sample<T> {
-    fn drop(&mut self) {
-        if let Ok(mut sample) = self.sample.write() {
-            let sample = sample.take();
-            match sample {
-                Some(s) => match s {
-                    SampleStorage::Owned(s) => {},
-                    SampleStorage::Loaned(s) => {
-                        // Sample data that is allocated in shared memory should not
-                        // be freed here.
-                        
-                    },
-                },
-                None => {},
-            }
-        }   
+    
+    pub fn from(it: Arc<T>) -> Self {
+        Self {
+            sample: RwLock::new(Some(SampleStorage::Owned(it))),
+        }
     }
+    
 }
 
 impl<T> Default for Sample<T> {
@@ -534,7 +583,7 @@ where
         serdata.sample = SampleData::SDKKey;
         
         let mut key_hash_buffer = [0u8;20];
-        let key_hash = &mut key_hash_buffer[4..];
+        let key_hash = &mut key_hash_buffer[4..]; 
 
         for (i, b) in keyhash.iter().enumerate() {
             key_hash[i] = *b;
@@ -555,9 +604,12 @@ unsafe extern "C" fn serdata_from_sample<T>(
     kind: u32,
     sample: *const c_void,
 ) -> *mut ddsi_serdata {
+    println!("Serdata from sample");
     let mut serdata = SerData::<T>::new(sertype, kind);
     let sample = sample as *const Sample<T>;
     let sample = &*sample;
+
+   
 
     match kind {
         #[allow(non_upper_case_globals)]
@@ -648,8 +700,12 @@ where
         SampleData::Uninitialized => panic!("Uninitialized SerData. no size possible"),
         SampleData::SDKKey => serdata.key_hash.key_length() as u32,
         // This function asks for the serialized size so we do this even for SHM Data
-        SampleData::SDKData(sample) | SampleData::SHMData(sample) => {
-            serdata.serialized_size = Some((cdr::calc_serialized_size(&sample.deref())) as u32);
+        SampleData::SDKData(sample) => {
+            serdata.serialized_size = Some((cdr::calc_serialized_size::<T>(&sample.deref())) as u32);
+            *serdata.serialized_size.as_ref().unwrap()
+        }
+        SampleData::SHMData(sample) => {
+            serdata.serialized_size = Some((cdr::calc_serialized_size::<T>(sample.as_ref())) as u32);
             *serdata.serialized_size.as_ref().unwrap()
         }
     }
@@ -690,7 +746,7 @@ unsafe extern "C" fn serdata_to_ser<T>(
             }
         }
         // We may serialize both SDK data as well as SHM Data
-        SampleData::SDKData(serdata) | SampleData::SHMData(serdata) => {
+        SampleData::SDKData(serdata) => {
             let buf_slice = std::slice::from_raw_parts_mut(buf, size as usize);
             if let Err(e) = cdr::serialize_into::<_, T, _, CdrBe>(
                 buf_slice,
@@ -699,6 +755,17 @@ unsafe extern "C" fn serdata_to_ser<T>(
             ) {
                 panic!("Unable to serialize type {:?} due to {}", T::typename(), e);
             }
+        }
+        SampleData::SHMData(serdata) => {
+            let buf_slice = std::slice::from_raw_parts_mut(buf, size as usize);
+            if let Err(e) = cdr::serialize_into::<_, T, _, CdrBe>(
+                buf_slice,
+                serdata.as_ref(),
+                Bounded(size as u64),
+            ) {
+                panic!("Unable to serialize type {:?} due to {}", T::typename(), e);
+            }
+
         }
     }
 }
@@ -729,26 +796,24 @@ where
             iov.iov_base = p as *mut c_void;
             iov.iov_len = len as size_t;
         }
-        SampleData::SDKData(sample) | SampleData::SHMData(sample) => {
+        SampleData::SDKData(sample) => {
             if serdata.cdr.is_none() {
-                if let Some(size) = &serdata.serialized_size {
-                    let mut buffer = Vec::<u8>::with_capacity(*size as usize);
-                    if let Ok(()) = cdr::serialize_into::<_, T, _, CdrBe>(
-                        &mut buffer,
-                        sample.as_ref(),
-                        Infinite,
-                    ) {
-                        serdata.cdr = Some(buffer);
-                    } else {
-                        panic!("Unable to serialize type {:?}", T::typename());
-                    }
-                } else {
-                    if let Ok(data) = cdr::serialize::<T, _, CdrBe>(sample.as_ref(), Infinite) {
-                        serdata.cdr = Some(data);
-                    } else {
-                        panic!("Unable to serialize type {:?}", T::typename());
-                    }
-                }
+                serdata.cdr = serialize_type::<T>(sample, serdata.serialized_size).ok();
+            }
+            if let Some(cdr) = &serdata.cdr {
+                let offset = offset as usize;
+                let last = offset + size as usize;
+                let cdr = &cdr[offset..last];
+                iov.iov_base = cdr.as_ptr() as *mut c_void;
+                iov.iov_len = cdr.len() as size_t;
+            } else {
+                panic!("Unexpected");
+            }
+        }
+
+        SampleData::SHMData(sample) => {
+            if serdata.cdr.is_none() {
+                serdata.cdr = serialize_type::<T>(sample.as_ref(), serdata.serialized_size).ok();
             }
             if let Some(cdr) = &serdata.cdr {
                 let offset = offset as usize;
@@ -762,6 +827,27 @@ where
         }
     }
     ddsi_serdata_addref(&serdata.serdata)
+}
+
+fn serialize_type<T: Serialize>(sample:&T, maybe_size: Option<u32>) -> Result<Vec<u8>,()> {
+    if let Some(size) = maybe_size {
+        let mut buffer = Vec::<u8>::with_capacity(size as usize);
+        if let Ok(()) = cdr::serialize_into::<_, T, _, CdrBe>(
+            &mut buffer,
+            sample,
+            Infinite,
+        ) {
+            Ok(buffer)
+        } else {
+            Err(())
+        }
+    } else {
+        if let Ok(data) = cdr::serialize::<T, _, CdrBe>(sample, Infinite) {
+            Ok(data)
+        } else {
+            Err(())
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -797,7 +883,7 @@ where
              if serdata.serdata.kind == ddsi_serdata_kind_SDK_KEY { 
                 compute_key_hash(reader, &mut serdata);
                 serdata.sample = SampleData::SDKKey;
-                false
+                Ok(())
              } else {
                 if let Ok(decoded) = cdr::deserialize::<T>(reader) {
                         if T::has_key() {
@@ -813,38 +899,50 @@ where
                         s.set(sample.clone());
                         serdata.sample = SampleData::SDKData(sample);
                         
-                    false
+                    Ok(())
                 } else {
                     println!("Deserialization error!");
-                    true
+                    Err(())
                 }
             }
         } else {
-            // Not serialized data, we make a sample out of the data
+            // Not serialized data, we make a sample out of the data and store it in our sample
             println!("Shared memory deser!");
             assert_eq!((*hdr).data_size as usize, std::mem::size_of::<T>());
+            
             if std::mem::size_of::<T>() == (*hdr).data_size as usize {
                 // Pay Attention here
                 //
                 //
                 let p : *mut T = serdata.serdata.iox_chunk as *mut T;
-                s.set_loaned(p);
-                false
+         
+                serdata.sample = SampleData::SHMData(NonNull::new_unchecked(p));
+                Ok(())
 
             } else {
-                true
+                Err(())
             }      
         }
-    } 
+    } else { Ok(())};    
     
-    else {  // Handle not SHM data normally
-        if let SampleData::SDKData(data) = &serdata.sample {
-            s.set(data.clone());
-            false
-        } else {
-            true
+
+    let ret = if let Ok(()) = ret {
+        match &serdata.sample {
+            SampleData::Uninitialized => true,
+            SampleData::SDKKey => true,
+            SampleData::SDKData(data) => {
+                s.set(data.clone());
+                false
+            },
+            SampleData::SHMData(data) => {
+                s.set_loaned(data.clone());
+                false
+            },
         }
+    } else {
+        true
     };
+ 
     // leak the sample intentionally
     let _intentional_leak = Box::into_raw(s);
     ret
@@ -854,7 +952,7 @@ where
 unsafe extern "C" fn serdata_to_untyped<T>(serdata: *const ddsi_serdata) -> *mut ddsi_serdata {
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
 
-    if let SampleData::<T>::SDKData(_d) = &serdata.sample {
+    //if let SampleData::<T>::SDKData(_d) = &serdata.sample {
         let mut untyped_serdata =
             SerData::<T>::new(serdata.serdata.type_, ddsi_serdata_kind_SDK_KEY);
         // untype it
@@ -867,10 +965,10 @@ unsafe extern "C" fn serdata_to_untyped<T>(serdata: *const ddsi_serdata) -> *mut
 
         let ptr = Box::into_raw(untyped_serdata);
         ptr as *mut ddsi_serdata
-    } else {
-        println!("Error: Cannot convert from untyped to untyped");
-        std::ptr::null_mut()
-    }
+    //} else {
+    //    println!("Error: Cannot convert from untyped to untyped");
+    //    std::ptr::null_mut()
+    //}
 }
 
 #[allow(dead_code)]
@@ -881,6 +979,7 @@ unsafe extern "C" fn untyped_to_sample<T>(
     _buf: *mut *mut c_void,
     _buflim: *mut c_void,
 ) -> bool {
+    println!("untyped to sample!");
     if !sample.is_null() {
         let mut sample = Box::<Sample<T>>::from_raw(sample as *mut Sample<T>);
         // hmm. We don't store serialized data in serdata. I'm not really sure how
@@ -958,22 +1057,29 @@ unsafe extern "C" fn from_iox_buffer<T>(
     buffer: *mut ::std::os::raw::c_void,
 ) -> *mut ddsi_serdata {
     
-    let mut d = SerData::<T>::new(sertype, kind);
-    let t = SerType::<T>::try_from_sertype(sertype);
-    if t.is_none() {
+    println!("from_iox_buffer");
+
+    if sertype.is_null() {
         return std::ptr::null::<ddsi_serdata>() as *mut ddsi_serdata;
     }
+
+    let mut d = SerData::<T>::new(sertype, kind);
+    
+    println!("2.2");
     // from loaned sample, just take the pointer
     if sub.is_null() {
+        println!("2.3  buffer:{:?}", buffer);
         d.serdata.iox_chunk = buffer;
-
+        println!("2.4");
     } else {
+
         // from iox buffer
         d.serdata.iox_chunk = buffer;
         d.serdata.iox_subscriber = sub;
-
+        println!("3");
         let hdr = iceoryx_header_from_chunk(buffer);
         // Copy the key hash (TODO: Check this)
+        println!("4");
         copy_raw_key_hash(&(*hdr).keyhash.value,&mut d);
     }
     let ptr = Box::into_raw(d);
@@ -1027,12 +1133,26 @@ enum SampleData<T> {
     Uninitialized,
     SDKKey,
     SDKData(std::sync::Arc<T>),
-    SHMData(std::sync::Arc<T>),
+    SHMData(NonNull<T>),
+}
+
+enum SampleDataType {
+    Uninitialized,
+    SDKKey,
+    SDKData,
+    SHMData,
+    SHMLoanedData,
 }
 
 impl<T> Default for SampleData<T> {
     fn default() -> Self {
         Self::Uninitialized
+    }
+}
+
+impl <T>Drop for SampleData<T> {
+    fn drop(&mut self) {
+       // Nothing to do here. The SHMData is wrapper with ManuallyDrop so that should take care of it.
     }
 }
 

@@ -22,16 +22,23 @@ use proc_macro2::{Span,};
 use quote::quote;
 use syn::{Field, Ident, parse_macro_input};
 
+#[proc_macro_derive(TopicFixedSize, attributes(topic_key, topic_key_enum))]
+pub fn derive_topic_fixed_size(item: TokenStream) -> TokenStream {
+    derive_topic_impl(item, true)
+}
+
 #[proc_macro_derive(Topic, attributes(topic_key, topic_key_enum))]
 pub fn derive_topic(item: TokenStream) -> TokenStream {
+    derive_topic_impl(item, false)
+}
+
+
+
+fn derive_topic_impl(item: TokenStream, is_fixed_size: bool) -> TokenStream {
     let topic_struct = parse_macro_input!(item as syn::ItemStruct);
 
-    //if struct_has_key(&topic_struct) {
-    //    println!("Struct has KEY");    
-    //}
-
     let mut ts = build_key_holder_struct(&topic_struct);
-    let ts2 = create_keyhash_functions(&topic_struct);
+    let ts2 = create_keyhash_functions(&topic_struct, is_fixed_size);
     let ts3 = create_topic_functions(&topic_struct);
 
     ts.extend(ts2);
@@ -142,7 +149,7 @@ fn build_key_holder_struct(item : &syn::ItemStruct) -> TokenStream {
 }
 
 // create the keyhash methods for this type
-fn create_keyhash_functions(item : &syn::ItemStruct) -> TokenStream {
+fn create_keyhash_functions(item : &syn::ItemStruct, is_fixed_size: bool) -> TokenStream {
     let topic_key_ident = &item.ident;
     let topic_key_holder_ident =  quote::format_ident!("{}KeyHolder_",&item.ident);
 
@@ -155,6 +162,10 @@ fn create_keyhash_functions(item : &syn::ItemStruct) -> TokenStream {
                 
                 let encoded = cdr::serialize::<_, _, cdr::CdrBe>(&holder_struct, cdr::Infinite).expect("Unable to serialize key");
                encoded
+            }
+
+            fn is_fixed_size() -> bool {
+                #is_fixed_size
             }
             
             fn has_key() -> bool {
