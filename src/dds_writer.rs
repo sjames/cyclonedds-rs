@@ -58,14 +58,12 @@ impl <T>WriterBuilder<T> where T: TopicType {
         }
 }
 
-#[derive(PartialEq)]
 pub enum LoanedInner<T: Sized + TopicType> {
     Uninitialized(NonNull<T>, DdsEntity),
     Initialized(NonNull<T>, DdsEntity),
     Empty,
 }
 
-#[derive(PartialEq)]
 pub struct Loaned<T: Sized + TopicType> {
     inner : LoanedInner<T>
 }
@@ -179,7 +177,6 @@ where
             dds_loan_sample(self.0.entity(), voidpp)
         };
         if res == 0 {
-            println!("Received loaned ptr:{:?}",p_sample);
             Ok(Loaned { inner: LoanedInner::Uninitialized( NonNull::new(p_sample).unwrap(),  self.entity().clone()) })   
         } else {
             Err(DDSError::from(res))
@@ -192,7 +189,6 @@ where
             
             LoanedInner::Uninitialized(p,entity) => {
                 let mut p_sample = p.as_ptr();
-                println!("Returning loan:{:?}", p_sample);
                 let voidpp:*mut *mut T= &mut p_sample;
                 let voidpp = voidpp as *mut *mut c_void;
                 unsafe {dds_return_loan(entity.entity(),voidpp,1)}
@@ -336,7 +332,7 @@ mod test {
     }
     }
 
-   //#[test]
+   #[test]
     fn test_loan() {
         // Make sure iox-roudi is running
         std::env::set_var("CYCLONEDDS_URI", cyclone_shm_config);
@@ -352,8 +348,10 @@ mod test {
         let mut another_writer = DdsWriter::create(&publisher, another_topic.clone(), None, None).unwrap();
 
         // this writer does not have a fixed size. Loan should fail
-        let res = another_writer.loan();
-        assert!(res == Err(DDSError::Unsupported));
+        
+        if let Ok(r) = another_writer.loan() {
+            panic!("This must fail");
+        }
 
         let subscriber = DdsSubscriber::create(&participant, None, None).unwrap();
         let reader = DdsReader::create_async(&subscriber, topic, None).unwrap();
@@ -400,6 +398,7 @@ mod test {
             tokio::time::sleep(std::time::Duration::from_millis(300)).await;
 
         });
+
     }
 
     

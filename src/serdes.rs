@@ -67,7 +67,7 @@ pub trait TopicType: Serialize + DeserializeOwned {
 
         let typename =
             std::ffi::CString::new(ty_name_parts).expect("Unable to create CString for type name");
-        println!("Typename:{:?}", &typename);
+        //println!("Typename:{:?}", &typename);
         typename
     }
 
@@ -1057,7 +1057,7 @@ unsafe extern "C" fn from_iox_buffer<T>(
     buffer: *mut ::std::os::raw::c_void,
 ) -> *mut ddsi_serdata {
     
-    println!("from_iox_buffer");
+    //println!("from_iox_buffer");
 
     if sertype.is_null() {
         return std::ptr::null::<ddsi_serdata>() as *mut ddsi_serdata;
@@ -1065,21 +1065,15 @@ unsafe extern "C" fn from_iox_buffer<T>(
 
     let mut d = SerData::<T>::new(sertype, kind);
     
-    println!("2.2");
     // from loaned sample, just take the pointer
     if sub.is_null() {
-        println!("2.3  buffer:{:?}", buffer);
         d.serdata.iox_chunk = buffer;
-        println!("2.4");
     } else {
-
         // from iox buffer
         d.serdata.iox_chunk = buffer;
         d.serdata.iox_subscriber = sub;
-        println!("3");
         let hdr = iceoryx_header_from_chunk(buffer);
         // Copy the key hash (TODO: Check this)
-        println!("4");
         copy_raw_key_hash(&(*hdr).keyhash.value,&mut d);
     }
     let ptr = Box::into_raw(d);
