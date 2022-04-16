@@ -20,6 +20,8 @@ use thiserror::Error;
 pub enum ReaderError {
     #[error("Missed a requested deadline")]
     RequestedDeadLineMissed,
+    #[error("Reader is not async type")]
+    ReaderNotAsync,
     #[error("DDS Binding error")]
     DdsError(#[from] crate::DDSError )
 }

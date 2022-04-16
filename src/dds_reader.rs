@@ -274,7 +274,7 @@ where
                let future_sample = SampleArrayFuture::new(self.inner.entity.clone(), waker.clone(),samples ,FutureType::Read);
                 future_sample.await
            } else {
-            panic!("This reader was not constructed with async constructor");
+            Err(ReaderError::ReaderNotAsync)
         }
     }
 
@@ -284,7 +284,7 @@ where
             let future_sample = SampleArrayFuture::new(self.inner.entity.clone(), waker.clone(),samples ,FutureType::Take);
              future_sample.await
         } else {
-         panic!("This reader was not constructed with async constructor");
+            Err(ReaderError::ReaderNotAsync)
      }
     }
 

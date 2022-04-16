@@ -248,7 +248,7 @@ where
 #[cfg(test)]
 mod test {
     use core::panic;
-    use std::{time::Duration, sync::Arc};
+    use std::{time::Duration, sync::Arc, ops::Deref};
 
     use crate::{DdsParticipant, DdsSubscriber, DdsReader};
     use super::*;
@@ -332,7 +332,7 @@ mod test {
     }
     }
 
-   #[test]
+   //#[test]
     fn test_loan() {
         // Make sure iox-roudi is running
         std::env::set_var("CYCLONEDDS_URI", cyclone_shm_config);
@@ -361,21 +361,15 @@ mod test {
 
         let _result = rt.block_on(async {
             
-            let _task = tokio::spawn(async move {
-                if let Ok(t) = reader.take1().await {
-                    assert_eq!(t,Arc::new(TestTopic::default()));
-                } else {
-                    panic!("reader get failed");
-                }
-            });
+          
 
             let _another_task = tokio::spawn(async move {
-                let mut samples = AnotherTopic::create_sample_buffer(5);
-                if let Ok(t) = another_reader.read(&mut samples).await {
+                let mut samples = TestTopic::create_sample_buffer(5);
+                if let Ok(t) = reader.take(&mut samples).await {
                     assert_eq!(t,1);
                     for s in samples.iter() {
 
-                        println!("Got sample {}", s.get().unwrap().key);
+                        println!("Got sample {:?}", s.get_sample().unwrap().deref());
                     }
                    
                 } else {

@@ -151,65 +151,12 @@ impl<'a, T> SerType<T> {
     }
 }
 
-/// A sample is simply a smart pointer. The storage for the sample
-/// is in the serdata structure, or allocated by iceoryx in the shared memory
 
-/* 
-pub struct LoanedSample<T>(NonNull<T>, DdsEntity);
-
-impl <'a,T>LoanedSample<T> {
-    pub fn from_raw_loan(ptr : * mut T, entity: DdsEntity) -> Self {
-        LoanedSample(NonNull::new(ptr).unwrap(), entity)
-    }
-
-    // marking this as unsafe as the T is unitialized . 
-    // will change to MaybeUninit once the feature is stable (see https://github.com/rust-lang/rust/issues/75402)
-    pub unsafe fn as_raw_mut(&'a mut self) -> &'a mut T {
-        self.0.as_mut()
-    }
-
-    pub fn write(&self) -> Result<(), DDSError> {
-        let sample = self.0.as_ptr();
-        let sample = Sample::new_loaned(NonNull::new(sample).unwrap());
-        let sample = std::ptr::addr_of!(sample) as * const c_void;
-     
-        let ret = unsafe {dds_write(self.1.entity(), sample)};
-
-        // now leak the pointer as we don't want it to be deallocated
-    
-
-        if ret >= 0 {
-            Ok(())
-        } else {
-            Err(DDSError::from(ret))
-        }
-    }
-}
-
-impl <T> Drop for LoanedSample<T> {
-    fn drop(&mut self) {
-        println!("Dropping LoanedSample");
-        let mut p_sample : *mut T = self.0.as_ptr();
-        let p_p_sample = std::ptr::addr_of_mut!(p_sample);
-        let voidpp  = p_p_sample as *mut *mut c_void; 
-
-         
-        let res = unsafe {
-            dds_return_loan(self.1.entity(), voidpp, 1)
-        };
-
-        if res != 0 {
-            println!("Error returning loan");
-        } 
-        
-    }
-}
-*/
 
 #[derive(Clone)]
 pub enum SampleStorage<T> {
     Owned(Arc<T>),
-    Loaned(NonNull<T>),
+    Loaned(Arc<NonNull<T>>),
 }
 
 impl <T>Deref for SampleStorage<T> {
@@ -218,7 +165,7 @@ impl <T>Deref for SampleStorage<T> {
     fn deref(&self) -> &Self::Target {
         match self {
             SampleStorage::Owned(t) => t.deref(),
-            SampleStorage::Loaned(t) => unsafe {t.as_ref()},
+            SampleStorage::Loaned(t) => unsafe {t.as_ref().as_ref()},
         }
     }
 }
@@ -227,6 +174,8 @@ impl <T>Drop for SampleStorage<T> {
     fn drop(&mut self) {
         match self {
             SampleStorage::Loaned( t) => {
+                let count = Arc::<NonNull<T>>::strong_count(t); 
+                //println!("Sample Storage reference count : {}", count);
                 
             },
             _ => {}
@@ -234,13 +183,36 @@ impl <T>Drop for SampleStorage<T> {
     }
 }
 
+
 pub struct Sample<T> {
     //sample : RwLock<Option<Arc<T>>>,
     sample : RwLock<Option<SampleStorage<T>>>,
 }
 
-impl<T> Sample<T> {
+
+impl<T> Sample<T> 
+where
+        T: TopicType,
+{
     
+    pub fn get_sample(&self) -> Option<SampleStorage<T>> {
+        if let Ok(t) = self.sample.write() {
+           match t.as_ref() {
+            Some(s) => {
+
+                match s {
+                    SampleStorage::Owned(s) => Some(SampleStorage::Owned(s.clone())),
+                    SampleStorage::Loaned(s) => Some(SampleStorage::Loaned(s.clone())),
+                }
+            }
+            None => None,
+            }
+           
+        } else {
+            None
+        }
+    }
+
     pub fn get(&self) -> Option<Arc<T>> {
         let t = self.sample.read().unwrap();
         match &*t {
@@ -255,7 +227,6 @@ impl<T> Sample<T> {
         }
     }
 
-    
     pub fn set(&mut self, t: Arc<T>) {
         let mut sample = self.sample.write().unwrap();
         sample.replace(SampleStorage::Owned(t));
@@ -263,7 +234,7 @@ impl<T> Sample<T> {
 
     pub fn set_loaned(&mut self, t: NonNull<T>) {
         let mut sample = self.sample.write().unwrap();
-        sample.replace(SampleStorage::Loaned(t));
+        sample.replace(SampleStorage::Loaned(Arc::new(t)));
     }
 
     pub fn clear(&mut self) {
@@ -271,11 +242,13 @@ impl<T> Sample<T> {
         let _t = sample.take();
     }
 
+    /* 
     fn new_loaned(it: NonNull<T>) -> Self {
         Self {
-            sample :RwLock::new(Some(SampleStorage::Loaned(it))), 
+            sample :RwLock::new(Some(SampleStorage::Loaned(Arc::new(it)))), 
         }
     }
+    */
     
     pub fn from(it: Arc<T>) -> Self {
         Self {
@@ -436,7 +409,7 @@ extern "C" fn free_samples<T>(
     ptrs: *mut *mut std::ffi::c_void,
     len: size_t,
     op: dds_free_op_t,
-) {
+) where T: TopicType {
     let ptrs_v: *mut *mut Sample<T> = ptrs as *mut *mut Sample<T>;
 
     if (op & DDS_FREE_ALL_BIT) != 0 {
@@ -603,8 +576,10 @@ unsafe extern "C" fn serdata_from_sample<T>(
     sertype: *const ddsi_sertype,
     kind: u32,
     sample: *const c_void,
-) -> *mut ddsi_serdata {
-    println!("Serdata from sample");
+) -> *mut ddsi_serdata 
+
+where T : TopicType {
+    println!("Serdata from sample {:?}", sample);
     let mut serdata = SerData::<T>::new(sertype, kind);
     let sample = sample as *const Sample<T>;
     let sample = &*sample;
@@ -907,18 +882,14 @@ where
             }
         } else {
             // Not serialized data, we make a sample out of the data and store it in our sample
-            println!("Shared memory deser!");
-            assert_eq!((*hdr).data_size as usize, std::mem::size_of::<T>());
-            
+            assert_eq!((*hdr).data_size as usize, std::mem::size_of::<T>());      
             if std::mem::size_of::<T>() == (*hdr).data_size as usize {
                 // Pay Attention here
                 //
                 //
                 let p : *mut T = serdata.serdata.iox_chunk as *mut T;
-         
                 serdata.sample = SampleData::SHMData(NonNull::new_unchecked(p));
                 Ok(())
-
             } else {
                 Err(())
             }      
@@ -978,7 +949,9 @@ unsafe extern "C" fn untyped_to_sample<T>(
     sample: *mut c_void,
     _buf: *mut *mut c_void,
     _buflim: *mut c_void,
-) -> bool {
+) -> bool
+where T: TopicType
+{
     println!("untyped to sample!");
     if !sample.is_null() {
         let mut sample = Box::<Sample<T>>::from_raw(sample as *mut Sample<T>);
@@ -1024,7 +997,8 @@ unsafe extern "C" fn print<T>(
     0
 }
 
-fn create_sertype_ops<T>() -> Box<ddsi_sertype_ops> {
+fn create_sertype_ops<T>() -> Box<ddsi_sertype_ops> 
+where T: TopicType {
     Box::new(ddsi_sertype_ops {
         version: Some(ddsi_sertype_v0),
         arg: std::ptr::null_mut(),
@@ -1128,14 +1102,6 @@ enum SampleData<T> {
     SDKKey,
     SDKData(std::sync::Arc<T>),
     SHMData(NonNull<T>),
-}
-
-enum SampleDataType {
-    Uninitialized,
-    SDKKey,
-    SDKData,
-    SHMData,
-    SHMLoanedData,
 }
 
 impl<T> Default for SampleData<T> {
