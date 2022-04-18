@@ -239,7 +239,17 @@ where
 
     pub fn clear(&mut self) {
         let mut sample = self.sample.write().unwrap();
-        let _t = sample.take();
+        let t = sample.take();
+
+        match &t {
+        Some(SampleStorage::Owned(o)) => {
+
+        },
+        Some(SampleStorage::Loaned(o)) => {
+            
+        },
+        None => {},
+    }
     }
 
     /* 
@@ -661,6 +671,16 @@ where
 unsafe extern "C" fn free_serdata<T>(serdata: *mut ddsi_serdata) {
     // the pointer is really a *mut SerData
     let ptr = serdata as *mut SerData<T>;
+
+    let serdata = &mut * ptr;
+
+    if !serdata.serdata.iox_subscriber.is_null() {
+        let iox_subscriber: *mut iox_sub_t = serdata.serdata.iox_subscriber as *mut iox_sub_t;
+        let chunk = &mut serdata.serdata.iox_chunk;
+        let chunk = chunk as *mut *mut c_void;
+        free_iox_chunk(iox_subscriber, chunk);
+    }
+
     let _data = Box::from_raw(ptr);
     // _data goes out of scope and frees the SerData. Nothing more to do here.
 }
@@ -845,7 +865,7 @@ where
     let mut s = Box::<Sample<T>>::from_raw(sample as *mut Sample<T>);
     assert!(!sample.is_null());
 
-    println!("serdata to sample!");
+    //println!("serdata to sample!");
 
     //#[cfg(shm)]
     let ret = if !serdata.serdata.iox_chunk.is_null() {
