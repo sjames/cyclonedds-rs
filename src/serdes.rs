@@ -692,16 +692,20 @@ where
 {
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
     match &serdata.sample {
-        SampleData::Uninitialized => panic!("Uninitialized SerData. no size possible"),
+        SampleData::Uninitialized => 0,
         SampleData::SDKKey => serdata.key_hash.key_length() as u32,
         // This function asks for the serialized size so we do this even for SHM Data
         SampleData::SDKData(sample) => {
             serdata.serialized_size = Some((cdr::calc_serialized_size::<T>(&sample.deref())) as u32);
             *serdata.serialized_size.as_ref().unwrap()
         }
-        SampleData::SHMData(sample) => {
+        SampleData::SHMData(_sample) => {
+            // we refuse to serialize SHM data so return 0
+            0
+            /* 
             serdata.serialized_size = Some((cdr::calc_serialized_size::<T>(sample.as_ref())) as u32);
             *serdata.serialized_size.as_ref().unwrap()
+            */
         }
     }
 }
@@ -728,6 +732,10 @@ unsafe extern "C" fn serdata_to_ser<T>(
     let serdata = SerData::<T>::const_ref_from_serdata(serdata);
     let buf = buf as *mut u8;
     let buf = buf.add(offset as usize);
+
+    if size == 0 {
+        return
+    }
 
     match &serdata.sample {
         SampleData::Uninitialized => {
@@ -1047,6 +1055,7 @@ unsafe extern "C" fn get_sample_size(
 unsafe extern "C" fn from_iox_buffer<T>(
     sertype: *const ddsi_sertype,
     kind: ddsi_serdata_kind,
+    /*_deserialize_hint : bool,*/
     sub: *mut ::std::os::raw::c_void,
     buffer: *mut ::std::os::raw::c_void,
 ) -> *mut ddsi_serdata {
@@ -1070,6 +1079,10 @@ unsafe extern "C" fn from_iox_buffer<T>(
         // Copy the key hash (TODO: Check this)
         copy_raw_key_hash(&(*hdr).keyhash.value,&mut d);
     }
+
+    // we don't deserialize right away
+    d.sample = SampleData::SHMData(NonNull::new_unchecked(buffer as *mut T));
+
     let ptr = Box::into_raw(d);
     // only we know this ddsi_serdata is really of type SerData
     ptr as *mut ddsi_serdata
