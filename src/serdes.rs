@@ -379,7 +379,7 @@ extern "C" fn realloc_samples<T>(
     old_count: size_t,
     new_count: size_t,
 ) {
-    println!("realloc");
+    //println!("realloc");
     let old = unsafe {
         Vec::<*mut Sample<T>>::from_raw_parts(
             old as *mut *mut Sample<T>,
@@ -589,7 +589,7 @@ unsafe extern "C" fn serdata_from_sample<T>(
 ) -> *mut ddsi_serdata 
 
 where T : TopicType {
-    println!("Serdata from sample {:?}", sample);
+    //println!("Serdata from sample {:?}", sample);
     let mut serdata = SerData::<T>::new(sertype, kind);
     let sample = sample as *const Sample<T>;
     let sample = &*sample;
@@ -691,7 +691,7 @@ where
     T: Serialize + TopicType,
 {
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
-    match &serdata.sample {
+    let size = match &serdata.sample {
         SampleData::Uninitialized => 0,
         SampleData::SDKKey => serdata.key_hash.key_length() as u32,
         // This function asks for the serialized size so we do this even for SHM Data
@@ -707,7 +707,8 @@ where
             *serdata.serialized_size.as_ref().unwrap()
             */
         }
-    }
+    };
+    size
 }
 
 #[allow(dead_code)]
@@ -805,10 +806,15 @@ where
             }
             if let Some(cdr) = &serdata.cdr {
                 let offset = offset as usize;
-                let last = offset + size as usize;
+                let mut last = offset + size as usize;
+                if last > cdr.len() - 1 {
+                    last = cdr.len() - 1;
+                }
                 let cdr = &cdr[offset..last];
+                // cdds rounds up the length into multiple of 4. We mirror that by allocating extra in the 
+                // ``serialize_type`` function.
                 iov.iov_base = cdr.as_ptr() as *mut c_void;
-                iov.iov_len = cdr.len() as size_t;
+                iov.iov_len =  size ; //cdr.len() as size_t;
             } else {
                 panic!("Unexpected");
             }
@@ -834,6 +840,8 @@ where
 
 fn serialize_type<T: Serialize>(sample:&T, maybe_size: Option<u32>) -> Result<Vec<u8>,()> {
     if let Some(size) = maybe_size {
+        // Round up allocation to multiple of four
+        let size = (size + 3) & !3u32;
         let mut buffer = Vec::<u8>::with_capacity(size as usize);
         if let Ok(()) = cdr::serialize_into::<_, T, _, CdrBe>(
             &mut buffer,
@@ -844,12 +852,10 @@ fn serialize_type<T: Serialize>(sample:&T, maybe_size: Option<u32>) -> Result<Ve
         } else {
             Err(())
         }
+    } else if let Ok(data) = cdr::serialize::<T, _, CdrBe>(sample, Infinite) {
+        Ok(data)
     } else {
-        if let Ok(data) = cdr::serialize::<T, _, CdrBe>(sample, Infinite) {
-            Ok(data)
-        } else {
-            Err(())
-        }
+        Err(())
     }
 }
 
@@ -872,8 +878,6 @@ where
     let mut serdata = SerData::<T>::mut_ref_from_serdata(serdata);
     let mut s = Box::<Sample<T>>::from_raw(sample as *mut Sample<T>);
     assert!(!sample.is_null());
-
-    //println!("serdata to sample!");
 
     //#[cfg(shm)]
     let ret = if !serdata.serdata.iox_chunk.is_null() {
@@ -980,7 +984,7 @@ unsafe extern "C" fn untyped_to_sample<T>(
 ) -> bool
 where T: TopicType
 {
-    println!("untyped to sample!");
+    //println!("untyped to sample!");
     if !sample.is_null() {
         let mut sample = Box::<Sample<T>>::from_raw(sample as *mut Sample<T>);
         // hmm. We don't store serialized data in serdata. I'm not really sure how
