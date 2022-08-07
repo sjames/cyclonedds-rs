@@ -816,7 +816,8 @@ where
                 iov.iov_base = cdr.as_ptr() as *mut c_void;
                 iov.iov_len =  size ; //cdr.len() as size_t;
             } else {
-                panic!("Unexpected");
+                println!("Serialization error!");
+                return std::ptr::null_mut();
             }
         }
 
@@ -831,7 +832,8 @@ where
                 iov.iov_base = cdr.as_ptr() as *mut c_void;
                 iov.iov_len = cdr.len() as size_t;
             } else {
-                panic!("Unexpected");
+                println!("Serialization error (SHM)!");
+                return std::ptr::null_mut();
             }
         }
     }
