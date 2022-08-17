@@ -59,7 +59,6 @@ pub trait TopicType: Serialize + DeserializeOwned {
     /// The type name for this topic
     fn typename() -> std::ffi::CString {
         let ty_name_parts: String = std::any::type_name::<Self>()
-            .to_string()
             .split("::")
             .skip(1)
             .collect::<Vec<_>>()
@@ -1388,6 +1387,8 @@ mod test {
             #[topic_key]
             instance: u32,
         }
+
+        assert_eq!(NestedFoo::typename(),CString::new("serdes::test::keyhash_nested::NestedFoo").unwrap());
 
         impl NestedFoo {
             fn new() -> Self {
