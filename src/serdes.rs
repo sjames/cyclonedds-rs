@@ -191,7 +191,7 @@ impl<T> Sample<T>
 where
     T: TopicType,
 {
-    pub (crate)fn get_sample(&self) -> Option<SampleStorage<T>> {
+    pub fn get_sample(&self) -> Option<SampleStorage<T>> {
         if let Ok(t) = self.sample.write() {
             match t.as_ref() {
                 Some(s) => match s {
