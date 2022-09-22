@@ -27,6 +27,7 @@ pub use cyclonedds_sys::{DdsDomainId, DdsEntity};
 
 use std::marker::PhantomData;
 
+use crate::Sample;
 use crate::error::ReaderError;
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable, Entity};
 use crate::serdes::{TopicType, SampleBuffer};
@@ -220,54 +221,7 @@ where
                 Err(DDSError::OutOfResources)
         } 
     }
-
-
-    /// Read a sample given a DdsEntity.  This is useful when you want to read data
-    /// within a closure.
-    pub fn read1_from_entity_now(entity: &DdsEntity,) -> Result<Arc<T>, DDSError> {
-        //let sample = Box::new(Sample::<T>::default());
-        //let mut sample = Box::into_raw(sample);
-        //let slice = unsafe {std::slice::from_raw_parts_mut(&mut sample, 1)};
-        let mut sample_buffer = SampleBuffer::<T>::new(1);
-        
-        let read = Self::readn_from_entity_now(entity, &mut sample_buffer, false);
-
-        match read {
-            Ok(1) => {
-                Ok(sample_buffer.get(0).get().unwrap())
-            },
-            Ok(_n) => {
-                panic!("Expected only one sample");
-            }
-            Err(e) => Err(e),
-        }
-    }
-
-    /// Read one sample from the reader
-    pub fn read1_now(&self) -> Result<Arc<T>, DDSError> {
-       Self::read1_from_entity_now(self.entity()) 
-    }
-
-    // Take one sample from the reader given a DdsEntity
-    pub fn take1_from_entity_now(entity: &DdsEntity) -> Result<Arc<T>, DDSError> {
-        let mut sample_buffer = SampleBuffer::<T>::new(1);
-        let read = Self::readn_from_entity_now(entity, &mut sample_buffer, true);
-        match read {
-            Ok(1) => {
-                Ok(sample_buffer.get(0).get().unwrap())
-            },
-            Ok(_n) => {
-                panic!("Expected only one sample");
-            }
-            Err(e) => Err(e),
-        }
-    }
-    
-    /// Take one sample from the reader.
-    pub fn take1_now(&self) -> Result<Arc<T>, DDSError> {
-        Self::take1_from_entity_now(self.entity())
-    }
-
+  
     /// Read samples asynchronously. The number of samples actually read is returned.
     pub async fn read(&self, samples : &mut SampleBuffer<T>) -> Result<usize,ReaderError> {
         if let ReaderType::Async(waker) = &self.inner.reader_type {
@@ -288,19 +242,8 @@ where
      }
     }
 
-    // Read one sample asynchronously
-    pub async fn read1(&self) -> Result<Arc<T>,ReaderError> {
-        let mut sample_buffer = SampleBuffer::<T>::new(1);
-        let read = self.read(&mut sample_buffer).await;
-
-        match read {
-            Ok(1) => Ok(sample_buffer.get(0).get().unwrap()), 
-            Ok(_) => Err(ReaderError::DdsError(DDSError::NoData)),
-            Err(e) => Err(e),
-        }
-    }
-
     // Take one sample asynchronously
+    #[deprecated]
     pub async fn take1(&self) -> Result<Arc<T>,ReaderError> {
         let mut sample_buffer = SampleBuffer::<T>::new(1);
         let read = self.take(&mut sample_buffer).await;

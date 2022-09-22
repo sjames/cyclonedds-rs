@@ -170,27 +170,43 @@ impl<T> Drop for SampleStorage<T> {
     fn drop(&mut self) {
         match self {
             SampleStorage::Loaned(t) => {
-                //println!("Dropping Sample Storage for Loaned ");
-                let count = Arc::<NonNull<T>>::strong_count(t);
-                //println!("Sample Storage reference count : {}", count);
             }
             _ => {
-                //println!("Dropping Sample Storage for Owned ");
+
             }
         }
     }
 }
 
+
+
 pub struct Sample<T> {
-    //sample : RwLock<Option<Arc<T>>>,
-    serdata: Option<*mut ddsi_serdata>,
+    serdata: Option<SerData<T>>,
     sample: RwLock<Option<SampleStorage<T>>>,
 }
 
 impl<T> Sample<T>
 where
-    T: TopicType,
+    T: TopicType
 {
+    pub fn try_deref(&self) -> Option<&T> {       
+        if let Some(serdata) = self.serdata.as_ref() {
+            if let Some(serdata) = self.serdata.as_ref() {
+                match &serdata.sample {
+                    SampleData::Uninitialized => None,
+                    SampleData::SDKKey => None,
+                    SampleData::SDKData(it) => Some(it.deref()),
+                    SampleData::SHMData(it) => unsafe { Some(it.as_ref())},
+                }
+            } else {
+                None
+            }
+            
+        } else {
+            None
+        }
+    }
+
     pub fn get_sample(&self) -> Option<SampleStorage<T>> {
         if let Ok(t) = self.sample.write() {
             match t.as_ref() {
@@ -207,7 +223,7 @@ where
 
     // Deprecated as this function can panic
     #[deprecated]
-    pub fn get(&self) -> Option<Arc<T>> {
+    pub (crate)fn get(&self) -> Option<Arc<T>> {
         let t = self.sample.read().unwrap();
         match &*t {
             Some(SampleStorage::Owned(t)) => Some(t.clone()),
@@ -220,8 +236,7 @@ where
         }
     }
 
-    pub fn set_serdata(&mut self,serdata:*mut ddsi_serdata) {
-        unsafe {ddsi_serdata_addref(serdata);}
+    pub(crate) fn set_serdata(&mut self,serdata:SerData<T>) {
         self.serdata = Some(serdata)
     }
 
@@ -263,16 +278,8 @@ impl<T> Default for Sample<T> {
     }
 }
 
-/// We hold on to the serdata in the Sample to prevent it from getting freed while in use. 
-/// Once the Sample is dropped we decrement the refcount and free if necessary
-impl <T>Drop for Sample<T> {
-    fn drop(&mut self) {
-        if let Some(serdata) = self.serdata {
-            unsafe {ddsi_serdata_removeref(serdata)};
-        }
-        
-    }
-}
+
+
 
 ///
 /// TODO: UNSAFE WARNING Review needed. Forcing SampleBuffer<T> to be Send
@@ -377,7 +384,7 @@ extern "C" fn realloc_samples<T>(
     old_count: size_t,
     new_count: size_t,
 ) {
-    println!("realloc");
+    //println!("realloc");
     let old = unsafe {
         Vec::<*mut Sample<T>>::from_raw_parts(
             old as *mut *mut Sample<T>,
@@ -464,7 +471,7 @@ unsafe extern "C" fn serdata_from_fragchain<T>(
 where
     T: DeserializeOwned + TopicType,
 {
-    println!("serdata_from_fragchain");
+    //println!("serdata_from_fragchain");
     let mut off: u32 = 0;
     let size = size as usize;
     let fragchain_ref = &*fragchain;
@@ -558,7 +565,7 @@ where
     T: TopicType,
 {
     let keyhash = (*keyhash).value;
-    println!("serdata_from_keyhash");
+    //println!("serdata_from_keyhash");
 
     if T::force_md5_keyhash() {
         // this means keyhas fits in 16 bytes
@@ -592,7 +599,7 @@ unsafe extern "C" fn serdata_from_sample<T>(
 where
     T: TopicType,
 {
-    println!("Serdata from sample {:?}", sample);
+    //println!("Serdata from sample {:?}", sample);
     let mut serdata = SerData::<T>::new(sertype, kind);
     let sample = sample as *const Sample<T>;
     let sample = &*sample;
@@ -628,7 +635,7 @@ where
 {
     let size = size as usize;
     let niov = niov as usize;
-    println!("serdata_from_iov");
+    //println!("serdata_from_iov");
 
     let mut serdata = SerData::<T>::new(sertype, kind);
 
@@ -681,7 +688,7 @@ unsafe extern "C" fn free_serdata<T>(serdata: *mut ddsi_serdata) {
         let iox_subscriber: *mut iox_sub_t = serdata.serdata.iox_subscriber as *mut iox_sub_t;
         let chunk = &mut serdata.serdata.iox_chunk;
         let chunk = chunk as *mut *mut c_void;
-        println!("Free iox chunk");
+        //println!("Free iox chunk");
         free_iox_chunk(iox_subscriber, chunk);
     }
 
@@ -735,7 +742,7 @@ unsafe extern "C" fn serdata_to_ser<T>(
 ) where
     T: Serialize + TopicType,
 {
-    println!("serdata_to_ser");
+    //println!("serdata_to_ser");
     let serdata = SerData::<T>::const_ref_from_serdata(serdata);
     let buf = buf as *mut u8;
     let buf = buf.add(offset as usize);
@@ -787,7 +794,7 @@ unsafe extern "C" fn serdata_to_ser_ref<T>(
 where
     T: Serialize + TopicType,
 {
-    println!("serdata_to_ser_ref");
+    //println!("serdata_to_ser_ref");
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
     let iov = &mut *iov;
 
@@ -862,7 +869,7 @@ fn serialize_type<T: Serialize>(sample: &T, maybe_size: Option<u32>) -> Result<V
 
 #[allow(dead_code)]
 unsafe extern "C" fn serdata_to_ser_unref<T>(serdata: *mut ddsi_serdata, _iov: *const iovec) {
-    println!("serdata_to_ser_unref");
+    //println!("serdata_to_ser_unref");
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
     ddsi_serdata_removeref(&mut serdata.serdata)
 }
@@ -870,7 +877,7 @@ unsafe extern "C" fn serdata_to_ser_unref<T>(serdata: *mut ddsi_serdata, _iov: *
 fn deserialize_type<T>(data:&[u8]) -> Result<Arc<T>,()> 
     where
     T: DeserializeOwned {
-        cdr::deserialize::<Box<T>>(data).map(|t| Arc::new(*t)).map_err(|_e|())
+        cdr::deserialize::<Box<T>>(data).map(|t| Arc::from(t)).map_err(|_e|())
     }
 
 #[allow(dead_code)]
@@ -883,10 +890,10 @@ unsafe extern "C" fn serdata_to_sample<T>(
 where
     T: DeserializeOwned + TopicType,
 {
-    println!(
-        "serdata to sample serdata:{:?} sample:{:?} bufptr:{:?} buflim:{:?}",
-        serdata, sample, _bufptr, _buflim
-    );
+    //println!(
+    //    "serdata to sample serdata:{:?} sample:{:?} bufptr:{:?} buflim:{:?}",
+    //    serdata, sample, _bufptr, _buflim
+    //);
     let mut serdata = SerData::<T>::mut_ref_from_serdata(serdata);
     let mut s = Box::<Sample<T>>::from_raw(sample as *mut Sample<T>);
     assert!(!sample.is_null());
@@ -949,12 +956,12 @@ where
             SampleData::Uninitialized => true,
             SampleData::SDKKey => true,
             SampleData::SDKData(data) => {
-                s.set_serdata(&mut serdata.serdata);
+                s.set_serdata(serdata.clone());
                 s.set(data.clone());
                 false
             }
             SampleData::SHMData(data) => {
-                s.set_serdata(&mut serdata.serdata);
+                s.set_serdata(serdata.clone());
                 s.set_loaned(data.clone());
                 false
             }
@@ -963,14 +970,14 @@ where
         true
     };
 
-    // leak the sample intentionally
+    // leak the sample intentionally so it doesn't get deallocated here
     let _intentional_leak = Box::into_raw(s);
     ret
 }
 
 #[allow(dead_code)]
 unsafe extern "C" fn serdata_to_untyped<T>(serdata: *const ddsi_serdata) -> *mut ddsi_serdata {
-    println!("serdata_to_untyped {:?}", serdata);
+    //println!("serdata_to_untyped {:?}", serdata);
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
 
     //if let SampleData::<T>::SDKData(_d) = &serdata.sample {
@@ -1003,7 +1010,7 @@ unsafe extern "C" fn untyped_to_sample<T>(
 where
     T: TopicType,
 {
-    println!("untyped to sample!");
+    //println!("untyped to sample!");
     if !sample.is_null() {
         let mut sample = Box::<Sample<T>>::from_raw(sample as *mut Sample<T>);
         // hmm. We don't store serialized data in serdata. I'm not really sure how
@@ -1081,7 +1088,7 @@ unsafe extern "C" fn from_iox_buffer<T>(
     sub: *mut ::std::os::raw::c_void,
     buffer: *mut ::std::os::raw::c_void,
 ) -> *mut ddsi_serdata {
-    println!("from_iox_buffer");
+    //println!("from_iox_buffer");
 
     if sertype.is_null() {
         return std::ptr::null::<ddsi_serdata>() as *mut ddsi_serdata;
@@ -1093,7 +1100,7 @@ unsafe extern "C" fn from_iox_buffer<T>(
     if sub.is_null() {
         d.serdata.iox_chunk = buffer;
     } else {
-        println!("from_iox_buffer: take pointer {:?}from iox", buffer);
+        //println!("from_iox_buffer: take pointer {:?}from iox", buffer);
         // from iox buffer
         d.serdata.iox_chunk = buffer;
         d.serdata.iox_subscriber = sub;
@@ -1112,7 +1119,7 @@ unsafe extern "C" fn from_iox_buffer<T>(
 
 fn create_serdata_ops<T>() -> Box<ddsi_serdata_ops>
 where
-    T: DeserializeOwned + TopicType + Serialize,
+    T: DeserializeOwned + TopicType + Serialize ,
 {
     Box::new(ddsi_serdata_ops {
         eqkey: Some(eqkey::<T>),
@@ -1151,6 +1158,7 @@ unsafe extern "C" fn equal<T>(acmn: *const ddsi_sertype, bcmn: *const ddsi_serty
     acmn == bcmn
 }
 
+#[derive(Clone)]
 enum SampleData<T> {
     Uninitialized,
     SDKKey,
@@ -1164,11 +1172,6 @@ impl<T> Default for SampleData<T> {
     }
 }
 
-impl<T> Drop for SampleData<T> {
-    fn drop(&mut self) {
-        // Nothing to do here. The SHMData is wrapper with ManuallyDrop so that should take care of it.
-    }
-}
 
 #[derive(PartialEq, Clone)]
 enum KeyHash {
@@ -1202,7 +1205,7 @@ impl KeyHash {
 
 /// A representation for the serialized data.
 #[repr(C)]
-struct SerData<T> {
+pub (crate)struct SerData<T> {
     serdata: ddsi_serdata,
     sample: SampleData<T>,
     //data in CDR format. This is put into an option as we only create
@@ -1241,6 +1244,28 @@ impl<'a, T> SerData<T> {
     fn mut_ref_from_serdata(serdata: *const ddsi_serdata) -> &'a mut Self {
         let ptr = serdata as *mut SerData<T>;
         unsafe { &mut *ptr }
+    }
+}
+
+impl <T>Clone for SerData<T> {
+    fn clone(&self) -> Self {
+        Self { 
+                serdata: {
+                    let mut newdata = self.serdata.clone();
+                    unsafe {ddsi_serdata_addref(&mut newdata)};
+                    newdata
+                }, sample:  match &self.sample {
+                        SampleData::Uninitialized => SampleData::Uninitialized,
+                        SampleData::SDKKey => SampleData::SDKKey,
+                        SampleData::SDKData(d) => SampleData::SDKData(d.clone()),
+                        SampleData::SHMData(d) => SampleData::SHMData(d.clone()),
+                    }, cdr: self.cdr.clone(), key_hash: self.key_hash.clone(), serialized_size: self.serialized_size.clone() }
+    }
+} 
+
+impl <T>Drop for SerData<T> {
+    fn drop(&mut self) {
+        unsafe {ddsi_serdata_removeref(&mut self.serdata);}
     }
 }
 
