@@ -369,7 +369,7 @@ mod test {
                     assert_eq!(t,1);
                     for s in samples.iter() {
 
-                        println!("Got sample {:?}", s.get_sample().unwrap().deref());
+                        println!("Got sample {:?}", s);
                     }
                    
                 } else {

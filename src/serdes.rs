@@ -181,30 +181,27 @@ impl<T> Drop for SampleStorage<T> {
 
 
 pub struct Sample<T> {
-    serdata: Option<SerData<T>>,
+    serdata: Option<*mut ddsi_serdata>,
     sample: RwLock<Option<SampleStorage<T>>>,
 }
 
-impl<T> Sample<T>
+impl<'a,T> Sample<T>
 where
     T: TopicType
 {
-    pub fn try_deref(&self) -> Option<&T> {       
-        if let Some(serdata) = self.serdata.as_ref() {
-            if let Some(serdata) = self.serdata.as_ref() {
+    pub fn try_deref<>(&self) -> Option<&T> {       
+            if let Some(serdata) = self.serdata {
+                let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
                 match &serdata.sample {
                     SampleData::Uninitialized => None,
                     SampleData::SDKKey => None,
-                    SampleData::SDKData(it) => Some(it.deref()),
+                    SampleData::SDKData(it) => Some(it.as_ref()),
                     SampleData::SHMData(it) => unsafe { Some(it.as_ref())},
                 }
             } else {
                 None
             }
-            
-        } else {
-            None
-        }
+  
     }
 
     pub fn get_sample(&self) -> Option<SampleStorage<T>> {
@@ -236,7 +233,9 @@ where
         }
     }
 
-    pub(crate) fn set_serdata(&mut self,serdata:SerData<T>) {
+    pub(crate) fn set_serdata(&mut self,serdata:*mut ddsi_serdata) {
+        // Increment the reference count
+        unsafe {ddsi_serdata_addref(serdata);}
         self.serdata = Some(serdata)
     }
 
@@ -278,6 +277,14 @@ impl<T> Default for Sample<T> {
     }
 }
 
+impl<T> Drop for Sample<T> {
+    fn drop(&mut self) {
+        if let Some(serdata) = self.serdata {
+            unsafe {ddsi_serdata_removeref(serdata)};
+        }
+    }
+}
+
 
 
 
@@ -300,7 +307,7 @@ pub struct SampleBuffer<T> {
     pub(crate) sample_info: Vec<cyclonedds_sys::dds_sample_info>,
 }
 
-impl<'a, T> SampleBuffer<T> {
+impl<'a, T:TopicType> SampleBuffer<T> {
     pub fn new(len: usize) -> Self {
         let mut buf = Self {
             buffer: Vec::new(),
@@ -324,14 +331,11 @@ impl<'a, T> SampleBuffer<T> {
         self.buffer.len()
     }
 
-    pub fn iter(&'a self) -> impl Iterator<Item = &Sample<T>> {
+    pub fn iter(&'a self) -> impl Iterator<Item = &T> {
         let p = self.buffer.iter().filter_map(|p| {
             let sample = unsafe { &*(*p) };
-            let s = sample.sample.read().unwrap();
-            match *s {
-                Some(_) => Some(sample),
-                None => None,
-            }
+            sample.try_deref()
+            
         });
         p
     }
@@ -678,7 +682,7 @@ where
 
 #[allow(dead_code)]
 unsafe extern "C" fn free_serdata<T>(serdata: *mut ddsi_serdata) {
-    //!("free_serdata");
+    //println!("free_serdata");
     // the pointer is really a *mut SerData
     let ptr = serdata as *mut SerData<T>;
 
@@ -882,7 +886,7 @@ fn deserialize_type<T>(data:&[u8]) -> Result<Arc<T>,()>
 
 #[allow(dead_code)]
 unsafe extern "C" fn serdata_to_sample<T>(
-    serdata: *const ddsi_serdata,
+    serdata_ptr: *const ddsi_serdata,
     sample: *mut c_void,
     _bufptr: *mut *mut c_void,
     _buflim: *mut c_void,
@@ -894,7 +898,7 @@ where
     //    "serdata to sample serdata:{:?} sample:{:?} bufptr:{:?} buflim:{:?}",
     //    serdata, sample, _bufptr, _buflim
     //);
-    let mut serdata = SerData::<T>::mut_ref_from_serdata(serdata);
+    let mut serdata = SerData::<T>::mut_ref_from_serdata(serdata_ptr);
     let mut s = Box::<Sample<T>>::from_raw(sample as *mut Sample<T>);
     assert!(!sample.is_null());
 
@@ -955,14 +959,14 @@ where
         match &serdata.sample {
             SampleData::Uninitialized => true,
             SampleData::SDKKey => true,
-            SampleData::SDKData(data) => {
-                s.set_serdata(serdata.clone());
-                s.set(data.clone());
+            SampleData::SDKData(_data) => {
+                s.set_serdata(serdata_ptr as *mut ddsi_serdata);
+                //s.set(data.clone());
                 false
             }
-            SampleData::SHMData(data) => {
-                s.set_serdata(serdata.clone());
-                s.set_loaned(data.clone());
+            SampleData::SHMData(_data) => {
+                s.set_serdata(serdata_ptr as *mut ddsi_serdata);
+                //s.set_loaned(data.clone());
                 false
             }
         }
@@ -1263,11 +1267,7 @@ impl <T>Clone for SerData<T> {
     }
 } 
 
-impl <T>Drop for SerData<T> {
-    fn drop(&mut self) {
-        unsafe {ddsi_serdata_removeref(&mut self.serdata);}
-    }
-}
+
 
 /*  These functions are created from the macros in
     https://github.com/eclipse-cyclonedds/cyclonedds/blob/f879dc0ef56eb00857c0cbb66ee87c577ff527e8/src/core/ddsi/include/dds/ddsi/q_radmin.h#L108

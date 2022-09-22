@@ -242,19 +242,6 @@ where
      }
     }
 
-    // Take one sample asynchronously
-    #[deprecated]
-    pub async fn take1(&self) -> Result<Arc<T>,ReaderError> {
-        let mut sample_buffer = SampleBuffer::<T>::new(1);
-        let read = self.take(&mut sample_buffer).await;
-
-        match read {
-            Ok(1) => Ok(sample_buffer.get(0).get().unwrap()), 
-            Ok(_) => Err(ReaderError::DdsError(DDSError::NoData)),
-            Err(e) => Err(e),
-        }
-    }
-
     pub fn create_readcondition(
         &'a mut self,
         mask: StateMask,
@@ -485,8 +472,10 @@ mod test {
         let _result = rt.block_on(async {
             
             let _task = tokio::spawn(async move {
-                if let Ok(t) = reader.take1().await {
-                    assert_eq!(t,Arc::new(TestTopic::default()));
+                let mut samplebuffer = SampleBuffer::new(1);
+                if let Ok(t) = reader.take(&mut samplebuffer).await {
+                    let sample = samplebuffer.iter().take(1).next().unwrap();
+                    assert!(*sample == TestTopic::default());
                 } else {
                     panic!("reader get failed");
                 }
@@ -498,7 +487,7 @@ mod test {
                     assert_eq!(t,1);
                     for s in samples.iter() {
 
-                        println!("Got sample {}", s.get().unwrap().key);
+                        println!("Got sample {}", s.key);
                     }
                    
                 } else {
