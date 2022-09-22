@@ -347,7 +347,7 @@ impl<'a, T> Drop for SampleBuffer<T> {
     fn drop(&mut self) {
         for p in &self.buffer {
             unsafe {
-                Box::from_raw(*p);
+                let _it = Box::from_raw(*p);
             }
         }
     }
@@ -377,7 +377,7 @@ extern "C" fn realloc_samples<T>(
     old_count: size_t,
     new_count: size_t,
 ) {
-    //println!("realloc");
+    println!("realloc");
     let old = unsafe {
         Vec::<*mut Sample<T>>::from_raw_parts(
             old as *mut *mut Sample<T>,
@@ -450,7 +450,7 @@ unsafe extern "C" fn free_sertype<T>(sertype: *mut cyclonedds_sys::ddsi_sertype)
     // the Box takes over the pointer and frees it when it goes out
     // of scope.
     let sertype = sertype as *mut SerType<T>;
-    Box::<SerType<T>>::from_raw(sertype);
+    let _it = Box::<SerType<T>>::from_raw(sertype);
 }
 
 // create ddsi_serdata from a fragchain
@@ -464,7 +464,7 @@ unsafe extern "C" fn serdata_from_fragchain<T>(
 where
     T: DeserializeOwned + TopicType,
 {
-    //println!("serdata_from_fragchain");
+    println!("serdata_from_fragchain");
     let mut off: u32 = 0;
     let size = size as usize;
     let fragchain_ref = &*fragchain;
@@ -558,7 +558,7 @@ where
     T: TopicType,
 {
     let keyhash = (*keyhash).value;
-    //println!("serdata_from_keyhash");
+    println!("serdata_from_keyhash");
 
     if T::force_md5_keyhash() {
         // this means keyhas fits in 16 bytes
@@ -592,7 +592,7 @@ unsafe extern "C" fn serdata_from_sample<T>(
 where
     T: TopicType,
 {
-    //println!("Serdata from sample {:?}", sample);
+    println!("Serdata from sample {:?}", sample);
     let mut serdata = SerData::<T>::new(sertype, kind);
     let sample = sample as *const Sample<T>;
     let sample = &*sample;
@@ -628,7 +628,7 @@ where
 {
     let size = size as usize;
     let niov = niov as usize;
-    //println!("serdata_from_iov");
+    println!("serdata_from_iov");
 
     let mut serdata = SerData::<T>::new(sertype, kind);
 
@@ -681,7 +681,7 @@ unsafe extern "C" fn free_serdata<T>(serdata: *mut ddsi_serdata) {
         let iox_subscriber: *mut iox_sub_t = serdata.serdata.iox_subscriber as *mut iox_sub_t;
         let chunk = &mut serdata.serdata.iox_chunk;
         let chunk = chunk as *mut *mut c_void;
-        //println!("Free iox chunk");
+        println!("Free iox chunk");
         free_iox_chunk(iox_subscriber, chunk);
     }
 
@@ -735,7 +735,7 @@ unsafe extern "C" fn serdata_to_ser<T>(
 ) where
     T: Serialize + TopicType,
 {
-    //println!("serdata_to_ser");
+    println!("serdata_to_ser");
     let serdata = SerData::<T>::const_ref_from_serdata(serdata);
     let buf = buf as *mut u8;
     let buf = buf.add(offset as usize);
@@ -787,7 +787,7 @@ unsafe extern "C" fn serdata_to_ser_ref<T>(
 where
     T: Serialize + TopicType,
 {
-    //println!("serdata_to_ser_ref");
+    println!("serdata_to_ser_ref");
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
     let iov = &mut *iov;
 
@@ -862,10 +862,16 @@ fn serialize_type<T: Serialize>(sample: &T, maybe_size: Option<u32>) -> Result<V
 
 #[allow(dead_code)]
 unsafe extern "C" fn serdata_to_ser_unref<T>(serdata: *mut ddsi_serdata, _iov: *const iovec) {
-    //println!("serdata_to_ser_unref");
+    println!("serdata_to_ser_unref");
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
     ddsi_serdata_removeref(&mut serdata.serdata)
 }
+
+fn deserialize_type<T>(data:&[u8]) -> Result<Arc<T>,()> 
+    where
+    T: DeserializeOwned {
+        cdr::deserialize::<Box<T>>(data).map(|t| Arc::new(*t)).map_err(|_e|())
+    }
 
 #[allow(dead_code)]
 unsafe extern "C" fn serdata_to_sample<T>(
@@ -877,10 +883,10 @@ unsafe extern "C" fn serdata_to_sample<T>(
 where
     T: DeserializeOwned + TopicType,
 {
-    //println!(
-    //    "serdata to sample serdata:{:?} sample:{:?} bufptr:{:?} buflim:{:?}",
-    //    serdata, sample, _bufptr, _buflim
-    //);
+    println!(
+        "serdata to sample serdata:{:?} sample:{:?} bufptr:{:?} buflim:{:?}",
+        serdata, sample, _bufptr, _buflim
+    );
     let mut serdata = SerData::<T>::mut_ref_from_serdata(serdata);
     let mut s = Box::<Sample<T>>::from_raw(sample as *mut Sample<T>);
     assert!(!sample.is_null());
@@ -900,7 +906,7 @@ where
                 serdata.sample = SampleData::SDKKey;
                 Ok(())
             } else {
-                if let Ok(decoded) = cdr::deserialize::<T>(reader) {
+                if let Ok(decoded) = deserialize_type::<T>(reader) {
                     if T::has_key() {
                         serdata.serdata.hash = decoded.hash();
                         // compute the 16byte key hash
@@ -909,10 +915,10 @@ where
                         let key_cdr = &key_cdr[4..];
                         compute_key_hash(key_cdr, &mut serdata);
                     }
-                    let sample = std::sync::Arc::new(decoded);
+                    //let sample = std::sync::Arc::new(decoded);
                     //store the deserialized sample in the serdata. We don't need to deserialize again
-                    s.set(sample.clone());
-                    serdata.sample = SampleData::SDKData(sample);
+                    s.set(decoded.clone());
+                    serdata.sample = SampleData::SDKData(decoded);
 
                     Ok(())
                 } else {
@@ -964,7 +970,7 @@ where
 
 #[allow(dead_code)]
 unsafe extern "C" fn serdata_to_untyped<T>(serdata: *const ddsi_serdata) -> *mut ddsi_serdata {
-    //println!("serdata_to_untyped {:?}", serdata);
+    println!("serdata_to_untyped {:?}", serdata);
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
 
     //if let SampleData::<T>::SDKData(_d) = &serdata.sample {
@@ -997,7 +1003,7 @@ unsafe extern "C" fn untyped_to_sample<T>(
 where
     T: TopicType,
 {
-    //println!("untyped to sample!");
+    println!("untyped to sample!");
     if !sample.is_null() {
         let mut sample = Box::<Sample<T>>::from_raw(sample as *mut Sample<T>);
         // hmm. We don't store serialized data in serdata. I'm not really sure how
@@ -1075,7 +1081,7 @@ unsafe extern "C" fn from_iox_buffer<T>(
     sub: *mut ::std::os::raw::c_void,
     buffer: *mut ::std::os::raw::c_void,
 ) -> *mut ddsi_serdata {
-    //println!("from_iox_buffer");
+    println!("from_iox_buffer");
 
     if sertype.is_null() {
         return std::ptr::null::<ddsi_serdata>() as *mut ddsi_serdata;
@@ -1087,7 +1093,7 @@ unsafe extern "C" fn from_iox_buffer<T>(
     if sub.is_null() {
         d.serdata.iox_chunk = buffer;
     } else {
-        //println!("from_iox_buffer: take pointer {:?}from iox", buffer);
+        println!("from_iox_buffer: take pointer {:?}from iox", buffer);
         // from iox buffer
         d.serdata.iox_chunk = buffer;
         d.serdata.iox_subscriber = sub;
