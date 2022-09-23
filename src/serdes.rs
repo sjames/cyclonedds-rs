@@ -179,10 +179,12 @@ impl<T> Drop for SampleStorage<T> {
 }
 
 
-
 pub struct Sample<T> {
+    //Serdata is used for incoming samples. We hold a reference to the ddsi_serdata which contains 
+    // the sample
     serdata: Option<*mut ddsi_serdata>,
-    sample: RwLock<Option<SampleStorage<T>>>,
+    // sample is used for outgoing samples.
+    sample: Option<SampleStorage<T>>,
 }
 
 impl<'a,T> Sample<T>
@@ -205,24 +207,21 @@ where
     }
 
     pub fn get_sample(&self) -> Option<SampleStorage<T>> {
-        if let Ok(t) = self.sample.write() {
-            match t.as_ref() {
+        //if let Ok(t) = self.sample.write() {
+            match self.sample.as_ref() {
                 Some(s) => match s {
                     SampleStorage::Owned(s) => Some(SampleStorage::Owned(s.clone())),
                     SampleStorage::Loaned(s) => Some(SampleStorage::Loaned(s.clone())),
                 },
                 None => None,
             }
-        } else {
-            None
-        }
     }
 
     // Deprecated as this function can panic
     #[deprecated]
     pub (crate)fn get(&self) -> Option<Arc<T>> {
-        let t = self.sample.read().unwrap();
-        match &*t {
+        //let t = self.sample;
+        match &self.sample {
             Some(SampleStorage::Owned(t)) => Some(t.clone()),
             Some(SampleStorage::Loaned(t)) => {
                 None
@@ -240,18 +239,18 @@ where
     }
 
     pub fn set(&mut self, t: Arc<T>) {
-        let mut sample = self.sample.write().unwrap();
-        sample.replace(SampleStorage::Owned(t));
+        //let mut sample = self.sample.write().unwrap();
+        self.sample.replace(SampleStorage::Owned(t));
     }
 
     pub fn set_loaned(&mut self, t: NonNull<T>) {
-        let mut sample = self.sample.write().unwrap();
-        sample.replace(SampleStorage::Loaned(Arc::new(t)));
+        //let mut sample = self.sample.write().unwrap();
+        self.sample.replace(SampleStorage::Loaned(Arc::new(t)));
     }
 
     pub fn clear(&mut self) {
-        let mut sample = self.sample.write().unwrap();
-        let t = sample.take();
+        //let mut sample = self.sample.write().unwrap();
+        let t = self.sample.take();
 
         match &t {
             Some(SampleStorage::Owned(o)) => {}
@@ -263,7 +262,7 @@ where
     pub fn from(it: Arc<T>) -> Self {
         Self {
             serdata : None,
-            sample: RwLock::new(Some(SampleStorage::Owned(it))),
+            sample: Some(SampleStorage::Owned(it)),
         }
     }
 }
@@ -272,7 +271,7 @@ impl<T> Default for Sample<T> {
     fn default() -> Self {
         Self {
             serdata : None,
-            sample: RwLock::new(None),
+            sample: None,
         }
     }
 }
