@@ -17,6 +17,14 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build
-      run: cargo build --verbose
+      run: | 
+        cargo build --verbose
+        git clone https://github.com/eclipse-iceoryx/iceoryx.git
+        cd iceoryx
+        git checkout release_2.0
+        mkdir build
+        cd build
+        cmake ../iceoryx_meta/
+        sudo make install
     - name: Run tests
       run: cargo test --verbose
