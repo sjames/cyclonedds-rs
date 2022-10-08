@@ -22,9 +22,18 @@ jobs:
         git clone https://github.com/eclipse-iceoryx/iceoryx.git
         cd iceoryx
         git checkout release_2.0
+        pushd .
         mkdir build
         cd build
         cmake ../iceoryx_meta/
+        sudo make install
+        popd
+        git clone https://github.com/eclipse-cyclonedds/cyclonedds.git
+        cd cyclonedds
+        git checkout releases/0.10.x
+        mkdir build
+        cd build
+        cmake ..
         sudo make install
         cargo build --verbose
     - name: Run tests
