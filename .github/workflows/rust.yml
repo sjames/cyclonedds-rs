@@ -37,4 +37,6 @@ jobs:
         sudo make install
         cargo build --verbose
     - name: Run tests
-      run: cargo test --verbose
+      run: | 
+        export LD_LIBRARY_PATH=/usr/local
+        cargo test --verbose
