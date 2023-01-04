@@ -38,5 +38,5 @@ jobs:
         cargo build --verbose
     - name: Run tests
       run: | 
-        export LD_LIBRARY_PATH=/usr/local
+        export LD_LIBRARY_PATH=/usr/local/lib
         cargo test --verbose
