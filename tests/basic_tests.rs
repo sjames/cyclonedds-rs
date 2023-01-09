@@ -130,29 +130,41 @@ fn subscriber() {
         .hook();
 
     if let Ok(mut reader) = DdsReader::create(&participant, topic, Some(qos), Some(listener)) {
-        let mut buf: SampleBuffer<HelloWorldData> = SampleBuffer::new(1);
+        let mut buf: SampleBuffer<HelloWorldData> = SampleBuffer::new(8);
         let id = rx.recv().unwrap();
-        if let Ok(count) = reader.take_now(&mut buf) {
-            let mmsg = buf.get(0).get_sample();
-            println!("Received {} messages", count);
+        let mut got_value = false;
+        let mut num_loops = 0;
+        while num_loops < 10 {
+            num_loops += 1;
+            let res = reader.take_now(&mut buf);
+            match res {
+                Ok(count) => {
+                    let mmsg = buf.get(0).get_sample();
+                    println!("Received {} messages", count);
 
-            if mmsg.is_none() {
-                println!("Received message : None");
-            } else {
-                let msg = mmsg.expect("we just checked");
-                println!("Received message : {}", msg.userID);
-                assert_eq!(1, msg.userID);
-                assert_eq!(
-                    msg.message,
-                    "Hello from DDS Cyclone Rust"
-                );
+                    if mmsg.is_none() {
+                        println!("Received message: None");
+                    } else {
+                        let msg = mmsg.expect("we just checked");
+                        println!("Received message : {}", msg.userID);
+                        assert_eq!(1, msg.userID);
+                        assert_eq!(
+                            msg.message,
+                            "Hello from DDS Cyclone Rust"
+                        );
+                        got_value = true;
+                        break;
+                    }
+                },
+                Err(e) => {
+                    println!("Error reading: {:?}", e);
+                    break;
+                }
             }
-        } else {
-            println!("Error reading");
         }
-        println!("Received :{} completed", id);
         let ten_millis = std::time::Duration::from_millis(100);
         std::thread::sleep(ten_millis);
+        assert_eq!(got_value, true);
     } else {
         panic!("Unable to create reader");
     };

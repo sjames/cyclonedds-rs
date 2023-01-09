@@ -205,9 +205,9 @@ where
 
         let ret = unsafe {
             if take {
-                dds_take(entity.entity(), voidpp ,  info_ptr as *mut _, buf.len() as size_t, buf.len() as u32)
+                dds_take(entity.entity(), voidpp, info_ptr as *mut _, buf.len() as size_t, buf.len() as u32)
             } else {
-                dds_read(entity.entity(), voidpp ,  info_ptr as *mut _, buf.len() as size_t, buf.len() as u32)
+                dds_read(entity.entity(), voidpp, info_ptr as *mut _, buf.len() as size_t, buf.len() as u32)
             }
         };
         if ret > 0 {
