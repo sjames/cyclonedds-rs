@@ -170,7 +170,7 @@ impl<'a> DdsListener {
     /// register the callbacks for the closures that have been set.DdsListener
     unsafe fn register_callbacks(& self, listener: *mut dds_listener_t, callbacks: &Callbacks) {
         if callbacks.on_data_available.is_some() {
-            println!("Listener hooked for data available");
+            //println!("Listener hooked for data available");
             dds_lset_data_available(listener, Some(Self::call_data_available_closure));
         }
         if callbacks.on_sample_lost.is_some() {

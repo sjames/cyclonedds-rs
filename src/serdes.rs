@@ -1151,8 +1151,37 @@ where
 // not sure what this needs to do. The C++ implementation at
 // https://github.com/eclipse-cyclonedds/cyclonedds-cxx/blob/templated-streaming/src/ddscxx/include/org/eclipse/cyclonedds/topic/datatopic.hpp
 // just returns 0
-unsafe extern "C" fn hash<T>(_acmn: *const ddsi_sertype) -> u32 {
-    0
+// Update! : Now I understand this after debugging crashes when stress testing
+// with a large number of types being published. This hash is used as the hash
+// lookup in hopscotch.c. 
+// /*
+//  * The hopscotch hash table is dependent on a proper functioning hash.
+//  * If the hash function generates a lot of hash collisions, then it will
+//  * not be able to handle that by design.
+//  * It is capable of handling some collisions, but not more than 32 per
+//  * bucket (less, when other hash values are clustered around the
+//  * collision value).
+//  * When proper distributed hash values are generated, then hopscotch
+//  * works nice and quickly.
+//  */
+
+unsafe extern "C" fn hash<T: TopicType>(tp: *const ddsi_sertype) -> u32  
+{
+    if let Some(ser_type) = SerType::<T>::try_from_sertype(tp) {
+        let type_name =  CStr::from_ptr(ser_type.sertype.type_name);
+        let type_name_bytes = type_name.to_bytes();
+        let type_size = core::mem::size_of::<T>().to_ne_bytes();
+        
+        let mut sg_buffer = SGReader::new(vec![type_name_bytes,&type_size]);
+
+        let hash = murmur3_32(&mut sg_buffer, 0);
+        
+        let _intentional_leak = SerType::<T>::into_sertype(ser_type);
+        hash.unwrap_or(0)
+
+    } else {
+        0
+    }
 }
 
 unsafe extern "C" fn equal<T>(acmn: *const ddsi_sertype, bcmn: *const ddsi_sertype) -> bool {
