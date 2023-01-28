@@ -610,13 +610,13 @@ where
     match kind {
         #[allow(non_upper_case_globals)]
         ddsi_serdata_kind_SDK_DATA => {
-            serdata.sample = SampleData::SDKData(sample.get().unwrap());
+            let sample = sample.get().unwrap();
+            serdata.serdata.hash = sample.hash();
+            serdata.sample = SampleData::SDKData(sample);
         }
-
         ddsi_serdata_kind_SDK_KEY => {
             panic!("Don't know how to create serdata from sample for SDK_KEY");
         }
-
         _ => panic!("Unexpected kind"),
     }
 
