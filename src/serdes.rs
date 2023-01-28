@@ -503,7 +503,7 @@ where
     //let len : usize = sg_list.iter().fold(0usize, |s,e| s + e.len() );
     //println!("Fragchain: elements:{} {} bytes",sg_list.len(),len );
     // make a reader out of the sg_list
-    let reader = SGReader::new(sg_list);
+    let reader = SGReader::new(&sg_list);
     if let Ok(decoded) = cdr::deserialize_from::<_, T, _>(reader, Bounded(size as u64)) {
         if T::has_key() {
             serdata.serdata.hash = decoded.hash();
@@ -654,7 +654,7 @@ where
         .collect();
 
     // make a reader out of the sg_list
-    let reader = SGReader::new(iov_slices);
+    let reader = SGReader::new(&iov_slices);
 
     if let Ok(decoded) = cdr::deserialize_from::<_, T, _>(reader, Bounded(size as u64)) {
         if T::has_key() {
@@ -1171,8 +1171,8 @@ unsafe extern "C" fn hash<T: TopicType>(tp: *const ddsi_sertype) -> u32
         let type_name =  CStr::from_ptr(ser_type.sertype.type_name);
         let type_name_bytes = type_name.to_bytes();
         let type_size = core::mem::size_of::<T>().to_ne_bytes();
-        
-        let mut sg_buffer = SGReader::new(vec![type_name_bytes,&type_size]);
+        let sg_list = [type_name_bytes,&type_size];
+        let mut sg_buffer = SGReader::new(&sg_list);
 
         let hash = murmur3_32(&mut sg_buffer, 0);
         
@@ -1316,7 +1316,7 @@ fn nn_rmsg_payload_offset(rmsg: *const nn_rmsg, offset: usize) -> *const u8 {
 
 /// A reader for a list of scatter gather buffers
 struct SGReader<'a> {
-    sc_list: Option<Vec<&'a [u8]>>,
+    sc_list: Option<  &'a[&'a [u8]]>,
     //the current slice that is used
     slice_cursor: usize,
     //the current offset within the slice
@@ -1324,7 +1324,7 @@ struct SGReader<'a> {
 }
 
 impl<'a> SGReader<'a> {
-    pub fn new(sc_list: Vec<&'a [u8]>) -> Self {
+    pub fn new(sc_list: &'a[&'a [u8]]) -> Self {
         SGReader {
             sc_list: Some(sc_list),
             slice_cursor: 0,
@@ -1391,7 +1391,7 @@ mod test {
 
         let sc_list = vec![sla, slb, slc, sld];
 
-        let mut reader = SGReader::new(sc_list);
+        let mut reader = SGReader::new(&sc_list);
 
         let mut buf = vec![0, 0, 0, 0, 0];
         if let Ok(n) = reader.read(&mut buf) {
