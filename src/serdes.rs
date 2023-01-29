@@ -18,13 +18,13 @@
 // See discussion at https://github.com/eclipse-cyclonedds/cyclonedds/issues/830
 
 use cdr::{Bounded, CdrBe, Infinite};
-use rc_box::ArcBox;
-use serde::Deserialize;
+
+
 use serde::{de::DeserializeOwned, Serialize};
 use std::io::prelude::*;
-use std::mem::MaybeUninit;
+
 use std::ptr::NonNull;
-use std::sync::RwLock;
+
 use std::{
     ffi::{c_void, CStr},
     marker::PhantomData,
@@ -63,10 +63,9 @@ pub trait TopicType: Serialize + DeserializeOwned {
             .collect::<Vec<_>>()
             .join("::");
 
-        let typename =
-            std::ffi::CString::new(ty_name_parts).expect("Unable to create CString for type name");
+        
         //println!("Typename:{:?}", &typename);
-        typename
+        std::ffi::CString::new(ty_name_parts).expect("Unable to create CString for type name")
     }
 
     /// The default topic_name to use when creating a topic of this type. The default
@@ -169,7 +168,7 @@ impl<T> Deref for SampleStorage<T> {
 impl<T> Drop for SampleStorage<T> {
     fn drop(&mut self) {
         match self {
-            SampleStorage::Loaned(t) => {
+            SampleStorage::Loaned(_t) => {
             }
             _ => {
 
@@ -223,7 +222,7 @@ where
         //let t = self.sample;
         match &self.sample {
             Some(SampleStorage::Owned(t)) => Some(t.clone()),
-            Some(SampleStorage::Loaned(t)) => {
+            Some(SampleStorage::Loaned(_t)) => {
                 None
             }
             None => {
@@ -253,8 +252,8 @@ where
         let t = self.sample.take();
 
         match &t {
-            Some(SampleStorage::Owned(o)) => {}
-            Some(SampleStorage::Loaned(o)) => {}
+            Some(SampleStorage::Owned(_o)) => {}
+            Some(SampleStorage::Loaned(_o)) => {}
             None => {}
         }
     }
@@ -314,7 +313,7 @@ impl<'a, T:TopicType> SampleBuffer<T> {
         };
 
         for _i in 0..len {
-            let p = Box::into_raw(Box::new(Sample::<T>::default()));
+            let p = Box::into_raw(Box::default());
             buf.buffer.push(p);
         }
         buf
@@ -403,7 +402,7 @@ extern "C" fn realloc_samples<T>(
         }
 
         for _i in 0..(new_count - old_count) {
-            new.push(Box::into_raw(Box::new(Sample::<T>::default())));
+            new.push(Box::into_raw(Box::default()));
         }
     } else {
         for e in old.into_iter().take(new_count as usize) {
@@ -482,18 +481,18 @@ where
     let mut serdata = SerData::<T>::new(sertype, kind);
 
     assert_eq!(fragchain_ref.min, 0);
-    assert!(fragchain_ref.maxp1 >= off as u32);
+    assert!(fragchain_ref.maxp1 >= off);
 
     // The scatter gather list
     let mut sg_list = Vec::new();
 
     while !fragchain.is_null() {
         let fragchain_ref = &*fragchain;
-        if fragchain_ref.maxp1 > off as u32 {
+        if fragchain_ref.maxp1 > off {
             let payload =
                 nn_rmsg_payload_offset(fragchain_ref.rmsg, nn_rdata_payload_offset(fragchain));
             let src = payload.add((off - fragchain_ref.min) as usize);
-            let n_bytes = fragchain_ref.maxp1 - off as u32;
+            let n_bytes = fragchain_ref.maxp1 - off;
             sg_list.push(std::slice::from_raw_parts(src, n_bytes as usize));
             off = fragchain_ref.maxp1;
             assert!(off as usize <= size);
@@ -640,12 +639,12 @@ where
 
     let mut serdata = SerData::<T>::new(sertype, kind);
 
-    let iovs = std::slice::from_raw_parts(iov as *const cyclonedds_sys::iovec, niov as usize);
+    let iovs = std::slice::from_raw_parts(iov as *const cyclonedds_sys::iovec, niov);
 
     let iov_slices: Vec<&[u8]> = iovs
         .iter()
         .map(|iov| {
-            let iov = &*iov;
+            let iov = iov;
 
             std::slice::from_raw_parts(iov.iov_base as *const u8, iov.iov_len as usize)
         })
@@ -709,7 +708,7 @@ where
         // This function asks for the serialized size so we do this even for SHM Data
         SampleData::SDKData(sample) => {
             serdata.serialized_size =
-                Some((cdr::calc_serialized_size::<T>(&sample.deref())) as u32);
+                Some((cdr::calc_serialized_size::<T>(sample.deref())) as u32);
             *serdata.serialized_size.as_ref().unwrap()
         }
         SampleData::SHMData(_sample) => {
@@ -767,7 +766,7 @@ unsafe extern "C" fn serdata_to_ser<T>(
             if let Err(e) = cdr::serialize_into::<_, T, _, CdrBe>(
                 buf_slice,
                 serdata.deref(),
-                Bounded(size as u64),
+                Bounded(size),
             ) {
                 panic!("Unable to serialize type {:?} due to {}", T::typename(), e);
             }
@@ -777,7 +776,7 @@ unsafe extern "C" fn serdata_to_ser<T>(
             if let Err(e) = cdr::serialize_into::<_, T, _, CdrBe>(
                 buf_slice,
                 serdata.as_ref(),
-                Bounded(size as u64),
+                Bounded(size),
             ) {
                 panic!("Unable to serialize type {:?} due to {}", T::typename(), e);
             }
@@ -878,7 +877,7 @@ unsafe extern "C" fn serdata_to_ser_unref<T>(serdata: *mut ddsi_serdata, _iov: *
 fn deserialize_type<T>(data:&[u8]) -> Result<Arc<T>,()> 
     where
     T: DeserializeOwned {
-        cdr::deserialize::<Box<T>>(data).map(|t| Arc::from(t)).map_err(|_e|())
+        cdr::deserialize::<Box<T>>(data).map(Arc::from).map_err(|_e|())
     }
 
 #[allow(dead_code)]
@@ -1278,15 +1277,15 @@ impl <T>Clone for SerData<T> {
     fn clone(&self) -> Self {
         Self { 
                 serdata: {
-                    let mut newdata = self.serdata.clone();
+                    let mut newdata = self.serdata;
                     unsafe {ddsi_serdata_addref(&mut newdata)};
                     newdata
                 }, sample:  match &self.sample {
                         SampleData::Uninitialized => SampleData::Uninitialized,
                         SampleData::SDKKey => SampleData::SDKKey,
                         SampleData::SDKData(d) => SampleData::SDKData(d.clone()),
-                        SampleData::SHMData(d) => SampleData::SHMData(d.clone()),
-                    }, cdr: self.cdr.clone(), key_hash: self.key_hash.clone(), serialized_size: self.serialized_size.clone() }
+                        SampleData::SHMData(d) => SampleData::SHMData(*d),
+                    }, cdr: self.cdr.clone(), key_hash: self.key_hash.clone(), serialized_size: self.serialized_size }
     }
 } 
 

@@ -41,6 +41,7 @@ pub use cyclonedds_sys::dds_status_id_DDS_SUBSCRIPTION_MATCHED_STATUS_ID as DDS_
 pub use cyclonedds_sys::State;
 pub use cyclonedds_sys::StateMask;
 
+#[derive(Default)]
 pub struct DdsStatus(u32);
 
 impl DdsStatus {
@@ -52,19 +53,11 @@ impl DdsStatus {
 
     pub fn is_set(&self, id: dds_status_id) -> bool {
         let mask = 1 << id;
-        if mask & self.0 == 0 {
-            false
-        } else {
-            true
-        }
+        mask & self.0 != 0
     }
 }
 
-impl Default for DdsStatus {
-    fn default() -> Self {
-        DdsStatus(0)
-    }
-}
+
 
 impl From<DdsStatus> for u32 {
     fn from(status: DdsStatus) -> Self {

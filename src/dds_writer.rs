@@ -21,8 +21,8 @@ use std::ptr::NonNull;
 
 pub use cyclonedds_sys::{ DdsEntity};
 use std::marker::PhantomData;
-
 use crate::SampleBuffer;
+
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsWritable, Entity};
 use crate::serdes::{Sample, TopicType};
 

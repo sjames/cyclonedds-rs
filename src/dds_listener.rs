@@ -39,6 +39,7 @@ use std::convert::From;
 
 /// The callbacks are in a different structure that is always
 /// heap allocated.
+#[derive(Default)]
 struct Callbacks {
     // Callbacks for readers
     on_sample_lost: Option<Box<dyn FnMut(DdsEntity, dds_sample_lost_status_t) + 'static>>,
@@ -65,25 +66,7 @@ struct Callbacks {
     on_data_on_readers: Option<Box<dyn FnMut(DdsEntity) + 'static>>,
 }
 
-impl<'a> Default for Callbacks {
-    fn default() -> Self {
-        Self {
-            on_sample_lost: None,
-            on_data_available: None,
-            on_sample_rejected: None,
-            on_liveliness_changed: None,
-            on_requested_deadline_missed: None,
-            on_requested_incompatible_qos: None,
-            on_subscription_matched: None,
-            on_liveliness_lost: None,
-            on_offered_deadline_missed: None,
-            on_offered_incompatible_qos: None,
-            on_publication_matched: None,
-            on_inconsistent_topic: None,
-            on_data_on_readers: None,
-        }
-    }
-}
+
 
 unsafe impl Send for Inner {
     
@@ -104,7 +87,7 @@ impl<'a> DdsListener {
         Self { 
             inner : std::sync::Arc::new( std::sync::Mutex::new( Inner {
                 listener: None,
-            callbacks: Some(Box::new(Callbacks::default())),
+            callbacks: Some(Box::default()),
             raw_ptr: None,
             }))
         }

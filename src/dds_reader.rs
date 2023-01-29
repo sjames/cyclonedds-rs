@@ -27,7 +27,7 @@ pub use cyclonedds_sys::{DdsDomainId, DdsEntity};
 
 use std::marker::PhantomData;
 
-use crate::Sample;
+
 use crate::error::ReaderError;
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable, Entity};
 use crate::serdes::{TopicType, SampleBuffer};
@@ -357,7 +357,7 @@ impl <'a,T>Future for SampleArrayFuture<'a,T> where T: TopicType {
         }
         
 
-        match DdsReader::<T>::readn_from_entity_now(&entity, &mut self.buffer, is_take) {
+        match DdsReader::<T>::readn_from_entity_now(&entity, self.buffer, is_take) {
             Ok(len) =>  Poll::Ready(Ok(len)),
             Err(DDSError::NoData) | Err(DDSError::OutOfResources) => {
                 let _ = waker.0.replace(ctx.waker().clone()); 
