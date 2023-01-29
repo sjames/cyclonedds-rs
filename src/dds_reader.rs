@@ -28,6 +28,7 @@ pub use cyclonedds_sys::{DdsDomainId, DdsEntity};
 use std::marker::PhantomData;
 
 
+use crate::dds_listener::DdsListenerBuilder;
 use crate::error::ReaderError;
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable, Entity};
 use crate::serdes::{TopicType, SampleBuffer};
@@ -158,7 +159,7 @@ where
         let waker_cb = waker.clone();
         let requested_deadline_waker = waker.clone();
         
-        let listener = DdsListener::new()
+        let listener = DdsListenerBuilder::new()
             .on_data_available(move|_entity| {
                 //println!("Data available ");
                 let mut maybe_waker = waker_cb.lock().unwrap();
@@ -174,7 +175,7 @@ where
                     waker.wake();
                 }
             })
-            .hook();
+            .build();
 
         match Self::create_sync_or_async(entity, topic, maybe_qos, Some(listener),ReaderType::Async(waker) ) {
             Ok(reader) => {
