@@ -46,10 +46,10 @@ pub struct SerType<T> {
 pub trait TopicType: Serialize + DeserializeOwned {
     // generate a non-cryptographic hash of the key values to be used internally
     // in cyclonedds
-    fn hash(&self) -> u32 {
+    fn hash(&self, basehash : u32) -> u32 {
         let cdr = self.key_cdr();
         let mut cursor = Cursor::new(cdr.as_slice());
-        murmur3_32(&mut cursor, 0).unwrap()
+        murmur3_32(&mut cursor, 0).unwrap() ^ basehash
     }
 
     fn is_fixed_size() -> bool {
@@ -500,19 +500,17 @@ where
         }
         fragchain = fragchain_ref.nextfrag;
     }
-    //let len : usize = sg_list.iter().fold(0usize, |s,e| s + e.len() );
-    //println!("Fragchain: elements:{} {} bytes",sg_list.len(),len );
     // make a reader out of the sg_list
     let reader = SGReader::new(&sg_list);
     if let Ok(decoded) = cdr::deserialize_from::<_, T, _>(reader, Bounded(size as u64)) {
         if T::has_key() {
-            serdata.serdata.hash = decoded.hash();
             // compute the 16byte key hash
             let key_cdr = decoded.key_cdr();
             // skip the four byte header
             let key_cdr = &key_cdr[4..];
             compute_key_hash(key_cdr, &mut serdata);
         }
+        serdata.serdata.hash = decoded.hash((*sertype).serdata_basehash);
         let sample = std::sync::Arc::new(decoded);
         //store the deserialized sample in the serdata. We don't need to deserialize again
         serdata.sample = SampleData::SDKData(sample);
@@ -611,7 +609,7 @@ where
         #[allow(non_upper_case_globals)]
         ddsi_serdata_kind_SDK_DATA => {
             let sample = sample.get().unwrap();
-            serdata.serdata.hash = sample.hash();
+            serdata.serdata.hash = sample.hash((*sertype).serdata_basehash);
             serdata.sample = SampleData::SDKData(sample);
         }
         ddsi_serdata_kind_SDK_KEY => {
@@ -658,13 +656,13 @@ where
 
     if let Ok(decoded) = cdr::deserialize_from::<_, T, _>(reader, Bounded(size as u64)) {
         if T::has_key() {
-            serdata.serdata.hash = decoded.hash();
             // compute the 16byte key hash
             let key_cdr = decoded.key_cdr();
             // skip the four byte header
             let key_cdr = &key_cdr[4..];
             compute_key_hash(key_cdr, &mut serdata);
         }
+        serdata.serdata.hash = decoded.hash((*sertype).serdata_basehash);
         let sample = std::sync::Arc::new(decoded);
         //store the deserialized sample in the serdata. We don't need to deserialize again
         serdata.sample = SampleData::SDKData(sample);
@@ -912,29 +910,26 @@ where
                 (*hdr).data_size as usize,
             );
             if serdata.serdata.kind == ddsi_serdata_kind_SDK_KEY {
-                compute_key_hash(reader, &mut serdata);
+                compute_key_hash(reader, serdata);
                 serdata.sample = SampleData::SDKKey;
                 Ok(())
-            } else {
-                if let Ok(decoded) = deserialize_type::<T>(reader) {
-                    if T::has_key() {
-                        serdata.serdata.hash = decoded.hash();
-                        // compute the 16byte key hash
-                        let key_cdr = decoded.key_cdr();
-                        // skip the four byte header
-                        let key_cdr = &key_cdr[4..];
-                        compute_key_hash(key_cdr, &mut serdata);
-                    }
-                    //let sample = std::sync::Arc::new(decoded);
-                    //store the deserialized sample in the serdata. We don't need to deserialize again
-                    s.set(decoded.clone());
-                    serdata.sample = SampleData::SDKData(decoded);
-
-                    Ok(())
-                } else {
-                    println!("Deserialization error!");
-                    Err(())
+            } else if let Ok(decoded) = deserialize_type::<T>(reader) {
+                if T::has_key() {
+                    // compute the 16byte key hash
+                    let key_cdr = decoded.key_cdr();
+                    // skip the four byte header
+                    let key_cdr = &key_cdr[4..];
+                    compute_key_hash(key_cdr, serdata);
                 }
+                //let sample = std::sync::Arc::new(decoded);
+                //store the deserialized sample in the serdata. We don't need to deserialize again
+                s.set(decoded.clone());
+                serdata.sample = SampleData::SDKData(decoded);
+
+                Ok(())
+            } else {
+                println!("Deserialization error!");
+                Err(())
             }
         } else {
             // Not serialized data, we make a sample out of the data and store it in our sample
