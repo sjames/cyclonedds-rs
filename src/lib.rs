@@ -38,7 +38,7 @@ pub mod topic_type_methods;
 
 pub use common::{DdsReadable, DdsWritable, Entity};
 pub use dds_api::*;
-pub use dds_listener::DdsListener;
+pub use dds_listener::{DdsListener,DdsListenerBuilder};
 pub use dds_participant::{DdsParticipant, ParticipantBuilder};
 pub use dds_publisher::{DdsPublisher,PublisherBuilder};
 pub use dds_qos::*;
