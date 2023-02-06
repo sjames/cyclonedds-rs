@@ -25,3 +25,8 @@ cyclone serialization/deserialization interface for high performance and IDL fre
 
 1. https://github.com/sjames/demo-vehicle-speed-subscriber  (Vehicle speed subscriber with async reader)
 2. https://github.com/sjames/demo-vehicle-speed-publisher (Vehicle speed publisher)
+
+# Special Instructions
+
+The current release only supports the 0.10.X release branch. https://github.com/eclipse-cyclonedds/cyclonedds/tree/releases/0.10.x .
+Install this before building this crate or the examples.
