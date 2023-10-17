@@ -30,3 +30,12 @@ cyclone serialization/deserialization interface for high performance and IDL fre
 
 The current release only supports the 0.10.X release branch. https://github.com/eclipse-cyclonedds/cyclonedds/tree/releases/0.10.x .
 Install this before building this crate or the examples.
+
+# Dependencies
+
+* iceoryx https://github.com/eclipse-iceoryx/iceoryx version 2.0.2. (https://github.com/eclipse-iceoryx/iceoryx/commit/f756b7c99ddf714d05929374492b34c5c69355bb) Do not install any other version.
+* git
+* libclang
+* cmake
+* make
+* a C/C++ compiler for cmake to use
