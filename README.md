@@ -34,6 +34,7 @@ Install this before building this crate or the examples.
 # Dependencies
 
 * iceoryx https://github.com/eclipse-iceoryx/iceoryx version 2.0.2. (https://github.com/eclipse-iceoryx/iceoryx/commit/f756b7c99ddf714d05929374492b34c5c69355bb) Do not install any other version.
+* cyclonedds 0.10.x branch (https://github.com/eclipse-cyclonedds/cyclonedds/commit/1be07de395e4ddf969db2b90328cdf4fb73e9a64)
 * git
 * libclang
 * cmake
