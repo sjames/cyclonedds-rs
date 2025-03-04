@@ -177,7 +177,7 @@ impl<T> Drop for SampleStorage<T> {
     }
 }
 
-
+// TODO: THIS ISN'T SUITABLE FOR PASSING AS A SAMPLE POLINTER TO dds_take I reckon!
 pub struct Sample<T> {
     //Serdata is used for incoming samples. We hold a reference to the ddsi_serdata which contains 
     // the sample

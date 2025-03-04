@@ -1,29 +1,30 @@
-/*
-use cyclonedds_rs::{
-    self, dds_api, dds_topic::DdsTopic, DdsListener, DdsQos, DdsReader, DdsStatus, DdsWriter,
-    Entity,
-};
+use cdds_derive::Topic;
+use cyclonedds_rs::serdes::SampleStorage;
+use cyclonedds_rs::*;
 
-use helloworld_data;
+use serde_derive::{Deserialize, Serialize};
 
-use std::ffi::{CStr, CString};
+#[repr(C)]
+#[derive(PartialEq, Debug, Serialize, Deserialize, Topic, Clone)]
+pub struct HelloWorldData {
+    pub userID: i64,
+    // pub message: String,
+}
 
 use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::Arc;
 
 /// Simple hello world test. Sending and receiving one message
 #[test]
 fn hello_world_idl_test() {
     let receiver = std::thread::spawn(|| subscriber());
 
-    let message_string = CString::new("Hello from DDS Cyclone Rust")
-        .expect("Unable to create CString")
-        .into_raw();
+    let message_string = "Hello from DDS Cyclone Rust";
 
     let participant = cyclonedds_rs::DdsParticipant::create(None, None, None).unwrap();
 
     // The topic is typed by the generated types in the IDL crate.
-    let topic: DdsTopic<helloworld_data::HelloWorldData::Msg> =
+    let topic: DdsTopic<HelloWorldData> =
         DdsTopic::create(&participant, "HelloWorldData_Msg", None, None)
             .expect("Unable to create topic");
 
@@ -34,7 +35,7 @@ fn hello_world_idl_test() {
     );
     qos.set_resource_limits(10, 1, 10);
 
-    let mut writer = DdsWriter::create(&participant, &topic, Some(&qos), None).unwrap();
+    let mut writer = DdsWriter::create(&participant, topic, Some(qos), None).unwrap();
 
     let mut count = 0;
 
@@ -62,12 +63,12 @@ fn hello_world_idl_test() {
         panic!("Unable to set status mask");
     }
 
-    let msg = helloworld_data::HelloWorldData::Msg {
+    let msg = HelloWorldData {
         userID: 1,
-        message: message_string,
+        // message: message_string.to_string(),
     };
     println!("Writing: {}", msg.userID);
-    writer.write(&msg).unwrap();
+    writer.write(Arc::new(msg)).unwrap();
 
     receiver.join().unwrap();
 }
@@ -75,11 +76,11 @@ fn hello_world_idl_test() {
 fn subscriber() {
     let participant = cyclonedds_rs::DdsParticipant::create(None, None, None).unwrap();
     // The topic is typed by the generated types in the IDL crate.
-    let topic: DdsTopic<helloworld_data::HelloWorldData::Msg> =
+    let topic: DdsTopic<HelloWorldData> =
         DdsTopic::create(&participant, "HelloWorldData_Msg", None, None)
             .expect("Unable to create topic");
 
-    let (tx, rx): (Sender<i32>, Receiver<i32>) = mpsc::channel();
+    let (tx, rx) = mpsc::channel::<Option<SampleStorage<HelloWorldData>>>();
 
     let mut qos = DdsQos::create().unwrap();
     qos.set_history(
@@ -93,58 +94,32 @@ fn subscriber() {
         })
         .on_data_available(move |entity| {
             println!("Data on reader");
-            tx.send(0).unwrap();
-            // you could call read here, but then you need to use the unsafe read function exported
-            // by cyclonedds-sys.
-            /*
-            // cyclonedds_sys::read is unsafe.
-            unsafe {
-                if let Ok(msg) =
-                    cyclonedds_sys::read::<helloworld_data::HelloWorldData::Msg>(&entity)
-                {
-                    let msg = msg.as_slice();
-                    println!("Received {} messages", msg.len());
-
-                    println!("Received message : {}", msg[0].userID);
-                    assert_eq!(1, msg[0].userID);
-                    assert_eq!(
-                        CStr::from_ptr(msg[0].message),
-                        CStr::from_bytes_with_nul("Hello from DDS Cyclone Rust\0".as_bytes())
-                            .unwrap()
-                    );
-                    tx.send(0).unwrap();
-                } else {
-                    println!("Error reading");
+            let mut buf: SampleBuffer<HelloWorldData> = SampleBuffer::new(1);
+            let res = DdsReader::readn_from_entity_now(&entity, &mut buf, true);
+            match res {
+                Ok(count) => {
+                    let mmsg = buf.get(0).get_sample();
+                    println!("Received {} messages", count);
+                    tx.send(mmsg).unwrap();
+                }
+                Err(e) => {
+                    println!("Error reading: {:?}", e);
                 }
             }
-            */
         })
         .hook();
 
-    if let Ok(mut reader) = DdsReader::create(&participant, &topic, Some(&qos), None) {
-        reader
-            .set_listener(listener)
-            .expect("Unable to set listener");
+    let _reader = DdsReader::create(&participant, topic, Some(qos), Some(listener)).unwrap();
 
-        let id = rx.recv().unwrap();
-        if let Ok(msg) = reader.take() {
-            let msg = msg.as_slice();
-            println!("Received {} messages", msg.len());
+    let value = rx.recv().unwrap();
 
-            println!("Received message : {}", msg[0].userID);
-            assert_eq!(1, msg[0].userID);
-            assert_eq!(
-                unsafe { CStr::from_ptr(msg[0].message) },
-                CStr::from_bytes_with_nul("Hello from DDS Cyclone Rust\0".as_bytes()).unwrap()
-            );
-        } else {
-            println!("Error reading");
-        }
-        println!("Received :{} completed", id);
-        let ten_millis = std::time::Duration::from_millis(100);
-        std::thread::sleep(ten_millis);
-    } else {
-        panic!("Unable to create reader");
-    };
+    assert!(value.is_some());
+
+    if let Some(msg) = value {
+        assert_eq!(msg.userID, 1);
+        // assert_eq!(
+        //     msg.message,
+        //     "Hello from DDS Cyclone Rust"
+        // );
+    }
 }
-*/
