@@ -191,9 +191,13 @@ pub const DDS_BUILTIN_TOPIC_PARTICIPANT_PROPERTY_HOSTNAME: &[u8; 11] = b"__Hostn
 pub const DDS_BUILTIN_TOPIC_PARTICIPANT_PROPERTY_NETWORKADDRESSES: &[u8; 19] =
     b"__NetworkAddresses\0";
 pub const DDS_BUILTIN_TOPIC_PARTICIPANT_DEBUG_MONITOR: &[u8; 15] = b"__DebugMonitor\0";
+#[doc = " @brief Handle to an entity\n @ingroup entity\n\n A valid entity handle will always have a positive integer value.\n Should the value be negative, it is one of the DDS_RETCODE_*\n error codes."]
 pub type dds_entity_t = i32;
+#[doc = " Absolute Time definition"]
 pub type dds_time_t = i64;
+#[doc = " Relative Time definition in nanoseconds"]
 pub type dds_duration_t = i64;
+#[doc = " @}"]
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct ddsrt_mtime_t {
@@ -217,90 +221,159 @@ const _: () = {
     ["Offset of field: ddsrt_wctime_t::v"][::std::mem::offset_of!(ddsrt_wctime_t, v) - 0usize];
 };
 pub type dds_return_t = i32;
+#[doc = "< free full sample"]
 pub const DDS_FREE_ALL: dds_free_op_t = 7;
+#[doc = "< free all sample contents, but leave sample pointer intact"]
 pub const DDS_FREE_CONTENTS: dds_free_op_t = 3;
+#[doc = "< free only the keyfields in a sample"]
 pub const DDS_FREE_KEY: dds_free_op_t = 1;
+#[doc = " @brief Freeing operation type\n @ingroup alloc\n What part of a sample to free"]
 pub type dds_free_op_t = ::std::os::raw::c_uint;
 unsafe extern "C" {
+    #[doc = " @brief Perform an alloc() with the default allocator.\n\n @param[in] size number of bytes\n @returns new pointer or NULL if out of memory"]
     pub fn dds_alloc(size: usize) -> *mut ::std::os::raw::c_void;
 }
 unsafe extern "C" {
+    #[doc = " @brief Perform a realloc() with the default allocator.\n\n @param[in] ptr previously alloc()'ed pointer\n @param[in] size new size\n @return new pointer or NULL if out of memory"]
     pub fn dds_realloc(
         ptr: *mut ::std::os::raw::c_void,
         size: usize,
     ) -> *mut ::std::os::raw::c_void;
 }
 unsafe extern "C" {
+    #[doc = " @brief Perform a realloc() with the default allocator. Zero out memory.\n\n @param[in] ptr previously alloc()'ed pointer\n @param[in] size new size\n @return new pointer or NULL if out of memory"]
     pub fn dds_realloc_zero(
         ptr: *mut ::std::os::raw::c_void,
         size: usize,
     ) -> *mut ::std::os::raw::c_void;
 }
 unsafe extern "C" {
+    #[doc = " @brief Perform a free() on a memory fragment allocated with the default allocator.\n\n @param[in] ptr previously alloc()'ed pointer"]
     pub fn dds_free(ptr: *mut ::std::os::raw::c_void);
 }
+#[doc = " return from subroutine, exits top-level\n[RTS,   0,   0, 0]"]
 pub const DDS_OP_RTS: dds_stream_opcode = 0;
+#[doc = " data field\n[ADR, nBY,   0, f] [offset]\n[ADR, BLN,   0, f] [offset]\n[ADR, ENU,   0, f] [offset] [max]\n[ADR, BMK,   0, f] [offset] [bits-high] [bits-low]\n[ADR, STR,   0, f] [offset]\n[ADR, BST,   0, f] [offset] [max-size]\n\n[ADR, SEQ, nBY, f] [offset]\n[ADR, SEQ, BLN, f] [offset]\n[ADR, SEQ, ENU, f] [offset] [max]\n[ADR, SEQ, BMK, f] [offset] [bits-high] [bits-low]\n[ADR, SEQ, STR, f] [offset]\n[ADR, SEQ, BST, f] [offset] [max-size]\n[ADR, SEQ,   s, f] [offset] [elem-size] [next-insn, elem-insn]\nwhere s = {SEQ,ARR,UNI,STU,BSQ}\n[ADR, SEQ, EXT, f] *** not supported\n\n[ADR, BSQ, nBY, f] [offset] [sbound]\n[ADR, BSQ, BLN, f] [offset] [sbound]\n[ADR, BSQ, ENU, f] [offset] [sbound] [max]\n[ADR, BSQ, BMK, f] [offset] [sbound] [bits-high] [bits-low]\n[ADR, BSQ, STR, f] [offset] [sbound]\n[ADR, BSQ, BST, f] [offset] [sbound] [max-size]\n[ADR, BSQ,   s, f] [offset] [sbound] [elem-size] [next-insn, elem-insn]\nwhere s = {SEQ,ARR,UNI,STU,BSQ}\n[ADR, BSQ, EXT, f] *** not supported\n\n[ADR, ARR, nBY, f] [offset] [alen]\n[ADR, ARR, BLN, f] [offset] [alen]\n[ADR, ARR, ENU, f] [offset] [alen] [max]\n[ADR, ARR, BMK, f] [offset] [alen] [bits-high] [bits-low]\n[ADR, ARR, STR, f] [offset] [alen]\n[ADR, ARR, BST, f] [offset] [alen] [0] [max-size]\n[ADR, ARR,   s, f] [offset] [alen] [next-insn, elem-insn] [elem-size]\nwhere s = {SEQ,ARR,UNI,STU,BSQ}\n[ADR, ARR, EXT, f] *** not supported\n\n[ADR, UNI,   d, z] [offset] [alen] [next-insn, cases]\n[ADR, UNI, ENU, z] [offset] [alen] [next-insn, cases] [max]\n[ADR, UNI, EXT, f] *** not supported\nwhere\nd = discriminant type of {1BY,2BY,4BY,BLN}\nz = default present/not present (DDS_OP_FLAG_DEF)\noffset = discriminant offset\nmax = max enum value\nfollowed by alen case labels: in JEQ format\n\n[ADR, e | EXT,   0, f] [offset] [next-insn, elem-insn] [elem-size iff \"external\" flag e is set, or flag f has DDS_OP_FLAG_OPT]\n[ADR, STU,   0, f] *** not supported\nwhere\ns            = subtype\ne            = external: stored as external data (pointer) (DDS_OP_FLAG_EXT)\nf            = flags:\n- key/not key (DDS_OP_FLAG_KEY)\n- base type member, used with EXT type (DDS_OP_FLAG_BASE)\n- optional (DDS_OP_FLAG_OPT)\n- must-understand (DDS_OP_FLAG_MU)\n- storage size, only for ENU and BMK (n << DDS_OP_FLAG_SZ_SHIFT)\n[offset]     = field offset from start of element in memory\n[elem-size]  = element size in memory (elem-size is only included in case 'external' flag is set)\n[max-size]   = string bound + 1\n[max]        = max enum value\n[bits-..]    = identified bits in the bitmask, split into high and low 32 bits\n[alen]       = array length, number of cases\n[sbound]     = bounded sequence maximum number of elements\n[next-insn]  = (unsigned 16 bits) offset to instruction for next field, from start of insn\n[elem-insn]  = (unsigned 16 bits) offset to first instruction for element, from start of insn\n[cases]      = (unsigned 16 bits) offset to first case label, from start of insn"]
 pub const DDS_OP_ADR: dds_stream_opcode = 16777216;
+#[doc = " jump-to-subroutine (e.g. used for recursive types and appendable unions)\n[JSR,   0, e]\nwhere\ne = (signed 16 bits) offset to first instruction in subroutine, from start of insn\ninstruction sequence must end in RTS, execution resumes at instruction\nfollowing JSR"]
 pub const DDS_OP_JSR: dds_stream_opcode = 33554432;
+#[doc = " jump-if-equal, used for union cases:\n[JEQ, nBY, 0] [disc] [offset]\n[JEQ, BLN, 0] [disc] [offset]\n[JEQ, STR, 0] [disc] [offset]\n[JEQ, s,   i] [disc] [offset]\n[JEQ4, e | nBY, 0] [disc] [offset] 0\n[JEQ4, e | STR, 0] [disc] [offset] 0\n[JEQ4, e | ENU, f] [disc] [offset] [max]\n[JEQ4, EXT, 0] *** not supported, use STU/UNI for external defined types\n[JEQ4, e | s, i] [disc] [offset] [elem-size iff \"external\" flag e is set, else 0]\nwhere\ne  = external: stored as external data (pointer) (DDS_OP_FLAG_EXT)\ns  = subtype other than {nBY,STR} for JEQ and {nBY,STR,ENU,EXT} for JEQ4\n(note that BMK cannot be inline, because it needs 2 additional instructions\nfor the bits that are identified in the bitmask type)\ni  = (unsigned 16 bits) offset to first instruction for case, from start of insn\ninstruction sequence must end in RTS, at which point executes continues\nat the next field's instruction as specified by the union\nf  = size flags for ENU instruction\n\nNote that the JEQ instruction is deprecated and replaced by the JEQ4 instruction. The\nIDL compiler only generates JEQ4 for union cases, the JEQ instruction is included here\nfor backwards compatibility (topic descriptors generated with a previous version of IDLC)"]
 pub const DDS_OP_JEQ: dds_stream_opcode = 50331648;
+#[doc = " XCDR2 delimited CDR (inserts DHEADER before type)\n[DLC, 0, 0]"]
 pub const DDS_OP_DLC: dds_stream_opcode = 67108864;
+#[doc = " XCDR2 parameter list CDR (inserts DHEADER before type and EMHEADER before each member)\n[PLC, 0, 0]\nfollowed by a list of JEQ instructions"]
 pub const DDS_OP_PLC: dds_stream_opcode = 83886080;
+#[doc = "[PLM,   f, elem-insn] [member id]\nfor members of aggregated mutable types (pl-cdr):\nwhere\nf           = flags:\n- jump to base type (DDS_OP_FLAG_BASE)\n[elem-insn] = (unsigned 16 bits) offset to instruction for element, from start of insn\nwhen FLAG_BASE is set, this is the offset of the PLM list of the base type\n[member id] = id for this member (0 in case FLAG_BASE is set)"]
 pub const DDS_OP_PLM: dds_stream_opcode = 100663296;
+#[doc = " Key offset list\n[KOF, 0, n] [offset-1] ... [offset-n]\nwhere\nn      = number of key offsets in following ops\noffset = Offset of the key field relative to the previous offset, repeated n times when key is\nin a nested struct. In case of inheritance of mutable structs, a single offset of\nthe key member relative to the first op of the top-level type (index 0)."]
 pub const DDS_OP_KOF: dds_stream_opcode = 117440512;
+#[doc = " see comment for JEQ/JEQ4 above"]
 pub const DDS_OP_JEQ4: dds_stream_opcode = 134217728;
+#[doc = " @ingroup serialization\n @brief Topic encoding instruction types"]
 pub type dds_stream_opcode = ::std::os::raw::c_uint;
+#[doc = "< one byte simple type (char, octet)"]
 pub const DDS_OP_VAL_1BY: dds_stream_typecode = 1;
+#[doc = "< two byte simple type ((unsigned) short)"]
 pub const DDS_OP_VAL_2BY: dds_stream_typecode = 2;
+#[doc = "< four byte simple type ((unsigned) long, float)"]
 pub const DDS_OP_VAL_4BY: dds_stream_typecode = 3;
+#[doc = "< eight byte simple type ((unsigned) long long, double)"]
 pub const DDS_OP_VAL_8BY: dds_stream_typecode = 4;
+#[doc = "< string"]
 pub const DDS_OP_VAL_STR: dds_stream_typecode = 5;
+#[doc = "< bounded string"]
 pub const DDS_OP_VAL_BST: dds_stream_typecode = 6;
+#[doc = "< sequence"]
 pub const DDS_OP_VAL_SEQ: dds_stream_typecode = 7;
+#[doc = "< array"]
 pub const DDS_OP_VAL_ARR: dds_stream_typecode = 8;
+#[doc = "< union"]
 pub const DDS_OP_VAL_UNI: dds_stream_typecode = 9;
+#[doc = "< struct"]
 pub const DDS_OP_VAL_STU: dds_stream_typecode = 10;
+#[doc = "< bounded sequence"]
 pub const DDS_OP_VAL_BSQ: dds_stream_typecode = 11;
+#[doc = "< enumerated value (long)"]
 pub const DDS_OP_VAL_ENU: dds_stream_typecode = 12;
+#[doc = "< field with external definition"]
 pub const DDS_OP_VAL_EXT: dds_stream_typecode = 13;
+#[doc = "< boolean"]
 pub const DDS_OP_VAL_BLN: dds_stream_typecode = 14;
+#[doc = "< bitmask"]
 pub const DDS_OP_VAL_BMK: dds_stream_typecode = 15;
+#[doc = " @ingroup serialization\n @brief datatypes as recognized by serialization VM."]
 pub type dds_stream_typecode = ::std::os::raw::c_uint;
+#[doc = "< one byte simple type (char, octet)"]
 pub const DDS_OP_TYPE_1BY: dds_stream_typecode_primary = 65536;
+#[doc = "< two byte simple type ((unsigned) short)"]
 pub const DDS_OP_TYPE_2BY: dds_stream_typecode_primary = 131072;
+#[doc = "< four byte simple type ((unsigned) long, float)"]
 pub const DDS_OP_TYPE_4BY: dds_stream_typecode_primary = 196608;
+#[doc = "< eight byte simple type ((unsigned) long long, double)"]
 pub const DDS_OP_TYPE_8BY: dds_stream_typecode_primary = 262144;
+#[doc = "< string"]
 pub const DDS_OP_TYPE_STR: dds_stream_typecode_primary = 327680;
+#[doc = "< bounded string"]
 pub const DDS_OP_TYPE_BST: dds_stream_typecode_primary = 393216;
+#[doc = "< sequence"]
 pub const DDS_OP_TYPE_SEQ: dds_stream_typecode_primary = 458752;
+#[doc = "< array"]
 pub const DDS_OP_TYPE_ARR: dds_stream_typecode_primary = 524288;
+#[doc = "< union"]
 pub const DDS_OP_TYPE_UNI: dds_stream_typecode_primary = 589824;
+#[doc = "< struct"]
 pub const DDS_OP_TYPE_STU: dds_stream_typecode_primary = 655360;
+#[doc = "< bounded sequence"]
 pub const DDS_OP_TYPE_BSQ: dds_stream_typecode_primary = 720896;
+#[doc = "< enumerated value (long)"]
 pub const DDS_OP_TYPE_ENU: dds_stream_typecode_primary = 786432;
+#[doc = "< field with external definition"]
 pub const DDS_OP_TYPE_EXT: dds_stream_typecode_primary = 851968;
+#[doc = "< boolean"]
 pub const DDS_OP_TYPE_BLN: dds_stream_typecode_primary = 917504;
+#[doc = "< bitmask"]
 pub const DDS_OP_TYPE_BMK: dds_stream_typecode_primary = 983040;
+#[doc = " @ingroup serialization\n @brief primary type code for DDS_OP_ADR, DDS_OP_JEQ\n Convinience pre-bitshifted values."]
 pub type dds_stream_typecode_primary = ::std::os::raw::c_uint;
+#[doc = "< one byte simple type (char, octet)"]
 pub const DDS_OP_SUBTYPE_1BY: dds_stream_typecode_subtype = 256;
+#[doc = "< two byte simple type ((unsigned) short)"]
 pub const DDS_OP_SUBTYPE_2BY: dds_stream_typecode_subtype = 512;
+#[doc = "< four byte simple type ((unsigned) long, float)"]
 pub const DDS_OP_SUBTYPE_4BY: dds_stream_typecode_subtype = 768;
+#[doc = "< eight byte simple type ((unsigned) long long, double)"]
 pub const DDS_OP_SUBTYPE_8BY: dds_stream_typecode_subtype = 1024;
+#[doc = "< string"]
 pub const DDS_OP_SUBTYPE_STR: dds_stream_typecode_subtype = 1280;
+#[doc = "< bounded string"]
 pub const DDS_OP_SUBTYPE_BST: dds_stream_typecode_subtype = 1536;
+#[doc = "< sequence"]
 pub const DDS_OP_SUBTYPE_SEQ: dds_stream_typecode_subtype = 1792;
+#[doc = "< array"]
 pub const DDS_OP_SUBTYPE_ARR: dds_stream_typecode_subtype = 2048;
+#[doc = "< union"]
 pub const DDS_OP_SUBTYPE_UNI: dds_stream_typecode_subtype = 2304;
+#[doc = "< struct"]
 pub const DDS_OP_SUBTYPE_STU: dds_stream_typecode_subtype = 2560;
+#[doc = "< bounded sequence"]
 pub const DDS_OP_SUBTYPE_BSQ: dds_stream_typecode_subtype = 2816;
+#[doc = "< enumerated value (long)"]
 pub const DDS_OP_SUBTYPE_ENU: dds_stream_typecode_subtype = 3072;
+#[doc = "< boolean"]
 pub const DDS_OP_SUBTYPE_BLN: dds_stream_typecode_subtype = 3584;
+#[doc = "< bitmask"]
 pub const DDS_OP_SUBTYPE_BMK: dds_stream_typecode_subtype = 3840;
+#[doc = " @ingroup serialization\n @brief sub-type code\n  - encodes element type for DDS_OP_TYPE_{SEQ,ARR},\n  - discriminant type for DDS_OP_TYPE_UNI\n Convinience pre-bitshifted values."]
 pub type dds_stream_typecode_subtype = ::std::os::raw::c_uint;
+#[doc = " @ingroup implementation\n @brief Key Descriptor\n Used to describe a named key field in a type with the offset from the start of a struct."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct dds_key_descriptor {
+    #[doc = "< name of keyfield"]
     pub m_name: *const ::std::os::raw::c_char,
+    #[doc = "< offset from pointer"]
     pub m_offset: u32,
+    #[doc = "< m_idx'th key of type"]
     pub m_idx: u32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -323,11 +396,15 @@ impl Default for dds_key_descriptor {
         }
     }
 }
+#[doc = " @ingroup implementation\n @brief Key Descriptor\n Used to describe a named key field in a type with the offset from the start of a struct."]
 pub type dds_key_descriptor_t = dds_key_descriptor;
+#[doc = " @ingroup topic_definition\n @brief Simple sized byte container to hold serialized type info\n Holds XTypes information (TypeInformation, TypeMapping) for a\n type"]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct dds_type_meta_ser {
+    #[doc = "< data pointer"]
     pub data: *mut ::std::os::raw::c_uchar,
+    #[doc = "< data size"]
     pub sz: u32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -348,20 +425,33 @@ impl Default for dds_type_meta_ser {
         }
     }
 }
+#[doc = " @brief Topic Descriptor\n @ingroup topic_definition\n @warning Unstable/Private API\n Contains all meta information about a type, usually produced by the IDL compiler\n Since this type is not intended for public consumption it can change without warning."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct dds_topic_descriptor {
+    #[doc = "< Size of topic type"]
     pub m_size: u32,
+    #[doc = "< Alignment of topic type"]
     pub m_align: u32,
+    #[doc = "< Flags"]
     pub m_flagset: u32,
+    #[doc = "< Number of keys (can be 0)"]
     pub m_nkeys: u32,
+    #[doc = "< Type name"]
     pub m_typename: *const ::std::os::raw::c_char,
+    #[doc = "< Key descriptors (NULL iff m_nkeys 0)"]
     pub m_keys: *const dds_key_descriptor_t,
+    #[doc = "< Number of ops in m_ops"]
     pub m_nops: u32,
+    #[doc = "< Marshalling meta data"]
     pub m_ops: *const u32,
+    #[doc = "< XML topic description meta data"]
     pub m_meta: *const ::std::os::raw::c_char,
+    #[doc = "< XCDR2 serialized TypeInformation, only present if flag DDS_TOPIC_XTYPES_METADATA is set"]
     pub type_information: dds_type_meta_ser,
+    #[doc = "< XCDR2 serialized TypeMapping: maps type-id to type object and minimal to complete type id,\nonly present if flag DDS_TOPIC_XTYPES_METADATA is set"]
     pub type_mapping: dds_type_meta_ser,
+    #[doc = "< restrictions on the data representations allowed for the top-level type for this topic,\nonly present if flag DDS_TOPIC_RESTRICT_DATA_REPRESENTATION"]
     pub restrict_data_representation: u32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -402,116 +492,175 @@ impl Default for dds_topic_descriptor {
         }
     }
 }
+#[doc = " @brief Topic Descriptor\n @ingroup topic_definition\n @warning Unstable/Private API\n Contains all meta information about a type, usually produced by the IDL compiler\n Since this type is not intended for public consumption it can change without warning."]
 pub type dds_topic_descriptor_t = dds_topic_descriptor;
+#[doc = " @ingroup internal\n @warning Private API\n @brief Instance handles are uint64_t behind the scenes"]
 pub type dds_instance_handle_t = u64;
+#[doc = " @ingroup domain\n @brief Domain IDs are 32 bit unsigned integers."]
 pub type dds_domainid_t = u32;
 unsafe extern "C" {
+    #[doc = " @brief Enable or disable write batching.\n Overrides default configuration setting for write batching (Internal/WriteBatch).\n\n @param[in] enable Enables or disables write batching for all writers."]
     pub fn dds_write_set_batch(enable: bool);
 }
+#[doc = " @brief QoS datatype\n @ingroup qos\n QoS structure is opaque"]
 pub type dds_qos_t = dds_qos;
 #[repr(u32)]
+#[doc = " @brief Durability QoS: Applies to Topic, DataReader, DataWriter\n @ingroup qos"]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum dds_durability_kind {
+    #[doc = "< Volatile durability"]
     DDS_DURABILITY_VOLATILE = 0,
+    #[doc = "< Transient Local durability"]
     DDS_DURABILITY_TRANSIENT_LOCAL = 1,
+    #[doc = "< Transient durability"]
     DDS_DURABILITY_TRANSIENT = 2,
+    #[doc = "< Persistent durability"]
     DDS_DURABILITY_PERSISTENT = 3,
 }
+#[doc = " @brief Durability QoS: Applies to Topic, DataReader, DataWriter\n @ingroup qos"]
 pub use self::dds_durability_kind as dds_durability_kind_t;
 #[repr(u32)]
+#[doc = " @brief History QoS: Applies to Topic, DataReader, DataWriter\n @ingroup qos"]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum dds_history_kind {
+    #[doc = "< Keep Last history"]
     DDS_HISTORY_KEEP_LAST = 0,
+    #[doc = "< Keep All history"]
     DDS_HISTORY_KEEP_ALL = 1,
 }
+#[doc = " @brief History QoS: Applies to Topic, DataReader, DataWriter\n @ingroup qos"]
 pub use self::dds_history_kind as dds_history_kind_t;
 #[repr(u32)]
+#[doc = " @brief Ownership QoS: Applies to Topic, DataReader, DataWriter\n @ingroup qos"]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum dds_ownership_kind {
+    #[doc = "< Shared Ownership"]
     DDS_OWNERSHIP_SHARED = 0,
+    #[doc = "< Exclusive Ownership"]
     DDS_OWNERSHIP_EXCLUSIVE = 1,
 }
+#[doc = " @brief Ownership QoS: Applies to Topic, DataReader, DataWriter\n @ingroup qos"]
 pub use self::dds_ownership_kind as dds_ownership_kind_t;
 #[repr(u32)]
+#[doc = " @brief Liveliness QoS: Applies to Topic, DataReader, DataWriter\n @ingroup qos"]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum dds_liveliness_kind {
+    #[doc = "< Automatic liveliness"]
     DDS_LIVELINESS_AUTOMATIC = 0,
+    #[doc = "< Manual by Participant liveliness"]
     DDS_LIVELINESS_MANUAL_BY_PARTICIPANT = 1,
+    #[doc = "< Manual by Topic liveliness"]
     DDS_LIVELINESS_MANUAL_BY_TOPIC = 2,
 }
+#[doc = " @brief Liveliness QoS: Applies to Topic, DataReader, DataWriter\n @ingroup qos"]
 pub use self::dds_liveliness_kind as dds_liveliness_kind_t;
 #[repr(u32)]
+#[doc = " @brief Reliability QoS: Applies to Topic, DataReader, DataWriter\n @ingroup qos"]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum dds_reliability_kind {
+    #[doc = "< Best Effort reliability"]
     DDS_RELIABILITY_BEST_EFFORT = 0,
+    #[doc = "< Reliable reliability"]
     DDS_RELIABILITY_RELIABLE = 1,
 }
+#[doc = " @brief Reliability QoS: Applies to Topic, DataReader, DataWriter\n @ingroup qos"]
 pub use self::dds_reliability_kind as dds_reliability_kind_t;
 #[repr(u32)]
+#[doc = " @brief DestinationOrder QoS: Applies to Topic, DataReader, DataWriter\n @ingroup qos"]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum dds_destination_order_kind {
+    #[doc = "< order by reception timestamp"]
     DDS_DESTINATIONORDER_BY_RECEPTION_TIMESTAMP = 0,
+    #[doc = "< order by source timestamp"]
     DDS_DESTINATIONORDER_BY_SOURCE_TIMESTAMP = 1,
 }
+#[doc = " @brief DestinationOrder QoS: Applies to Topic, DataReader, DataWriter\n @ingroup qos"]
 pub use self::dds_destination_order_kind as dds_destination_order_kind_t;
 #[repr(u32)]
+#[doc = " @brief Presentation QoS: Applies to Publisher, Subscriber\n @ingroup qos"]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum dds_presentation_access_scope_kind {
+    #[doc = "< presentation scope per instance"]
     DDS_PRESENTATION_INSTANCE = 0,
+    #[doc = "< presentation scope per topic"]
     DDS_PRESENTATION_TOPIC = 1,
+    #[doc = "< presentation scope per group"]
     DDS_PRESENTATION_GROUP = 2,
 }
+#[doc = " @brief Presentation QoS: Applies to Publisher, Subscriber\n @ingroup qos"]
 pub use self::dds_presentation_access_scope_kind as dds_presentation_access_scope_kind_t;
 #[repr(u32)]
+#[doc = " @brief Ignore-local QoS: Applies to DataReader, DataWriter\n @ingroup qos"]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum dds_ignorelocal_kind {
+    #[doc = "< Don't ignore local data"]
     DDS_IGNORELOCAL_NONE = 0,
+    #[doc = "< Ignore local data from same participant"]
     DDS_IGNORELOCAL_PARTICIPANT = 1,
+    #[doc = "< Ignore local data from same process"]
     DDS_IGNORELOCAL_PROCESS = 2,
 }
+#[doc = " @brief Ignore-local QoS: Applies to DataReader, DataWriter\n @ingroup qos"]
 pub use self::dds_ignorelocal_kind as dds_ignorelocal_kind_t;
 #[repr(u32)]
+#[doc = " @brief Type-consistency QoS: Applies to DataReader, DataWriter\n @ingroup qos"]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum dds_type_consistency_kind {
+    #[doc = "< Do not allow type coercion"]
     DDS_TYPE_CONSISTENCY_DISALLOW_TYPE_COERCION = 0,
+    #[doc = "< Allow type coercion"]
     DDS_TYPE_CONSISTENCY_ALLOW_TYPE_COERCION = 1,
 }
+#[doc = " @brief Type-consistency QoS: Applies to DataReader, DataWriter\n @ingroup qos"]
 pub use self::dds_type_consistency_kind as dds_type_consistency_kind_t;
+#[doc = " @brief Data Representation QoS: Applies to Topic, DataReader, DataWriter\n @ingroup qos"]
 pub type dds_data_representation_id_t = i16;
 unsafe extern "C" {
+    #[doc = " @ingroup qos\n @brief Allocate memory and initialize default QoS-policies\n\n @returns - Pointer to the initialized dds_qos_t structure, NULL if unsuccessful."]
     pub fn dds_create_qos() -> *mut dds_qos_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos\n @brief Delete memory allocated to QoS-policies structure\n\n @param[in] qos - Pointer to dds_qos_t structure"]
     pub fn dds_delete_qos(qos: *mut dds_qos_t);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos\n @brief Reset a QoS-policies structure to default values\n\n @param[in,out] qos - Pointer to the dds_qos_t structure"]
     pub fn dds_reset_qos(qos: *mut dds_qos_t);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos\n @brief Copy all QoS-policies from one structure to another\n\n @param[in,out] dst - Pointer to the destination dds_qos_t structure\n @param[in] src - Pointer to the source dds_qos_t structure\n\n @returns - Return-code indicating success or failure"]
     pub fn dds_copy_qos(dst: *mut dds_qos_t, src: *const dds_qos_t) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos\n @brief Copy all QoS-policies from one structure to another, unless already set\n\n Policies are copied from src to dst, unless src already has the policy set to a non-default value.\n\n @param[in,out] dst - Pointer to the destination qos structure\n @param[in] src - Pointer to the source qos structure"]
     pub fn dds_merge_qos(dst: *mut dds_qos_t, src: *const dds_qos_t);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos\n @brief Copy all QoS-policies from one structure to another, unless already set\n\n Policies are copied from src to dst, unless src already has the policy set to a non-default value.\n\n @param[in,out] a - Pointer to the destination qos structure\n @param[in] b - Pointer to the source qos structure\n\n @returns whether the copy was successful."]
     pub fn dds_qos_equal(a: *const dds_qos_t, b: *const dds_qos_t) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the userdata of a qos structure.\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the userdata\n @param[in] value - Pointer to the userdata\n @param[in] sz - Size of userdata stored in value"]
     pub fn dds_qset_userdata(qos: *mut dds_qos_t, value: *const ::std::os::raw::c_void, sz: usize);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the topicdata of a qos structure.\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the topicdata\n @param[in] value - Pointer to the topicdata\n @param[in] sz - Size of the topicdata stored in value"]
     pub fn dds_qset_topicdata(qos: *mut dds_qos_t, value: *const ::std::os::raw::c_void, sz: usize);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the groupdata of a qos structure.\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the groupdata\n @param[in] value - Pointer to the group data\n @param[in] sz - Size of groupdata stored in value"]
     pub fn dds_qset_groupdata(qos: *mut dds_qos_t, value: *const ::std::os::raw::c_void, sz: usize);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the durability policy of a qos structure.\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] kind - Durability kind value"]
     pub fn dds_qset_durability(qos: *mut dds_qos_t, kind: dds_durability_kind_t);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the history policy of a qos structure.\n\n Note that depth is only relevant for keep last. If you want limited history for keep all, use dds_qset_resource_limits().\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] kind - History kind value\n @param[in] depth - History depth value"]
     pub fn dds_qset_history(qos: *mut dds_qos_t, kind: dds_history_kind_t, depth: i32);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the resource limits policy of a qos structure.\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] max_samples - Number of samples resource-limit value\n @param[in] max_instances - Number of instances resource-limit value\n @param[in] max_samples_per_instance - Number of samples per instance resource-limit value"]
     pub fn dds_qset_resource_limits(
         qos: *mut dds_qos_t,
         max_samples: i32,
@@ -520,6 +669,7 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the presentation policy of a qos structure.\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] access_scope - Access-scope kind\n @param[in] coherent_access - Coherent access enable value\n @param[in] ordered_access - Ordered access enable value"]
     pub fn dds_qset_presentation(
         qos: *mut dds_qos_t,
         access_scope: dds_presentation_access_scope_kind_t,
@@ -528,21 +678,27 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the lifespan policy of a qos structure.\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] lifespan - Lifespan duration (expiration time relative to source timestamp of a sample)"]
     pub fn dds_qset_lifespan(qos: *mut dds_qos_t, lifespan: dds_duration_t);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the deadline policy of a qos structure.\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] deadline - Deadline duration"]
     pub fn dds_qset_deadline(qos: *mut dds_qos_t, deadline: dds_duration_t);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the latency-budget policy of a qos structure\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] duration - Latency budget duration"]
     pub fn dds_qset_latency_budget(qos: *mut dds_qos_t, duration: dds_duration_t);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the ownership policy of a qos structure\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] kind - Ownership kind"]
     pub fn dds_qset_ownership(qos: *mut dds_qos_t, kind: dds_ownership_kind_t);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the ownership strength policy of a qos structure\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] value - Ownership strength value"]
     pub fn dds_qset_ownership_strength(qos: *mut dds_qos_t, value: i32);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the liveliness policy of a qos structure\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] kind - Liveliness kind\n @param[in] lease_duration - Lease duration"]
     pub fn dds_qset_liveliness(
         qos: *mut dds_qos_t,
         kind: dds_liveliness_kind_t,
@@ -550,15 +706,19 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the time-based filter policy of a qos structure\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] minimum_separation - Minimum duration between sample delivery for an instance"]
     pub fn dds_qset_time_based_filter(qos: *mut dds_qos_t, minimum_separation: dds_duration_t);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the partition policy of a qos structure\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] n - Number of partitions stored in ps\n @param[in] ps - Pointer to string(s) storing partition name(s)"]
     pub fn dds_qset_partition(qos: *mut dds_qos_t, n: u32, ps: *mut *const ::std::os::raw::c_char);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Convenience function to set the partition policy of a qos structure to a\n single name.  Name may be a null pointer.\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] name - Pointer to the name"]
     pub fn dds_qset_partition1(qos: *mut dds_qos_t, name: *const ::std::os::raw::c_char);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the reliability policy of a qos structure\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] kind - Reliability kind\n @param[in] max_blocking_time - Max blocking duration applied when kind is reliable. This is how long the writer will block when its history is full."]
     pub fn dds_qset_reliability(
         qos: *mut dds_qos_t,
         kind: dds_reliability_kind_t,
@@ -566,15 +726,19 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the transport-priority policy of a qos structure\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] value - Priority value"]
     pub fn dds_qset_transport_priority(qos: *mut dds_qos_t, value: i32);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the destination-order policy of a qos structure\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] kind - Destination-order kind"]
     pub fn dds_qset_destination_order(qos: *mut dds_qos_t, kind: dds_destination_order_kind_t);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the writer data-lifecycle policy of a qos structure\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] autodispose - Automatic disposal of unregistered instances"]
     pub fn dds_qset_writer_data_lifecycle(qos: *mut dds_qos_t, autodispose: bool);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the reader data-lifecycle policy of a qos structure\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] autopurge_nowriter_samples_delay - Delay for purging of samples from instances in a no-writers state\n @param[in] autopurge_disposed_samples_delay - Delay for purging of samples from disposed instances"]
     pub fn dds_qset_reader_data_lifecycle(
         qos: *mut dds_qos_t,
         autopurge_nowriter_samples_delay: dds_duration_t,
@@ -582,9 +746,11 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the writer batching policy of a qos structure\n\n When batching is disabled, each write/dispose/unregister operation results in its own\n RTPS message that is sent out onto the transport.  For small data types, this means\n most messages (and hence network packets) are small.  As a consequence the fixed cost\n of processing a message (or packet) increases load.\n\n Enabling write batching causes the samples to be aggregated into a single larger RTPS\n message.  This improves efficiency by spreading the fixed cost out over more samples.\n Naturally this increases latency a bit.\n\n The batching mechanism may or may not send out packets on a write/&c. operation.  It\n buffers only a limited amount and will send out what has been buffered when a new\n write/&c. can not be added.  To guarantee that the buffered data is sent, one must call\n \"dds_flush\".\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] batch_updates - Whether writes should be batched"]
     pub fn dds_qset_writer_batching(qos: *mut dds_qos_t, batch_updates: bool);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the durability-service policy of a qos structure\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] service_cleanup_delay - Delay for purging of abandoned instances from the durability service\n @param[in] history_kind - History policy kind applied by the durability service\n @param[in] history_depth - History policy depth applied by the durability service\n @param[in] max_samples - Number of samples resource-limit policy applied by the durability service\n @param[in] max_instances - Number of instances resource-limit policy applied by the durability service\n @param[in] max_samples_per_instance - Number of samples per instance resource-limit policy applied by the durability service"]
     pub fn dds_qset_durability_service(
         qos: *mut dds_qos_t,
         service_cleanup_delay: dds_duration_t,
@@ -596,9 +762,11 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the ignore-local policy of a qos structure\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] ignore - True if readers and writers owned by the same participant should be ignored"]
     pub fn dds_qset_ignorelocal(qos: *mut dds_qos_t, ignore: dds_ignorelocal_kind_t);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Stores a property with the provided name and string value in a qos structure.\n\n In the case a property with the provided name already exists in the qos structure,\n the value for this entry is overwritten with the provided string value. If more than\n one property with the provided name exists, only the value of the first of these\n properties is updated.\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the property\n @param[in] name - Pointer to name of the property\n @param[in] value - Pointer to a (null-terminated) string that will be stored"]
     pub fn dds_qset_prop(
         qos: *mut dds_qos_t,
         name: *const ::std::os::raw::c_char,
@@ -606,6 +774,7 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Stores the provided binary data as a property in a qos structure\n\n In the case a property with the provided name already exists in the qos structure,\n the value for this entry is overwritten with the provided data. If more than one\n property with the provided name exists, only the value of the first of these\n properties is updated.\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the property\n @param[in] name - Pointer to name of the property\n @param[in] value - Pointer to data to be stored in the property\n @param[in] sz - Size of the data"]
     pub fn dds_qset_bprop(
         qos: *mut dds_qos_t,
         name: *const ::std::os::raw::c_char,
@@ -614,6 +783,7 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the type consistency enforcement policy of a qos structure\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the policy\n @param[in] kind - Type consistency policy kind\n @param[in] ignore_sequence_bounds - Ignore sequence bounds in type assignability checking\n @param[in] ignore_string_bounds - Ignore string bounds in type assignability checking\n @param[in] ignore_member_names - Ignore member names in type assignability checking\n @param[in] prevent_type_widening - Prevent type widening in type assignability checking\n @param[in] force_type_validation - Force type validation in assignability checking"]
     pub fn dds_qset_type_consistency(
         qos: *mut dds_qos_t,
         kind: dds_type_consistency_kind_t,
@@ -625,6 +795,7 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the data representation of a qos structure\n\n @param[in,out] qos    - Pointer to a dds_qos_t structure that will store the policy\n @param[in]     n      - Number of data representation values\n @param[in]     values - Data representation values"]
     pub fn dds_qset_data_representation(
         qos: *mut dds_qos_t,
         n: u32,
@@ -632,9 +803,11 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_setters\n @brief Set the entity name.\n\n When using this QoS to initialize a participant, publisher, subscriber, reader or writer\n it will take the name set here. This name is visible over discovery and can be used\n to make sense of network in tooling.\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that will store the entity name.\n @param[in] name - Pointer to the entity name to set."]
     pub fn dds_qset_entity_name(qos: *mut dds_qos_t, name: *const ::std::os::raw::c_char);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the userdata from a qos structure\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] value - Pointer that will store the userdata.  If sz = 0, then a null pointer, else it is a pointer to an allocated buffer of sz+1 bytes where the last byte is always 0\n @param[in,out] sz - Pointer that will store the size of userdata\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_userdata(
         qos: *const dds_qos_t,
         value: *mut *mut ::std::os::raw::c_void,
@@ -642,6 +815,7 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the topicdata from a qos structure\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] value - Pointer that will store the topicdata.  If sz = 0, then a null pointer, else it is a pointer to an allocated buffer of sz+1 bytes where the last byte is always 0\n @param[in,out] sz - Pointer that will store the size of topicdata\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_topicdata(
         qos: *const dds_qos_t,
         value: *mut *mut ::std::os::raw::c_void,
@@ -649,6 +823,7 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the groupdata from a qos structure\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] value - Pointer that will store the groupdata.  If sz = 0, then a null pointer, else it is a pointer to an allocated buffer of sz+1 bytes where the last byte is always 0\n @param[in,out] sz - Pointer that will store the size of groupdata\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_groupdata(
         qos: *const dds_qos_t,
         value: *mut *mut ::std::os::raw::c_void,
@@ -656,9 +831,11 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the durability policy from a qos structure\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] kind - Pointer that will store the durability kind\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_durability(qos: *const dds_qos_t, kind: *mut dds_durability_kind_t) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the history policy from a qos structure\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] kind - Pointer that will store the history kind (optional)\n @param[in,out] depth - Pointer that will store the history depth (optional)\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_history(
         qos: *const dds_qos_t,
         kind: *mut dds_history_kind_t,
@@ -666,6 +843,7 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the resource-limits policy from a qos structure\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] max_samples - Pointer that will store the number of samples resource-limit (optional)\n @param[in,out] max_instances - Pointer that will store the number of instances resource-limit (optional)\n @param[in,out] max_samples_per_instance - Pointer that will store the number of samples per instance resource-limit (optional)\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_resource_limits(
         qos: *const dds_qos_t,
         max_samples: *mut i32,
@@ -674,6 +852,7 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the presentation policy from a qos structure\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] access_scope - Pointer that will store access scope kind (optional)\n @param[in,out] coherent_access - Pointer that will store coherent access enable value (optional)\n @param[in,out] ordered_access - Pointer that will store orderede access enable value (optional)\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_presentation(
         qos: *const dds_qos_t,
         access_scope: *mut dds_presentation_access_scope_kind_t,
@@ -682,21 +861,27 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the lifespan policy from a qos structure\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] lifespan - Pointer that will store lifespan duration\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_lifespan(qos: *const dds_qos_t, lifespan: *mut dds_duration_t) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the deadline policy from a qos structure\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] deadline - Pointer that will store deadline duration\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_deadline(qos: *const dds_qos_t, deadline: *mut dds_duration_t) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the latency-budget policy from a qos structure\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] duration - Pointer that will store latency-budget duration\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_latency_budget(qos: *const dds_qos_t, duration: *mut dds_duration_t) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the ownership policy from a qos structure\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] kind - Pointer that will store the ownership kind\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_ownership(qos: *const dds_qos_t, kind: *mut dds_ownership_kind_t) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the ownership strength qos policy\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] value - Pointer that will store the ownership strength value\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_ownership_strength(qos: *const dds_qos_t, value: *mut i32) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the liveliness qos policy\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] kind - Pointer that will store the liveliness kind (optional)\n @param[in,out] lease_duration - Pointer that will store the liveliness lease duration (optional)\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_liveliness(
         qos: *const dds_qos_t,
         kind: *mut dds_liveliness_kind_t,
@@ -704,12 +889,14 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the time-based filter qos policy\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] minimum_separation - Pointer that will store the minimum separation duration (optional)\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_time_based_filter(
         qos: *const dds_qos_t,
         minimum_separation: *mut dds_duration_t,
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the partition qos policy\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] n - Pointer that will store the number of partitions (optional)\n @param[in,out] ps - Pointer that will store the string(s) containing partition name(s) (optional)\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_partition(
         qos: *const dds_qos_t,
         n: *mut u32,
@@ -717,6 +904,7 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the reliability qos policy\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] kind - Pointer that will store the reliability kind (optional)\n @param[in,out] max_blocking_time - Pointer that will store the max blocking time for reliable reliability (optional)\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_reliability(
         qos: *const dds_qos_t,
         kind: *mut dds_reliability_kind_t,
@@ -724,18 +912,22 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the transport priority qos policy\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] value - Pointer that will store the transport priority value\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_transport_priority(qos: *const dds_qos_t, value: *mut i32) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the destination-order qos policy\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] kind - Pointer that will store the destination-order kind\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_destination_order(
         qos: *const dds_qos_t,
         kind: *mut dds_destination_order_kind_t,
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the writer data-lifecycle qos policy\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] autodispose - Pointer that will store the autodispose unregistered instances enable value\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_writer_data_lifecycle(qos: *const dds_qos_t, autodispose: *mut bool) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the reader data-lifecycle qos policy\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] autopurge_nowriter_samples_delay - Pointer that will store the delay for auto-purging samples from instances in a no-writer state (optional)\n @param[in,out] autopurge_disposed_samples_delay - Pointer that will store the delay for auto-purging of disposed instances (optional)\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_reader_data_lifecycle(
         qos: *const dds_qos_t,
         autopurge_nowriter_samples_delay: *mut dds_duration_t,
@@ -743,9 +935,11 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the writer batching qos policy\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] batch_updates - Pointer that will store the batching enable value\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_writer_batching(qos: *const dds_qos_t, batch_updates: *mut bool) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the durability-service qos policy values.\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out]  service_cleanup_delay - Pointer that will store the delay for purging of abandoned instances from the durability service (optional)\n @param[in,out] history_kind - Pointer that will store history policy kind applied by the durability service (optional)\n @param[in,out] history_depth - Pointer that will store history policy depth applied by the durability service (optional)\n @param[in,out] max_samples - Pointer that will store number of samples resource-limit policy applied by the durability service (optional)\n @param[in,out] max_instances - Pointer that will store number of instances resource-limit policy applied by the durability service (optional)\n @param[in,out] max_samples_per_instance - Pointer that will store number of samples per instance resource-limit policy applied by the durability service (optional)\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_durability_service(
         qos: *const dds_qos_t,
         service_cleanup_delay: *mut dds_duration_t,
@@ -757,10 +951,12 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the ignore-local qos policy\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] ignore - Pointer that will store whether to ignore readers/writers owned by the same participant (optional)\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_ignorelocal(qos: *const dds_qos_t, ignore: *mut dds_ignorelocal_kind_t)
     -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Gets the names of the properties from a qos structure.\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that contains properties\n @param[in,out] n - Pointer to number of property names that are returned (optional)\n @param[in,out] names - Pointer that will store the string(s) containing property name(s) (optional). This function will allocate the memory for the list of names and for the strings containing the names; the caller gets ownership of the allocated memory\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_propnames(
         qos: *const dds_qos_t,
         n: *mut u32,
@@ -768,6 +964,7 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the value of the property with the provided name from a qos structure.\n\n In case more than one property exists with this name, the value for the first\n property with this name will be returned.\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that contains the property\n @param[in] name - Pointer to name of the property\n @param[in,out] value - Pointer to a string that will store the value of the property. The memory for storing the string value will be allocated by this function and the caller gets ownership of the allocated memory\n\n @returns - false iff any of the arguments is invalid, the qos is not present in the qos object or there was no property found with the provided name"]
     pub fn dds_qget_prop(
         qos: *const dds_qos_t,
         name: *const ::std::os::raw::c_char,
@@ -775,6 +972,7 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Gets the names of the binary properties from a qos structure.\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that contains binary properties\n @param[in,out] n - Pointer to number of binary property names that are returned (optional)\n @param[in,out] names - Pointer that will store the string(s) containing binary property name(s) (optional). This function will allocate the memory for the list of names and for the strings containing the names; the caller gets ownership of the allocated memory\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_bpropnames(
         qos: *const dds_qos_t,
         n: *mut u32,
@@ -782,6 +980,7 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the value of the binary property with the provided name from a qos structure.\n\n In case more than one binary property exists with this name, the value for the first\n binary property with this name will be returned.\n\n @param[in,out] qos - Pointer to a dds_qos_t structure that contains the property\n @param[in] name - Pointer to name of the binary property\n @param[in,out] value - Pointer to a buffer that will store the value of the property. If sz = 0 then a NULL pointer. The memory for storing the value will be allocated by this function and the caller gets ownership of the allocated memory\n @param[in,out] sz - Pointer that will store the size of the returned buffer.\n\n @returns - false iff any of the arguments is invalid, the qos is not present in the qos object or there was no binary property found with the provided name"]
     pub fn dds_qget_bprop(
         qos: *const dds_qos_t,
         name: *const ::std::os::raw::c_char,
@@ -790,6 +989,7 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the type consistency enforcement qos policy values.\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] kind - Pointer that will store the type consistency enforcement kind (optional)\n @param[in,out] ignore_sequence_bounds - Pointer that will store the boolean value for ignoring sequence bounds in type assignability checking (optional)\n @param[in,out] ignore_string_bounds - Pointer that will store the boolean value for ignoring string bounds in type assignability checking (optional)\n @param[in,out] ignore_member_names - Pointer that will store the boolean value for ignoring member names in type assignability checking (optional)\n @param[in,out] prevent_type_widening - Pointer that will store the boolean value to prevent type widening in type assignability checking (optional)\n @param[in,out] force_type_validation - Pointer that will store the boolean value to force type validation in assignability checking (optional)\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_type_consistency(
         qos: *const dds_qos_t,
         kind: *mut dds_type_consistency_kind_t,
@@ -801,6 +1001,7 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the data representation qos policy value.\n\n Returns the data representation values that are set in the provided QoS object\n and stores the number of values in out parameter 'n'. In case the 'values' parameter\n is provided, this function will allocate a buffer that contains the data representation\n values, and set 'values' to point to this buffer. It is the responsibility of the caller\n to free the memory of this buffer.\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the policy\n @param[in,out] n - Pointer that will store the number of data representation values\n @param[in,out] values - Pointer that will store the data representation values (optional)\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object"]
     pub fn dds_qget_data_representation(
         qos: *const dds_qos_t,
         n: *mut u32,
@@ -808,16 +1009,21 @@ unsafe extern "C" {
     ) -> bool;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup qos_getters\n @brief Get the entity name from a qos structure\n\n @param[in] qos - Pointer to a dds_qos_t structure storing the entity name\n @param[in,out] name - Pointer to a string that will store the returned entity name\n\n @returns - false iff any of the arguments is invalid or the qos is not present in the qos object\n            or if a buffer to store the name could not be allocated."]
     pub fn dds_qget_entity_name(
         qos: *const dds_qos_t,
         name: *mut *mut ::std::os::raw::c_char,
     ) -> bool;
 }
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_OfferedDeadlineMissed\n DOC_TODO"]
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct dds_offered_deadline_missed_status {
+    #[doc = "< DOC_TODO"]
     pub total_count: u32,
+    #[doc = "< DOC_TODO"]
     pub total_count_change: i32,
+    #[doc = "< DOC_TODO"]
     pub last_instance_handle: dds_instance_handle_t,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -833,12 +1039,17 @@ const _: () = {
     ["Offset of field: dds_offered_deadline_missed_status::last_instance_handle"]
         [::std::mem::offset_of!(dds_offered_deadline_missed_status, last_instance_handle) - 8usize];
 };
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_OfferedDeadlineMissed\n DOC_TODO"]
 pub type dds_offered_deadline_missed_status_t = dds_offered_deadline_missed_status;
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_OfferedIncompatibleQoS\n DOC_TODO"]
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct dds_offered_incompatible_qos_status {
+    #[doc = "< DOC_TODO"]
     pub total_count: u32,
+    #[doc = "< DOC_TODO"]
     pub total_count_change: i32,
+    #[doc = "< DOC_TODO"]
     pub last_policy_id: u32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -854,14 +1065,21 @@ const _: () = {
     ["Offset of field: dds_offered_incompatible_qos_status::last_policy_id"]
         [::std::mem::offset_of!(dds_offered_incompatible_qos_status, last_policy_id) - 8usize];
 };
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_OfferedIncompatibleQoS\n DOC_TODO"]
 pub type dds_offered_incompatible_qos_status_t = dds_offered_incompatible_qos_status;
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_PublicationMatched\n DOC_TODO"]
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct dds_publication_matched_status {
+    #[doc = "< DOC_TODO"]
     pub total_count: u32,
+    #[doc = "< DOC_TODO"]
     pub total_count_change: i32,
+    #[doc = "< DOC_TODO"]
     pub current_count: u32,
+    #[doc = "< DOC_TODO"]
     pub current_count_change: i32,
+    #[doc = "< DOC_TODO"]
     pub last_subscription_handle: dds_instance_handle_t,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -883,11 +1101,15 @@ const _: () = {
         last_subscription_handle
     ) - 16usize];
 };
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_PublicationMatched\n DOC_TODO"]
 pub type dds_publication_matched_status_t = dds_publication_matched_status;
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_LivelinessLost\n DOC_TODO"]
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct dds_liveliness_lost_status {
+    #[doc = "< DOC_TODO"]
     pub total_count: u32,
+    #[doc = "< DOC_TODO"]
     pub total_count_change: i32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -901,14 +1123,21 @@ const _: () = {
     ["Offset of field: dds_liveliness_lost_status::total_count_change"]
         [::std::mem::offset_of!(dds_liveliness_lost_status, total_count_change) - 4usize];
 };
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_LivelinessLost\n DOC_TODO"]
 pub type dds_liveliness_lost_status_t = dds_liveliness_lost_status;
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_SubscriptionMatched\n DOC_TODO"]
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct dds_subscription_matched_status {
+    #[doc = "< DOC_TODO"]
     pub total_count: u32,
+    #[doc = "< DOC_TODO"]
     pub total_count_change: i32,
+    #[doc = "< DOC_TODO"]
     pub current_count: u32,
+    #[doc = "< DOC_TODO"]
     pub current_count_change: i32,
+    #[doc = "< DOC_TODO"]
     pub last_publication_handle: dds_instance_handle_t,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -930,21 +1159,32 @@ const _: () = {
         last_publication_handle
     ) - 16usize];
 };
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_SubscriptionMatched\n DOC_TODO"]
 pub type dds_subscription_matched_status_t = dds_subscription_matched_status;
 #[repr(u32)]
+#[doc = " @ingroup dcps_status\n @brief Rejected Status\n DOC_TODO"]
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum dds_sample_rejected_status_kind {
+    #[doc = "< DOC_TODO"]
     DDS_NOT_REJECTED = 0,
+    #[doc = "< DOC_TODO"]
     DDS_REJECTED_BY_INSTANCES_LIMIT = 1,
+    #[doc = "< DOC_TODO"]
     DDS_REJECTED_BY_SAMPLES_LIMIT = 2,
+    #[doc = "< DOC_TODO"]
     DDS_REJECTED_BY_SAMPLES_PER_INSTANCE_LIMIT = 3,
 }
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_SampleRejected\n DOC_TODO"]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct dds_sample_rejected_status {
+    #[doc = "< DOC_TODO"]
     pub total_count: u32,
+    #[doc = "< DOC_TODO"]
     pub total_count_change: i32,
+    #[doc = "< DOC_TODO"]
     pub last_reason: dds_sample_rejected_status_kind,
+    #[doc = "< DOC_TODO"]
     pub last_instance_handle: dds_instance_handle_t,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -971,14 +1211,21 @@ impl Default for dds_sample_rejected_status {
         }
     }
 }
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_SampleRejected\n DOC_TODO"]
 pub type dds_sample_rejected_status_t = dds_sample_rejected_status;
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_LivelinessChanged\n DOC_TODO"]
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct dds_liveliness_changed_status {
+    #[doc = "< DOC_TODO"]
     pub alive_count: u32,
+    #[doc = "< DOC_TODO"]
     pub not_alive_count: u32,
+    #[doc = "< DOC_TODO"]
     pub alive_count_change: i32,
+    #[doc = "< DOC_TODO"]
     pub not_alive_count_change: i32,
+    #[doc = "< DOC_TODO"]
     pub last_publication_handle: dds_instance_handle_t,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -998,12 +1245,17 @@ const _: () = {
     ["Offset of field: dds_liveliness_changed_status::last_publication_handle"]
         [::std::mem::offset_of!(dds_liveliness_changed_status, last_publication_handle) - 16usize];
 };
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_LivelinessChanged\n DOC_TODO"]
 pub type dds_liveliness_changed_status_t = dds_liveliness_changed_status;
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_RequestedDeadlineMissed\n DOC_TODO"]
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct dds_requested_deadline_missed_status {
+    #[doc = "< DOC_TODO"]
     pub total_count: u32,
+    #[doc = "< DOC_TODO"]
     pub total_count_change: i32,
+    #[doc = "< DOC_TODO"]
     pub last_instance_handle: dds_instance_handle_t,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -1021,12 +1273,17 @@ const _: () = {
         last_instance_handle
     ) - 8usize];
 };
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_RequestedDeadlineMissed\n DOC_TODO"]
 pub type dds_requested_deadline_missed_status_t = dds_requested_deadline_missed_status;
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_RequestedIncompatibleQoS\n DOC_TODO"]
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct dds_requested_incompatible_qos_status {
+    #[doc = "< DOC_TODO"]
     pub total_count: u32,
+    #[doc = "< DOC_TODO"]
     pub total_count_change: i32,
+    #[doc = "< DOC_TODO"]
     pub last_policy_id: u32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -1044,11 +1301,15 @@ const _: () = {
     ["Offset of field: dds_requested_incompatible_qos_status::last_policy_id"]
         [::std::mem::offset_of!(dds_requested_incompatible_qos_status, last_policy_id) - 8usize];
 };
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_RequestedIncompatibleQoS\n DOC_TODO"]
 pub type dds_requested_incompatible_qos_status_t = dds_requested_incompatible_qos_status;
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_SampleLost\n DOC_TODO"]
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct dds_sample_lost_status {
+    #[doc = "< DOC_TODO"]
     pub total_count: u32,
+    #[doc = "< DOC_TODO"]
     pub total_count_change: i32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -1061,11 +1322,15 @@ const _: () = {
     ["Offset of field: dds_sample_lost_status::total_count_change"]
         [::std::mem::offset_of!(dds_sample_lost_status, total_count_change) - 4usize];
 };
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_SampleLost\n DOC_TODO"]
 pub type dds_sample_lost_status_t = dds_sample_lost_status;
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_InconsistentTopic\n DOC_TODO"]
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct dds_inconsistent_topic_status {
+    #[doc = "< DOC_TODO"]
     pub total_count: u32,
+    #[doc = "< DOC_TODO"]
     pub total_count_change: i32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -1079,68 +1344,80 @@ const _: () = {
     ["Offset of field: dds_inconsistent_topic_status::total_count_change"]
         [::std::mem::offset_of!(dds_inconsistent_topic_status, total_count_change) - 4usize];
 };
+#[doc = " @ingroup dcps_status\n @brief DCPS_Status_InconsistentTopic\n DOC_TODO"]
 pub type dds_inconsistent_topic_status_t = dds_inconsistent_topic_status;
 unsafe extern "C" {
+    #[doc = " @ingroup dcps_status_getters\n @brief Get INCONSISTENT_TOPIC status\n\n This operation gets the status value corresponding to INCONSISTENT_TOPIC\n and reset the status. The value can be obtained, only if the status is enabled for an entity.\n NULL value for status is allowed and it will reset the trigger value when status is enabled.\n\n @param[in]  topic  The entity to get the status\n @param[out] status The pointer to @ref dds_inconsistent_topic_status_t to get the status\n\n @returns  0 - Success\n @returns <0 - Failure\n\n @retval DDS_RETCODE_ERROR\n                  An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n                  One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n                  The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n                  The entity has already been deleted."]
     pub fn dds_get_inconsistent_topic_status(
         topic: dds_entity_t,
         status: *mut dds_inconsistent_topic_status_t,
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup dcps_status_getters\n @brief Get PUBLICATION_MATCHED status\n\n This operation gets the status value corresponding to PUBLICATION_MATCHED\n and reset the status. The value can be obtained, only if the status is enabled for an entity.\n NULL value for status is allowed and it will reset the trigger value when status is enabled.\n\n @param[in]  writer  The entity to get the status\n @param[out] status  The pointer to @ref dds_publication_matched_status_t to get the status\n\n @returns  0 - Success\n @returns <0 - Failure\n\n @retval DDS_RETCODE_ERROR\n                  An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n                  One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n                  The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n                  The entity has already been deleted."]
     pub fn dds_get_publication_matched_status(
         writer: dds_entity_t,
         status: *mut dds_publication_matched_status_t,
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup dcps_status_getters\n @brief Get LIVELINESS_LOST status\n\n This operation gets the status value corresponding to LIVELINESS_LOST\n and reset the status. The value can be obtained, only if the status is enabled for an entity.\n NULL value for status is allowed and it will reset the trigger value when status is enabled.\n\n @param[in]  writer  The entity to get the status\n @param[out] status  The pointer to @ref dds_liveliness_lost_status_t to get the status\n\n @returns  0 - Success\n @returns <0 - Failure\n\n @retval DDS_RETCODE_ERROR\n                  An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n                  One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n                  The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n                  The entity has already been deleted."]
     pub fn dds_get_liveliness_lost_status(
         writer: dds_entity_t,
         status: *mut dds_liveliness_lost_status_t,
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup dcps_status_getters\n @brief Get OFFERED_DEADLINE_MISSED status\n\n This operation gets the status value corresponding to OFFERED_DEADLINE_MISSED\n and reset the status. The value can be obtained, only if the status is enabled for an entity.\n NULL value for status is allowed and it will reset the trigger value when status is enabled.\n\n @param[in]  writer  The entity to get the status\n @param[out] status  The pointer to @ref dds_offered_deadline_missed_status_t to get the status\n\n @returns  0 - Success\n @returns <0 - Failure\n\n @retval DDS_RETCODE_ERROR\n                  An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n                  One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n                  The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n                  The entity has already been deleted."]
     pub fn dds_get_offered_deadline_missed_status(
         writer: dds_entity_t,
         status: *mut dds_offered_deadline_missed_status_t,
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup dcps_status_getters\n @brief Get OFFERED_INCOMPATIBLE_QOS status\n\n This operation gets the status value corresponding to OFFERED_INCOMPATIBLE_QOS\n and reset the status. The value can be obtained, only if the status is enabled for an entity.\n NULL value for status is allowed and it will reset the trigger value when status is enabled.\n\n @param[in]  writer  The writer entity to get the status\n @param[out] status  The pointer to @ref dds_offered_incompatible_qos_status_t to get the status\n\n @returns  0 - Success\n @returns <0 - Failure\n\n @retval DDS_RETCODE_ERROR\n                  An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n                  One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n                  The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n                  The entity has already been deleted."]
     pub fn dds_get_offered_incompatible_qos_status(
         writer: dds_entity_t,
         status: *mut dds_offered_incompatible_qos_status_t,
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup dcps_status_getters\n @brief Get SUBSCRIPTION_MATCHED status\n\n This operation gets the status value corresponding to SUBSCRIPTION_MATCHED\n and reset the status. The value can be obtained, only if the status is enabled for an entity.\n NULL value for status is allowed and it will reset the trigger value when status is enabled.\n\n @param[in]  reader  The reader entity to get the status\n @param[out] status  The pointer to @ref dds_subscription_matched_status_t to get the status\n\n @returns  0 - Success\n @returns <0 - Failure\n\n @retval DDS_RETCODE_ERROR\n                  An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n                  One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n                  The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n                  The entity has already been deleted."]
     pub fn dds_get_subscription_matched_status(
         reader: dds_entity_t,
         status: *mut dds_subscription_matched_status_t,
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup dcps_status_getters\n @brief Get LIVELINESS_CHANGED status\n\n This operation gets the status value corresponding to LIVELINESS_CHANGED\n and reset the status. The value can be obtained, only if the status is enabled for an entity.\n NULL value for status is allowed and it will reset the trigger value when status is enabled.\n\n @param[in]  reader  The entity to get the status\n @param[out] status  The pointer to @ref dds_liveliness_changed_status_t to get the status\n\n @returns  0 - Success\n @returns <0 - Failure\n\n @retval DDS_RETCODE_ERROR\n                  An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n                  One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n                  The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n                  The entity has already been deleted."]
     pub fn dds_get_liveliness_changed_status(
         reader: dds_entity_t,
         status: *mut dds_liveliness_changed_status_t,
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup dcps_status_getters\n @brief Get SAMPLE_REJECTED status\n\n This operation gets the status value corresponding to SAMPLE_REJECTED\n and reset the status. The value can be obtained, only if the status is enabled for an entity.\n NULL value for status is allowed and it will reset the trigger value when status is enabled.\n\n @param[in]  reader  The entity to get the status\n @param[out] status  The pointer to @ref dds_sample_rejected_status_t to get the status\n\n @returns  0 - Success\n @returns <0 - Failure\n\n @retval DDS_RETCODE_ERROR\n                  An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n                  One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n                  The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n                  The entity has already been deleted."]
     pub fn dds_get_sample_rejected_status(
         reader: dds_entity_t,
         status: *mut dds_sample_rejected_status_t,
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup dcps_status_getters\n @brief Get SAMPLE_LOST status\n\n This operation gets the status value corresponding to SAMPLE_LOST\n and reset the status. The value can be obtained, only if the status is enabled for an entity.\n NULL value for status is allowed and it will reset the trigger value when status is enabled.\n\n @param[in]  reader  The entity to get the status\n @param[out] status  The pointer to @ref dds_sample_lost_status_t to get the status\n\n @returns A dds_return_t indicating success or failure\n\n @retval DDS_RETCODE_OK\n            Success\n @retval DDS_RETCODE_ERROR\n            An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n            One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n            The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n            The entity has already been deleted."]
     pub fn dds_get_sample_lost_status(
         reader: dds_entity_t,
         status: *mut dds_sample_lost_status_t,
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup dcps_status_getters\n @brief Get REQUESTED_DEADLINE_MISSED status\n\n This operation gets the status value corresponding to REQUESTED_DEADLINE_MISSED\n and reset the status. The value can be obtained, only if the status is enabled for an entity.\n NULL value for status is allowed and it will reset the trigger value when status is enabled.\n\n @param[in]  reader  The entity to get the status\n @param[out] status  The pointer to @ref dds_requested_deadline_missed_status_t to get the status\n\n @returns A dds_return_t indicating success or failure\n\n @retval DDS_RETCODE_OK\n            Success\n @retval DDS_RETCODE_ERROR\n            An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n            One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n            The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n            The entity has already been deleted."]
     pub fn dds_get_requested_deadline_missed_status(
         reader: dds_entity_t,
         status: *mut dds_requested_deadline_missed_status_t,
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup dcps_status_getters\n @brief Get REQUESTED_INCOMPATIBLE_QOS status\n\n This operation gets the status value corresponding to REQUESTED_INCOMPATIBLE_QOS\n and reset the status. The value can be obtained, only if the status is enabled for an entity.\n NULL value for status is allowed and it will reset the trigger value when status is enabled.\n\n @param[in]  reader  The entity to get the status\n @param[out] status  The pointer to @ref dds_requested_incompatible_qos_status_t to get the status\n\n @returns A dds_return_t indicating success or failure\n\n @retval DDS_RETCODE_OK\n            Success\n @retval DDS_RETCODE_ERROR\n            An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n            One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n            The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n            The entity has already been deleted."]
     pub fn dds_get_requested_incompatible_qos_status(
         reader: dds_entity_t,
         status: *mut dds_requested_incompatible_qos_status_t,
@@ -1229,28 +1506,36 @@ pub type dds_on_subscription_matched_fn = ::std::option::Option<
         arg: *mut ::std::os::raw::c_void,
     ),
 >;
+#[doc = " @brief DDS Listener struct (opaque)\n @ingroup listener"]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct dds_listener {
     _unused: [u8; 0],
 }
+#[doc = " @brief DDS Listener type (opaque)\n @ingroup listener"]
 pub type dds_listener_t = dds_listener;
 unsafe extern "C" {
+    #[doc = " @ingroup listener\n @brief Allocate memory and initializes to default values (@ref DDS_LUNSET) of a listener\n\n @param[in] arg optional pointer that will be passed on to the listener callbacks\n\n @returns Returns a pointer to the allocated memory for dds_listener_t structure."]
     pub fn dds_create_listener(arg: *mut ::std::os::raw::c_void) -> *mut dds_listener_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener\n @brief Delete the memory allocated to listener structure\n\n @param[in] listener pointer to the listener struct to delete"]
     pub fn dds_delete_listener(listener: *mut dds_listener_t);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener\n @brief Reset the listener structure contents to @ref DDS_LUNSET\n\n @param[in,out] listener pointer to the listener struct to reset"]
     pub fn dds_reset_listener(listener: *mut dds_listener_t);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener\n @brief Copy the listener callbacks from source to destination\n\n @param[in,out] dst The pointer to the destination listener structure, where the content is to copied\n @param[in] src The pointer to the source listener structure to be copied"]
     pub fn dds_copy_listener(dst: *mut dds_listener_t, src: *const dds_listener_t);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener\n @brief Copy the listener callbacks from source to destination, unless already set\n\n Any listener callbacks already set in @p dst (including NULL) are skipped, only\n those set to DDS_LUNSET are copied from @p src.\n\n @param[in,out] dst The pointer to the destination listener structure, where the content is merged\n @param[in] src The pointer to the source listener structure to be copied"]
     pub fn dds_merge_listener(dst: *mut dds_listener_t, src: *const dds_listener_t);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the data_available callback and argument in the listener structure.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer\n @param[in] arg callback argument that is passed uninterpreted to the callback function\n @param[in] reset_on_invoke whether or not the status should be cleared when the listener callback is invoked\n\n @retval DDS_RETCODE_OK success\n @retval DDS_RETCODE_BAD_PARAMETER listener is a null pointer"]
     pub fn dds_lset_data_available_arg(
         listener: *mut dds_listener_t,
         callback: dds_on_data_available_fn,
@@ -1259,6 +1544,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the data_on_readers callback and argument in the listener structure.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer\n @param[in] arg callback argument that is passed uninterpreted to the callback function\n @param[in] reset_on_invoke whether or not the status should be cleared when the listener callback is invoked\n\n @retval DDS_RETCODE_OK success\n @retval DDS_RETCODE_BAD_PARAMETER listener is a null pointer"]
     pub fn dds_lset_data_on_readers_arg(
         listener: *mut dds_listener_t,
         callback: dds_on_data_on_readers_fn,
@@ -1267,6 +1553,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the inconsistent_topic callback and argument in the listener structure.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer\n @param[in] arg callback argument that is passed uninterpreted to the callback function\n @param[in] reset_on_invoke whether or not the status should be cleared when the listener callback is invoked\n\n @retval DDS_RETCODE_OK success\n @retval DDS_RETCODE_BAD_PARAMETER listener is a null pointer"]
     pub fn dds_lset_inconsistent_topic_arg(
         listener: *mut dds_listener_t,
         callback: dds_on_inconsistent_topic_fn,
@@ -1275,6 +1562,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the liveliness_changed callback and argument in the listener structure.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer\n @param[in] arg callback argument that is passed uninterpreted to the callback function\n @param[in] reset_on_invoke whether or not the status should be cleared when the listener callback is invoked\n\n @retval DDS_RETCODE_OK success\n @retval DDS_RETCODE_BAD_PARAMETER listener is a null pointer"]
     pub fn dds_lset_liveliness_changed_arg(
         listener: *mut dds_listener_t,
         callback: dds_on_liveliness_changed_fn,
@@ -1283,6 +1571,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the liveliness_lost callback and argument in the listener structure.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer\n @param[in] arg callback argument that is passed uninterpreted to the callback function\n @param[in] reset_on_invoke whether or not the status should be cleared when the listener callback is invoked\n\n @retval DDS_RETCODE_OK success\n @retval DDS_RETCODE_BAD_PARAMETER listener is a null pointer"]
     pub fn dds_lset_liveliness_lost_arg(
         listener: *mut dds_listener_t,
         callback: dds_on_liveliness_lost_fn,
@@ -1291,6 +1580,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the offered_deadline_missed callback and argument in the listener structure.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer\n @param[in] arg callback argument that is passed uninterpreted to the callback function\n @param[in] reset_on_invoke whether or not the status should be cleared when the listener callback is invoked\n\n @retval DDS_RETCODE_OK success\n @retval DDS_RETCODE_BAD_PARAMETER listener is a null pointer"]
     pub fn dds_lset_offered_deadline_missed_arg(
         listener: *mut dds_listener_t,
         callback: dds_on_offered_deadline_missed_fn,
@@ -1299,6 +1589,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the offered_incompatible_qos callback and argument in the listener structure.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer\n @param[in] arg callback argument that is passed uninterpreted to the callback function\n @param[in] reset_on_invoke whether or not the status should be cleared when the listener callback is invoked\n\n @retval DDS_RETCODE_OK success\n @retval DDS_RETCODE_BAD_PARAMETER listener is a null pointer"]
     pub fn dds_lset_offered_incompatible_qos_arg(
         listener: *mut dds_listener_t,
         callback: dds_on_offered_incompatible_qos_fn,
@@ -1307,6 +1598,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the publication_matched callback and argument in the listener structure.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer\n @param[in] arg callback argument that is passed uninterpreted to the callback function\n @param[in] reset_on_invoke whether or not the status should be cleared when the listener callback is invoked\n\n @retval DDS_RETCODE_OK success\n @retval DDS_RETCODE_BAD_PARAMETER listener is a null pointer"]
     pub fn dds_lset_publication_matched_arg(
         listener: *mut dds_listener_t,
         callback: dds_on_publication_matched_fn,
@@ -1315,6 +1607,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the requested_deadline_missed callback and argument in the listener structure.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer\n @param[in] arg callback argument that is passed uninterpreted to the callback function\n @param[in] reset_on_invoke whether or not the status should be cleared when the listener callback is invoked\n\n @retval DDS_RETCODE_OK success\n @retval DDS_RETCODE_BAD_PARAMETER listener is a null pointer"]
     pub fn dds_lset_requested_deadline_missed_arg(
         listener: *mut dds_listener_t,
         callback: dds_on_requested_deadline_missed_fn,
@@ -1323,6 +1616,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the requested_incompatible_qos callback and argument in the listener structure.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer\n @param[in] arg callback argument that is passed uninterpreted to the callback function\n @param[in] reset_on_invoke whether or not the status should be cleared when the listener callback is invoked\n\n @retval DDS_RETCODE_OK success\n @retval DDS_RETCODE_BAD_PARAMETER listener is a null pointer"]
     pub fn dds_lset_requested_incompatible_qos_arg(
         listener: *mut dds_listener_t,
         callback: dds_on_requested_incompatible_qos_fn,
@@ -1331,6 +1625,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the sample_lost callback and argument in the listener structure.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer\n @param[in] arg callback argument that is passed uninterpreted to the callback function\n @param[in] reset_on_invoke whether or not the status should be cleared when the listener callback is invoked\n\n @retval DDS_RETCODE_OK success\n @retval DDS_RETCODE_BAD_PARAMETER listener is a null pointer"]
     pub fn dds_lset_sample_lost_arg(
         listener: *mut dds_listener_t,
         callback: dds_on_sample_lost_fn,
@@ -1339,6 +1634,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the sample_rejected callback and argument in the listener structure.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer\n @param[in] arg callback argument that is passed uninterpreted to the callback function\n @param[in] reset_on_invoke whether or not the status should be cleared when the listener callback is invoked\n\n @retval DDS_RETCODE_OK success\n @retval DDS_RETCODE_BAD_PARAMETER listener is a null pointer"]
     pub fn dds_lset_sample_rejected_arg(
         listener: *mut dds_listener_t,
         callback: dds_on_sample_rejected_fn,
@@ -1347,6 +1643,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the subscription_matched callback and argument in the listener structure.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer\n @param[in] arg callback argument that is passed uninterpreted to the callback function\n @param[in] reset_on_invoke whether or not the status should be cleared when the listener callback is invoked\n\n @retval DDS_RETCODE_OK success\n @retval DDS_RETCODE_BAD_PARAMETER listener is a null pointer"]
     pub fn dds_lset_subscription_matched_arg(
         listener: *mut dds_listener_t,
         callback: dds_on_subscription_matched_fn,
@@ -1355,87 +1652,102 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the inconsistent_topic callback in the listener structure.\n\n Equivalent to calling @ref dds_lset_inconsistent_topic_arg with arg set to the argument passed in\n dds_create_listener() and reset_on_invoke to true, and throwing away the result.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer"]
     pub fn dds_lset_inconsistent_topic(
         listener: *mut dds_listener_t,
         callback: dds_on_inconsistent_topic_fn,
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the liveliness_lost callback in the listener structure.\n\n Equivalent to calling @ref dds_lset_liveliness_lost_arg with arg set to the argument passed in\n dds_create_listener() and reset_on_invoke to true, and throwing away the result.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer"]
     pub fn dds_lset_liveliness_lost(
         listener: *mut dds_listener_t,
         callback: dds_on_liveliness_lost_fn,
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the offered_deadline_missed callback in the listener structure.\n\n Equivalent to calling @ref dds_lset_offered_deadline_missed_arg with arg set to the argument passed in\n dds_create_listener() and reset_on_invoke to true, and throwing away the result.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer"]
     pub fn dds_lset_offered_deadline_missed(
         listener: *mut dds_listener_t,
         callback: dds_on_offered_deadline_missed_fn,
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the offered_incompatible_qos callback in the listener structure.\n\n Equivalent to calling @ref dds_lset_offered_incompatible_qos_arg with arg set to the argument passed in\n dds_create_listener() and reset_on_invoke to true, and throwing away the result.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer"]
     pub fn dds_lset_offered_incompatible_qos(
         listener: *mut dds_listener_t,
         callback: dds_on_offered_incompatible_qos_fn,
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the data_on_readers callback in the listener structure.\n\n Equivalent to calling @ref dds_lset_data_on_readers_arg with arg set to the argument passed in\n dds_create_listener() and reset_on_invoke to true, and throwing away the result.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer"]
     pub fn dds_lset_data_on_readers(
         listener: *mut dds_listener_t,
         callback: dds_on_data_on_readers_fn,
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the sample_lost callback in the listener structure.\n\n Equivalent to calling @ref dds_lset_sample_lost_arg with arg set to the argument passed in\n dds_create_listener() and reset_on_invoke to true, and throwing away the result.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer"]
     pub fn dds_lset_sample_lost(listener: *mut dds_listener_t, callback: dds_on_sample_lost_fn);
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the data_available callback in the listener structure.\n\n Equivalent to calling @ref dds_lset_data_available_arg with arg set to the argument passed in\n dds_create_listener() and reset_on_invoke to true, and throwing away the result.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer"]
     pub fn dds_lset_data_available(
         listener: *mut dds_listener_t,
         callback: dds_on_data_available_fn,
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the sample_rejected callback in the listener structure.\n\n Equivalent to calling @ref dds_lset_sample_rejected_arg with arg set to the argument passed in\n dds_create_listener() and reset_on_invoke to true, and throwing away the result.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer"]
     pub fn dds_lset_sample_rejected(
         listener: *mut dds_listener_t,
         callback: dds_on_sample_rejected_fn,
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the liveliness_changed callback in the listener structure.\n\n Equivalent to calling @ref dds_lset_liveliness_changed_arg with arg set to the argument passed in\n dds_create_listener() and reset_on_invoke to true, and throwing away the result.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer"]
     pub fn dds_lset_liveliness_changed(
         listener: *mut dds_listener_t,
         callback: dds_on_liveliness_changed_fn,
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the requested_deadline_missed callback in the listener structure.\n\n Equivalent to calling @ref dds_lset_requested_deadline_missed_arg with arg set to the argument passed in\n dds_create_listener() and reset_on_invoke to true, and throwing away the result.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer"]
     pub fn dds_lset_requested_deadline_missed(
         listener: *mut dds_listener_t,
         callback: dds_on_requested_deadline_missed_fn,
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the requested_incompatible_qos callback in the listener structure.\n\n Equivalent to calling @ref dds_lset_requested_incompatible_qos_arg with arg set to the argument passed in\n dds_create_listener() and reset_on_invoke to true, and throwing away the result.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer"]
     pub fn dds_lset_requested_incompatible_qos(
         listener: *mut dds_listener_t,
         callback: dds_on_requested_incompatible_qos_fn,
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the publication_matched callback in the listener structure.\n\n Equivalent to calling @ref dds_lset_publication_matched_arg with arg set to the argument passed in\n dds_create_listener() and reset_on_invoke to true, and throwing away the result.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer"]
     pub fn dds_lset_publication_matched(
         listener: *mut dds_listener_t,
         callback: dds_on_publication_matched_fn,
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_setters\n @brief Set the subscription_matched callback in the listener structure.\n\n Equivalent to calling @ref dds_lset_subscription_matched_arg with arg set to the argument passed in\n dds_create_listener() and reset_on_invoke to true, and throwing away the result.\n\n @param[in,out] listener listener structure to update\n @param[in] callback the callback to set or a null pointer"]
     pub fn dds_lset_subscription_matched(
         listener: *mut dds_listener_t,
         callback: dds_on_subscription_matched_fn,
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_getters\n @brief Get the offered_incompatible_qos callback from the listener structure.\n\n Equivalent to calling @ref dds_lget_offered_incompatible_qos_arg with arg and reset_on_invoke set to a null pointer and throwing away the result.\n\n @param[in] listener The pointer to the listener structure, where the callback will be retrieved from\n @param[out] callback Callback function; may be a null pointer"]
     pub fn dds_lget_offered_incompatible_qos(
         listener: *const dds_listener_t,
         callback: *mut dds_on_offered_incompatible_qos_fn,
     );
 }
 unsafe extern "C" {
+    #[doc = " @ingroup listener_getters\n @brief Get the requested_incompatible_qos callback from the listener structure.\n\n Equivalent to calling @ref dds_lget_requested_incompatible_qos_arg with arg and reset_on_invoke set to a null pointer and throwing away the result.\n\n @param[in] listener The pointer to the listener structure, where the callback will be retrieved from\n @param[out] callback Callback function; may be a null pointer"]
     pub fn dds_lget_requested_incompatible_qos(
         listener: *const dds_listener_t,
         callback: *mut dds_on_requested_incompatible_qos_fn,
@@ -1446,65 +1758,109 @@ unsafe extern "C" {
 pub struct ddsi_typeid {
     _unused: [u8; 0],
 }
+#[doc = " @brief DDS Type Identifier (XTypes)\n @ingroup dds\n DOC_TODO"]
 pub type dds_typeid_t = ddsi_typeid;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ddsi_typeinfo {
     _unused: [u8; 0],
 }
+#[doc = " @brief DDS Type Information (XTypes)\n @ingroup dds\n DOC_TODO"]
 pub type dds_typeinfo_t = ddsi_typeinfo;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ddsi_typeobj {
     _unused: [u8; 0],
 }
+#[doc = " @brief DDS Type Object (XTypes)\n @ingroup dds\n DOC_TODO"]
 pub type dds_typeobj_t = ddsi_typeobj;
+#[doc = " @brief DDSI parameter list\n @ingroup dds\n DOC_TODO"]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ddsi_plist {
     _unused: [u8; 0],
 }
+#[doc = "< See @ref DDS_INCONSISTENT_TOPIC_STATUS"]
 pub const DDS_INCONSISTENT_TOPIC_STATUS_ID: dds_status_id = 0;
+#[doc = "< See @ref DDS_OFFERED_DEADLINE_MISSED_STATUS"]
 pub const DDS_OFFERED_DEADLINE_MISSED_STATUS_ID: dds_status_id = 1;
+#[doc = "< See @ref DDS_REQUESTED_DEADLINE_MISSED_STATUS"]
 pub const DDS_REQUESTED_DEADLINE_MISSED_STATUS_ID: dds_status_id = 2;
+#[doc = "< See @ref DDS_OFFERED_INCOMPATIBLE_QOS_STATUS"]
 pub const DDS_OFFERED_INCOMPATIBLE_QOS_STATUS_ID: dds_status_id = 3;
+#[doc = "< See @ref DDS_REQUESTED_INCOMPATIBLE_QOS_STATUS"]
 pub const DDS_REQUESTED_INCOMPATIBLE_QOS_STATUS_ID: dds_status_id = 4;
+#[doc = "< See @ref DDS_SAMPLE_LOST_STATUS"]
 pub const DDS_SAMPLE_LOST_STATUS_ID: dds_status_id = 5;
+#[doc = "< See @ref DDS_SAMPLE_REJECTED_STATUS"]
 pub const DDS_SAMPLE_REJECTED_STATUS_ID: dds_status_id = 6;
+#[doc = "< See @ref DDS_DATA_ON_READERS_STATUS"]
 pub const DDS_DATA_ON_READERS_STATUS_ID: dds_status_id = 7;
+#[doc = "< See @ref DDS_DATA_AVAILABLE_STATUS"]
 pub const DDS_DATA_AVAILABLE_STATUS_ID: dds_status_id = 8;
+#[doc = "< See @ref DDS_LIVELINESS_LOST_STATUS"]
 pub const DDS_LIVELINESS_LOST_STATUS_ID: dds_status_id = 9;
+#[doc = "< See @ref DDS_LIVELINESS_CHANGED_STATUS"]
 pub const DDS_LIVELINESS_CHANGED_STATUS_ID: dds_status_id = 10;
+#[doc = "< See @ref DDS_PUBLICATION_MATCHED_STATUS"]
 pub const DDS_PUBLICATION_MATCHED_STATUS_ID: dds_status_id = 11;
+#[doc = "< See @ref DDS_SUBSCRIPTION_MATCHED_STATUS"]
 pub const DDS_SUBSCRIPTION_MATCHED_STATUS_ID: dds_status_id = 12;
+#[doc = " @defgroup entity_status (Entity Status)\n @ingroup entity\n All entities have a set of \"status conditions\"\n (following the DCPS spec), read peeks, take reads & resets (analogously to read &\n take operations on reader). The \"mask\" allows operating only on a subset of the statuses.\n Enabled status analogously to DCPS spec.\n @{\n/\n/**\n @brief These identifiers are used to generate the bitshifted identifiers.\n By using bitflags instead of these IDs the process of building status masks is\n simplified to using simple binary OR operations.\n DOC_TODO fix the refs"]
 pub type dds_status_id = ::std::os::raw::c_uint;
+#[doc = "<DataReader has already accessed the sample by read"]
 pub const DDS_SST_READ: dds_sample_state = 1;
+#[doc = "<DataReader has not accessed the sample before"]
 pub const DDS_SST_NOT_READ: dds_sample_state = 2;
+#[doc = " Read state for a data value"]
 pub type dds_sample_state = ::std::os::raw::c_uint;
+#[doc = " Read state for a data value"]
 pub use self::dds_sample_state as dds_sample_state_t;
+#[doc = " DataReader is accessing the sample for the first time when the instance is alive"]
 pub const DDS_VST_NEW: dds_view_state = 4;
+#[doc = " DataReader accessed the sample before"]
 pub const DDS_VST_OLD: dds_view_state = 8;
+#[doc = " View state of an instance relative to the samples"]
 pub type dds_view_state = ::std::os::raw::c_uint;
+#[doc = " View state of an instance relative to the samples"]
 pub use self::dds_view_state as dds_view_state_t;
+#[doc = " Samples received for the instance from the live data writers"]
 pub const DDS_IST_ALIVE: dds_instance_state = 16;
+#[doc = " Instance was explicitly disposed by the data writer"]
 pub const DDS_IST_NOT_ALIVE_DISPOSED: dds_instance_state = 32;
+#[doc = " Instance has been declared as not alive by data reader as there are no live data writers writing that instance"]
 pub const DDS_IST_NOT_ALIVE_NO_WRITERS: dds_instance_state = 64;
+#[doc = " Defines the state of the instance"]
 pub type dds_instance_state = ::std::os::raw::c_uint;
+#[doc = " Defines the state of the instance"]
 pub use self::dds_instance_state as dds_instance_state_t;
+#[doc = " Contains information about the associated data value"]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct dds_sample_info {
+    #[doc = " Sample state"]
     pub sample_state: dds_sample_state_t,
+    #[doc = " View state"]
     pub view_state: dds_view_state_t,
+    #[doc = " Instance state"]
     pub instance_state: dds_instance_state_t,
+    #[doc = " Indicates whether there is a data associated with a sample\n  - true, indicates the data is valid\n  - false, indicates the data is invalid, no data to read"]
     pub valid_data: bool,
+    #[doc = " timestamp of a data instance when it is written"]
     pub source_timestamp: dds_time_t,
+    #[doc = " handle to the data instance"]
     pub instance_handle: dds_instance_handle_t,
+    #[doc = " handle to the publisher"]
     pub publication_handle: dds_instance_handle_t,
+    #[doc = " count of instance state change from NOT_ALIVE_DISPOSED to ALIVE"]
     pub disposed_generation_count: u32,
+    #[doc = " count of instance state change from NOT_ALIVE_NO_WRITERS to ALIVE"]
     pub no_writers_generation_count: u32,
+    #[doc = " indicates the number of samples of the same instance that follow the current one in the collection"]
     pub sample_rank: u32,
+    #[doc = " difference in generations between the sample and most recent sample of the same instance that appears in the returned collection"]
     pub generation_rank: u32,
+    #[doc = " difference in generations between the sample and most recent sample of the same instance when read/take was called"]
     pub absolute_generation_rank: u32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -1545,10 +1901,13 @@ impl Default for dds_sample_info {
         }
     }
 }
+#[doc = " Contains information about the associated data value"]
 pub type dds_sample_info_t = dds_sample_info;
+#[doc = " @brief Structure of a GUID in any builtin topic sample.\n @ingroup builtintopic"]
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct dds_builtintopic_guid {
+    #[doc = "< 16-byte unique identifier"]
     pub v: [u8; 16usize],
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -1559,12 +1918,17 @@ const _: () = {
     ["Offset of field: dds_builtintopic_guid::v"]
         [::std::mem::offset_of!(dds_builtintopic_guid, v) - 0usize];
 };
+#[doc = " @brief Structure of a GUID in any builtin topic sample.\n @ingroup builtintopic"]
 pub type dds_builtintopic_guid_t = dds_builtintopic_guid;
+#[doc = " @brief Structure of a GUID in any builtin topic sample.\n @ingroup builtintopic\n @ref dds_builtintopic_guid_t is a bit of a weird name for what everyone just calls a GUID,\n so let us try and switch to using the more logical one."]
 pub type dds_guid_t = dds_builtintopic_guid;
+#[doc = " @brief Sample structure of the Builtin topic DcpsParticipant.\n @ingroup builtintopic"]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct dds_builtintopic_participant {
+    #[doc = "< The GUID that uniquely identifies the participant on the network"]
     pub key: dds_guid_t,
+    #[doc = "< The QoS of the participant"]
     pub qos: *mut dds_qos_t,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -1587,10 +1951,13 @@ impl Default for dds_builtintopic_participant {
         }
     }
 }
+#[doc = " @brief Sample structure of the Builtin topic DcpsParticipant.\n @ingroup builtintopic"]
 pub type dds_builtintopic_participant_t = dds_builtintopic_participant;
+#[doc = " @brief Structure of a key in the Builtin topic DcpsTopic.\n @ingroup builtintopic"]
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct dds_builtintopic_topic_key {
+    #[doc = "< 16-byte unique identifier"]
     pub d: [::std::os::raw::c_uchar; 16usize],
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -1602,13 +1969,19 @@ const _: () = {
     ["Offset of field: dds_builtintopic_topic_key::d"]
         [::std::mem::offset_of!(dds_builtintopic_topic_key, d) - 0usize];
 };
+#[doc = " @brief Structure of a key in the Builtin topic DcpsTopic.\n @ingroup builtintopic"]
 pub type dds_builtintopic_topic_key_t = dds_builtintopic_topic_key;
+#[doc = " @brief Sample structure of the Builtin topic DcpsTopic.\n @ingroup builtintopic"]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct dds_builtintopic_topic {
+    #[doc = "< The GUID that uniquely identifies the topic on the network"]
     pub key: dds_builtintopic_topic_key_t,
+    #[doc = "< The name of the topic, potentially unicode."]
     pub topic_name: *mut ::std::os::raw::c_char,
+    #[doc = "< The name of the type, potentially unicode."]
     pub type_name: *mut ::std::os::raw::c_char,
+    #[doc = "< The QoS of the topic"]
     pub qos: *mut dds_qos_t,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -1634,15 +2007,23 @@ impl Default for dds_builtintopic_topic {
         }
     }
 }
+#[doc = " @brief Sample structure of the Builtin topic DcpsTopic.\n @ingroup builtintopic"]
 pub type dds_builtintopic_topic_t = dds_builtintopic_topic;
+#[doc = " @brief Sample structure of the Builtin topic DcpsPublication and DcpsSubscription.\n @ingroup builtintopic"]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct dds_builtintopic_endpoint {
+    #[doc = "< The GUID that uniquely identifies the endpoint on the network"]
     pub key: dds_guid_t,
+    #[doc = "< The GUID of the participant this endpoint belongs to."]
     pub participant_key: dds_guid_t,
+    #[doc = "< The instance handle the participant assigned to this enpoint."]
     pub participant_instance_handle: dds_instance_handle_t,
+    #[doc = "< The name of the topic, potentially unicode."]
     pub topic_name: *mut ::std::os::raw::c_char,
+    #[doc = "< The name of the type, potentially unicode."]
     pub type_name: *mut ::std::os::raw::c_char,
+    #[doc = "< The QoS of the endpoint"]
     pub qos: *mut dds_qos_t,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -1673,62 +2054,81 @@ impl Default for dds_builtintopic_endpoint {
         }
     }
 }
+#[doc = " @brief Sample structure of the Builtin topic DcpsPublication and DcpsSubscription.\n @ingroup builtintopic"]
 pub type dds_builtintopic_endpoint_t = dds_builtintopic_endpoint;
 unsafe extern "C" {
+    #[doc = " @brief Delete given entity.\n @ingroup entity\n\n This operation will delete the given entity. It will also automatically\n delete all its children, childrens' children, etc entities.\n\n @param[in]  entity  Entity to delete.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             The entity and its children (recursive are deleted).\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_delete(entity: dds_entity_t) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Get entity publisher.\n @ingroup entity\n\n This operation returns the publisher to which the given entity belongs.\n For instance, it will return the Publisher that was used when\n creating a DataWriter (when that DataWriter was provided here).\n\n @param[in]  writer  Entity from which to get its publisher.\n\n @returns A valid entity or an error code.\n\n @retval >0\n             A valid publisher handle.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_get_publisher(writer: dds_entity_t) -> dds_entity_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Get entity subscriber.\n @ingroup entity\n\n This operation returns the subscriber to which the given entity belongs.\n For instance, it will return the Subscriber that was used when\n creating a DataReader (when that DataReader was provided here).\n\n @param[in]  entity  Entity from which to get its subscriber.\n\n @returns A valid subscriber handle or an error code.\n\n @retval >0\n             A valid subscriber handle.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n DOC_TODO: Link to generic dds entity relations documentation."]
     pub fn dds_get_subscriber(entity: dds_entity_t) -> dds_entity_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Get entity datareader.\n @ingroup entity\n\n This operation returns the datareader to which the given entity belongs.\n For instance, it will return the DataReader that was used when\n creating a ReadCondition (when that ReadCondition was provided here).\n\n @param[in]  entity  Entity from which to get its datareader.\n\n @returns A valid reader handle or an error code.\n\n @retval >0\n             A valid reader handle.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n DOC_TODO: Link to generic dds entity relations documentation."]
     pub fn dds_get_datareader(entity: dds_entity_t) -> dds_entity_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Get the mask of a condition.\n @ingroup condition\n\n This operation returns the mask that was used to create the given\n condition.\n\n @param[in]  condition  Read or Query condition that has a mask.\n @param[out] mask       Where to store the mask of the condition.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             Success (given mask is set).\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The mask arg is NULL.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_get_mask(condition: dds_entity_t, mask: *mut u32) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Returns the instance handle that represents the entity.\n @ingroup entity\n\n @param[in]   entity  Entity of which to get the instance handle.\n @param[out]  ihdl    Pointer to dds_instance_handle_t.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             Success.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n DOC_TODO: Check list of return codes is complete."]
     pub fn dds_get_instance_handle(
         entity: dds_entity_t,
         ihdl: *mut dds_instance_handle_t,
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Returns the GUID that represents the entity in the network,\n and therefore only supports participants, readers and writers.\n @ingroup entity\n\n @param[in]   entity  Entity of which to get the instance handle.\n @param[out]  guid    Where to store the GUID.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             Success.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n\n DOC_TODO: Check list of return codes is complete."]
     pub fn dds_get_guid(entity: dds_entity_t, guid: *mut dds_guid_t) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Read the status set for the entity\n @ingroup entity_status\n\n This operation reads the status(es) set for the entity based on\n the enabled status and mask set. It does not clear the read status(es).\n\n @param[in]  entity  Entity on which the status has to be read.\n @param[out] status  Returns the status set on the entity, based on the enabled status.\n @param[in]  mask    Filter the status condition to be read, 0 means all statuses\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             Success.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The entity parameter is not a valid parameter, status is a null pointer or\n             mask has bits set outside the status range.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object or mask has status\n             bits set that are undefined for the type of entity.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_read_status(entity: dds_entity_t, status: *mut u32, mask: u32) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Read the status set for the entity\n @ingroup entity_status\n\n This operation reads the status(es) set for the entity based on the enabled\n status and mask set. It clears the status set after reading.\n\n @param[in]  entity  Entity on which the status has to be read.\n @param[out] status  Returns the status set on the entity, based on the enabled status.\n @param[in]  mask    Filter the status condition to be read, 0 means all statuses\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             Success.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The entity parameter is not a valid parameter, status is a null pointer or\n             mask has bits set outside the status range.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object or mask has status\n             bits set that are undefined for the type of entity.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_take_status(entity: dds_entity_t, status: *mut u32, mask: u32) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Get changed status(es)\n @ingroup entity_status\n\n This operation returns the status changes since they were last read.\n\n @param[in]  entity  Entity on which the statuses are read.\n @param[out] status  Returns the current set of triggered statuses.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             Success.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The entity parameter is not a valid parameter.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_get_status_changes(entity: dds_entity_t, status: *mut u32) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @anchor dds_get_status_mask\n @brief Get enabled status on entity\n @ingroup entity_status\n\n This operation returns the status enabled on the entity\n\n @param[in]  entity  Entity to get the status.\n @param[out] mask    Mask of enabled statuses set on the entity.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             Success.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The entity parameter is not a valid parameter.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_get_status_mask(entity: dds_entity_t, mask: *mut u32) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @deprecated Get enabled status on entity. Use \\ref dds_get_status_mask instead.\n @ingroup deprecated\n\n @param[in] entity  Entity to get the status.\n @param[out] mask   Mask of enabled statuses set on the entity.\n @returns A dds_return_t indicating success of failure."]
     pub fn dds_get_enabled_status(entity: dds_entity_t, mask: *mut u32) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @anchor dds_set_status_mask\n @brief Set status enabled on entity\n @ingroup entity_status\n\n This operation enables the status(es) based on the mask set\n\n @param[in]  entity  Entity to enable the status.\n @param[in]  mask    Status value that indicates the status to be enabled.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             Success.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The entity parameter is not a valid parameter.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_set_status_mask(entity: dds_entity_t, mask: u32) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Get entity QoS policies.\n @ingroup entity_qos\n\n This operation allows access to the existing set of QoS policies\n for the entity.\n\n @param[in]  entity  Entity on which to get qos.\n @param[out] qos     Pointer to the qos structure that returns the set policies.\n\n @returns A dds_return_t indicating success or failure. The QoS object will have\n at least all QoS relevant for the entity present and the corresponding dds_qget_...\n will return true.\n\n @retval DDS_RETCODE_OK\n             The existing set of QoS policy values applied to the entity\n             has successfully been copied into the specified qos parameter.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The qos parameter is NULL.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n\n DOC_TODO: Link to generic QoS information documentation."]
     pub fn dds_get_qos(entity: dds_entity_t, qos: *mut dds_qos_t) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Set entity QoS policies.\n @ingroup entity_qos\n\n This operation replaces the existing set of Qos Policy settings for an\n entity. The parameter qos must contain the struct with the QosPolicy\n settings which is checked for self-consistency.\n\n The set of QosPolicy settings specified by the qos parameter are applied on\n top of the existing QoS, replacing the values of any policies previously set\n (provided, the operation returned DDS_RETCODE_OK).\n\n Not all policies are changeable when the entity is enabled.\n\n @note Currently only Latency Budget and Ownership Strength are changeable QoS\n       that can be set.\n\n @param[in]  entity  Entity from which to get qos.\n @param[in]  qos     Pointer to the qos structure that provides the policies.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             The new QoS policies are set.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The qos parameter is NULL.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n @retval DDS_RETCODE_IMMUTABLE_POLICY\n             The entity is enabled and one or more of the policies of the QoS\n             are immutable.\n @retval DDS_RETCODE_INCONSISTENT_POLICY\n             A few policies within the QoS are not consistent with each other.\n\n DOC_TODO: Link to generic QoS information documentation."]
     pub fn dds_set_qos(entity: dds_entity_t, qos: *const dds_qos_t) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Get entity listeners.\n @ingroup entity_listener\n\n This operation allows access to the existing listeners attached to\n the entity.\n\n @param[in]  entity   Entity on which to get the listeners.\n @param[out] listener Pointer to the listener structure that returns the\n                      set of listener callbacks.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             The listeners of to the entity have been successfully been\n             copied into the specified listener parameter.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The listener parameter is NULL.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n\n DOC_TODO: Link to (generic) Listener and status information."]
     pub fn dds_get_listener(entity: dds_entity_t, listener: *mut dds_listener_t) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Set entity listeners.\n @ingroup entity_listener\n\n This operation attaches a dds_listener_t to the dds_entity_t. Only one\n Listener can be attached to each Entity. If a Listener was already\n attached, this operation will replace it with the new one. In other\n words, all related callbacks are replaced (possibly with NULL).\n\n A call to this operation will immediately invoke any listener callbacks for\n which the corresponding status flag is set. It may cause spurious invocations,\n including multiple invocations for one listener. For most cases this is unlikely,\n but for the DATA_ON_READERS listeners it is quite likely, though not certain.\n\n When listener parameter is NULL, all listener callbacks that were possibly\n set on the Entity will be removed.\n\n @note Not all listener callbacks are related to all entities.\n\n ## Communication Status\n For each communication status, the StatusChangedFlag flag is initially set to\n FALSE. It becomes TRUE whenever that plain communication status changes. For\n each plain communication status activated in the mask, the associated\n Listener callback is invoked and the communication status is reset\n to FALSE, as the listener implicitly accesses the status which is passed as a\n parameter to that operation.\n The status is reset prior to calling the listener, so if the application calls\n the get_<status_name> from inside the listener it will see the\n status already reset.\n\n ## Status Propagation\n In case a related callback within the Listener is not set, the Listener of\n the Parent entity is called recursively, until a Listener with the appropriate\n callback set has been found and called. This allows the application to set\n (for instance) a default behaviour in the Listener of the containing Publisher\n and a DataWriter specific behaviour when needed. In case the callback is not\n set in the Publishers' Listener either, the communication status will be\n propagated to the Listener of the DomainParticipant of the containing\n DomainParticipant. In case the callback is not set in the DomainParticipants'\n Listener either, the Communication Status flag will be set, resulting in a\n possible WaitSet trigger.\n\n @param[in]  entity    Entity on which to get the listeners.\n @param[in]  listener  Pointer to the listener structure that contains the\n                       set of listener callbacks (maybe NULL).\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             The listeners of to the entity have been successfully been\n             copied into the specified listener parameter.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n DOC_TODO: Link to (generic) Listener and status information."]
     pub fn dds_set_listener(entity: dds_entity_t, listener: *const dds_listener_t) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Creates a new instance of a DDS participant in a domain\n @ingroup domain_participant\n\n If domain is set (not DDS_DOMAIN_DEFAULT) then it must match if the domain has also\n been configured or an error status will be returned.\n Currently only a single domain can be configured by providing configuration file.\n If no configuration file exists, the default domain is configured as 0.\n\n\n @param[in]  domain The domain in which to create the participant (can be DDS_DOMAIN_DEFAULT). DDS_DOMAIN_DEFAULT is for using the domain in the configuration.\n @param[in]  qos The QoS to set on the new participant (can be NULL).\n @param[in]  listener Any listener functions associated with the new participant (can be NULL).\n\n @returns A valid participant handle or an error code.\n\n @retval >0\n             A valid participant handle.\n @retval DDS_RETCODE_NOT_ALLOWED_BY_SECURITY\n             An invalid DDS Security configuration was specified (whether\n             that be missing or incorrect entries, expired certificates,\n             or anything else related to the security settings and\n             implementation).\n @retval DDS_RETCODE_PRECONDITION_NOT_MET\n             Some security properties specified in the QoS, but the Cyclone\n             build does not include support for DDS Security.\n @retval DDS_RETCODE_OUT_OF_RESOURCES\n             Some resource limit (maximum participants, memory, handles,\n             &c.) prevented creation of the participant.\n @retval DDS_RETCODE_ERROR\n             The \"CYCLONEDDS_URI\" environment variable lists non-existent\n             or invalid configuration files, or contains invalid embedded\n             configuration items; or an unspecified internal error has\n             occurred."]
     pub fn dds_create_participant(
         domain: dds_domainid_t,
         qos: *const dds_qos_t,
@@ -1736,18 +2136,22 @@ unsafe extern "C" {
     ) -> dds_entity_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Creates a domain with a given configuration\n @ingroup domain\n\n To explicitly create a domain based on a configuration passed as a string.\n\n It will not be created if a domain with the given domain id already exists.\n This could have been created implicitly by a dds_create_participant().\n\n Please be aware that the given domain_id always takes precedence over the\n configuration.\n\n | domain_id | domain id in config | result                        |\n |:----------|:--------------------|:------------------------------|\n | n         | any (or absent)     | n, config is used             |\n | n         | m == n              | n, config is used             |\n | n         | m != n              | n, config is ignored: default |\n\n Config models:\n  -# @code{xml}\n     <CycloneDDS>\n        <Domain id=\"X\">...</Domain>\n        <!-- <Domain .../> -->\n      </CycloneDDS>\n      @endcode\n      where ... is all that can today be set in children of CycloneDDS\n      with the exception of the id\n  -# @code{xml}\n     <CycloneDDS>\n        <Domain><Id>X</Id></Domain>\n        <!-- more things here ... -->\n     </CycloneDDS>\n     @endcode\n     Legacy form, domain id must be the first element in the file with\n     a value (if nothing has been set previously, it a warning is good\n     enough)\n\n Using NULL or \"\" as config will create a domain with default settings.\n\n\n @param[in]  domain The domain to be created. DEFAULT_DOMAIN is not allowed.\n @param[in]  config A configuration string containing file names and/or XML fragments representing the configuration.\n\n @returns A valid entity handle or an error code.\n\n @retval DDS_RETCODE_BAD_PARAMETER\n             Illegal value for domain id or the configfile parameter is NULL.\n @retval DDS_RETCODE_PRECONDITION_NOT_MET\n             The domain already existed and cannot be created again.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred."]
     pub fn dds_create_domain(
         domain: dds_domainid_t,
         config: *const ::std::os::raw::c_char,
     ) -> dds_entity_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Get entity parent.\n @ingroup entity\n\n This operation returns the parent to which the given entity belongs.\n For instance, it will return the Participant that was used when\n creating a Publisher (when that Publisher was provided here).\n\n When a reader or a writer are created with a participant, then a\n subscriber or publisher are created implicitly.\n This function will return the implicit parent and not the used\n participant.\n\n @param[in]  entity  Entity from which to get its parent.\n\n @returns A valid entity handle or an error code.\n\n @retval >0\n             A valid entity handle.\n @retval DDS_ENTITY_NIL\n             Called with a participant.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n DOC_TODO: Link to generic dds entity relations documentation."]
     pub fn dds_get_parent(entity: dds_entity_t) -> dds_entity_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Get entity participant.\n @ingroup entity\n\n This operation returns the participant to which the given entity belongs.\n For instance, it will return the Participant that was used when\n creating a Publisher that was used to create a DataWriter (when that\n DataWriter was provided here).\n\n DOC_TODO: Link to generic dds entity relations documentation.\n\n @param[in]  entity  Entity from which to get its participant.\n\n @returns A valid entity or an error code.\n\n @retval >0\n             A valid participant handle.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_get_participant(entity: dds_entity_t) -> dds_entity_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Get entity children.\n @ingroup entity\n\n This operation returns the children that the entity contains.\n For instance, it will return all the Topics, Publishers and Subscribers\n of the Participant that was used to create those entities (when that\n Participant is provided here).\n\n This functions takes a pre-allocated list to put the children in and\n will return the number of found children. It is possible that the given\n size of the list is not the same as the number of found children. If\n less children are found, then the last few entries in the list are\n untouched. When more children are found, then only 'size' number of\n entries are inserted into the list, but still complete count of the\n found children is returned. Which children are returned in the latter\n case is undefined.\n\n When supplying NULL as list and 0 as size, you can use this to acquire\n the number of children without having to pre-allocate a list.\n\n When a reader or a writer are created with a participant, then a\n subscriber or publisher are created implicitly.\n When used on the participant, this function will return the implicit\n subscriber and/or publisher and not the related reader/writer.\n\n @param[in]  entity   Entity from which to get its children.\n @param[out] children Pre-allocated array to contain the found children.\n @param[in]  size     Size of the pre-allocated children's list.\n\n @returns Number of children or an error code.\n\n @retval >=0\n             Number of found children (can be larger than 'size').\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The children parameter is NULL, while a size is provided.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_get_children(
         entity: dds_entity_t,
         children: *mut dds_entity_t,
@@ -1755,9 +2159,11 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Get the domain id to which this entity is attached.\n @ingroup entity\n\n When creating a participant entity, it is attached to a certain domain.\n All the children (like Publishers) and childrens' children (like\n DataReaders), etc are also attached to that domain.\n\n This function will return the original domain ID when called on\n any of the entities within that hierarchy.  For entities not associated\n with a domain, the id is set to DDS_DOMAIN_DEFAULT.\n\n @param[in]  entity   Entity from which to get its children.\n @param[out] id       Pointer to put the domain ID in.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             Domain ID was returned.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The id parameter is NULL.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_get_domainid(entity: dds_entity_t, id: *mut dds_domainid_t) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Creates a new topic with default type handling.\n @ingroup topic\n\n The type name for the topic is taken from the generated descriptor. Topic\n matching is done on a combination of topic name and type name. Each successful\n call to dds_create_topic creates a new topic entity sharing the same QoS\n settings with all other topics of the same name.\n\n @param[in]  participant  Participant on which to create the topic.\n @param[in]  descriptor   An IDL generated topic descriptor.\n @param[in]  name         Name of the topic.\n @param[in]  qos          QoS to set on the new topic (can be NULL).\n @param[in]  listener     Any listener functions associated with the new topic (can be NULL).\n\n @returns A valid, unique topic handle or an error code.\n\n @retval >=0\n             A valid unique topic handle.\n @retval DDS_RETCODE_BAD_PARAMETER\n             Either participant, descriptor, name or qos is invalid.\n @retval DDS_RETCODE_INCONSISTENT_POLICY\n             QoS mismatch between qos and an existing topic's QoS.\n @retval DDS_RETCODE_PRECONDITION_NOT_MET\n             Mismatch between type name in descriptor and pre-existing\n             topic's type name."]
     pub fn dds_create_topic(
         participant: dds_entity_t,
         descriptor: *const dds_topic_descriptor_t,
@@ -1767,6 +2173,7 @@ unsafe extern "C" {
     ) -> dds_entity_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Creates a new topic with provided type handling.\n @ingroup topic\n\n The name for the type is taken from the provided \"sertype\" object. Type\n matching is done on a combination of topic name and type name. Each successful\n call to dds_create_topic creates a new topic entity sharing the same QoS\n settings with all other topics of the same name.\n\n In case this function returns a valid handle, the ownership of the provided\n sertype is handed over to Cyclone. On return, the caller gets in the sertype parameter a\n pointer to the sertype that is actually used by the topic. This can be the provided sertype\n (if this sertype was not yet known in the domain), or a sertype thas was\n already known in the domain.\n\n @param[in]     participant  Participant on which to create the topic.\n @param[in]     name         Topic name\n @param[in,out] sertype      Internal description of the type . On return, the sertype parameter is set to the actual sertype that is used by the topic.\n @param[in]     qos          QoS to set on the new topic (can be NULL).\n @param[in]     listener     Any listener functions associated with the new topic (can be NULL).\n @param[in]     sedp_plist   Topic description to be published as part of discovery (if NULL, not published).\n\n @returns A valid, unique topic handle or an error code. Iff a valid handle, the domain takes ownership of provided serdata.\n\n @retval >=0\n             A valid unique topic handle.\n @retval DDS_RETCODE_BAD_PARAMETER\n             Either participant, descriptor, name or qos is invalid.\n @retval DDS_RETCODE_INCONSISTENT_POLICY\n             QoS mismatch between qos and an existing topic's QoS.\n @retval DDS_RETCODE_PRECONDITION_NOT_MET\n             Mismatch between type name in sertype and pre-existing\n             topic's type name."]
     pub fn dds_create_topic_sertype(
         participant: dds_entity_t,
         name: *const ::std::os::raw::c_char,
@@ -1777,6 +2184,7 @@ unsafe extern "C" {
     ) -> dds_entity_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Returns the name of a given topic.\n @ingroup topic\n\n @param[in]  topic  The topic.\n @param[out] name   Buffer to write the topic name to.\n @param[in]  size   Number of bytes available in the buffer.\n\n @returns A dds_return_t indicating success or failure.\n\n @return Actual length of topic name (name is truncated if return value >= size) or error"]
     pub fn dds_get_name(
         topic: dds_entity_t,
         name: *mut ::std::os::raw::c_char,
@@ -1784,26 +2192,31 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Returns the type name of a given topic.\n @ingroup topic\n\n @param[in]  topic  The topic.\n @param[out] name   Buffer to write the topic type name to.\n @param[in]  size   Number of bytes available in the buffer.\n\n @returns A dds_return_t indicating success or failure.\n\n @return Actual length of type name (name is truncated if return value >= size) or error"]
     pub fn dds_get_type_name(
         topic: dds_entity_t,
         name: *mut ::std::os::raw::c_char,
         size: usize,
     ) -> dds_return_t;
 }
+#[doc = " @anchor dds_topic_filter_sample_fn\n @brief Topic filter function that only needs to look at the sample.\n @ingroup topic_filter\n @warning Unstable API"]
 pub type dds_topic_filter_sample_fn =
     ::std::option::Option<unsafe extern "C" fn(sample: *const ::std::os::raw::c_void) -> bool>;
+#[doc = " @anchor dds_topic_filter_sample_arg_fn\n @brief Topic filter function that only needs to look at the sample and a custom argument.\n @ingroup topic_filter\n @warning Unstable API"]
 pub type dds_topic_filter_sample_arg_fn = ::std::option::Option<
     unsafe extern "C" fn(
         sample: *const ::std::os::raw::c_void,
         arg: *mut ::std::os::raw::c_void,
     ) -> bool,
 >;
+#[doc = " @anchor dds_topic_filter_sampleinfo_arg_fn\n @brief Topic filter function that only needs to look at the sampleinfo and a custom argument.\n @ingroup topic_filter\n @warning Unstable API"]
 pub type dds_topic_filter_sampleinfo_arg_fn = ::std::option::Option<
     unsafe extern "C" fn(
         sampleinfo: *const dds_sample_info_t,
         arg: *mut ::std::os::raw::c_void,
     ) -> bool,
 >;
+#[doc = " @anchor dds_topic_filter_sample_sampleinfo_arg_fn\n @brief Topic filter function that needs to look at the sample, the sampleinfo and a custom argument.\n @ingroup topic_filter\n @warning Unstable API"]
 pub type dds_topic_filter_sample_sampleinfo_arg_fn = ::std::option::Option<
     unsafe extern "C" fn(
         sample: *const ::std::os::raw::c_void,
@@ -1811,20 +2224,33 @@ pub type dds_topic_filter_sample_sampleinfo_arg_fn = ::std::option::Option<
         arg: *mut ::std::os::raw::c_void,
     ) -> bool,
 >;
+#[doc = " @anchor dds_topic_filter_fn\n @brief See \\ref dds_topic_filter_sample_fn\n @ingroup topic_filter\n @warning Unstable API"]
 pub type dds_topic_filter_fn = dds_topic_filter_sample_fn;
+#[doc = " @anchor dds_topic_filter_arg_fn\n @brief See \\ref dds_topic_filter_sample_arg_fn\n @ingroup topic_filter\n @warning Unstable API"]
 pub type dds_topic_filter_arg_fn = dds_topic_filter_sample_arg_fn;
+#[doc = "< Can be used to reset topic filter"]
 pub const DDS_TOPIC_FILTER_NONE: dds_topic_filter_mode = 0;
+#[doc = "< Use with \\ref dds_topic_filter_sample_fn"]
 pub const DDS_TOPIC_FILTER_SAMPLE: dds_topic_filter_mode = 1;
+#[doc = "< Use with \\ref dds_topic_filter_sample_arg_fn"]
 pub const DDS_TOPIC_FILTER_SAMPLE_ARG: dds_topic_filter_mode = 2;
+#[doc = "< Use with \\ref dds_topic_filter_sampleinfo_arg_fn"]
 pub const DDS_TOPIC_FILTER_SAMPLEINFO_ARG: dds_topic_filter_mode = 3;
+#[doc = "< Use with \\ref dds_topic_filter_sample_sampleinfo_arg_fn"]
 pub const DDS_TOPIC_FILTER_SAMPLE_SAMPLEINFO_ARG: dds_topic_filter_mode = 4;
+#[doc = " @brief Topic filter mode;\n @ingroup topic_filter\n @warning Unstable API"]
 pub type dds_topic_filter_mode = ::std::os::raw::c_uint;
+#[doc = " @brief Union of all filter function types;\n @ingroup topic_filter\n @warning Unstable API"]
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub union dds_topic_filter_function_union {
+    #[doc = "< Use with mode dds_topic_filter_mode::DDS_TOPIC_FILTER_SAMPLE"]
     pub sample: dds_topic_filter_sample_fn,
+    #[doc = "< Use with mode dds_topic_filter_mode::DDS_TOPIC_FILTER_SAMPLE_ARG"]
     pub sample_arg: dds_topic_filter_sample_arg_fn,
+    #[doc = "< Use with mode dds_topic_filter_mode::DDS_TOPIC_FILTER_SAMPLEINFO_ARG"]
     pub sampleinfo_arg: dds_topic_filter_sampleinfo_arg_fn,
+    #[doc = "< Use with mode dds_topic_filter_mode::DDS_TOPIC_FILTER_SAMPLE_SAMPLEINFO_ARG"]
     pub sample_sampleinfo_arg: dds_topic_filter_sample_sampleinfo_arg_fn,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -1851,11 +2277,15 @@ impl Default for dds_topic_filter_function_union {
         }
     }
 }
+#[doc = " @brief Full topic filter container;\n @ingroup topic_filter\n @warning Unstable API"]
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct dds_topic_filter {
+    #[doc = "< Provide a mode"]
     pub mode: dds_topic_filter_mode,
+    #[doc = "< Provide a filter function"]
     pub f: dds_topic_filter_function_union,
+    #[doc = "< Provide an argument, can be NULL"]
     pub arg: *mut ::std::os::raw::c_void,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -1878,9 +2308,11 @@ impl Default for dds_topic_filter {
     }
 }
 unsafe extern "C" {
+    #[doc = " @brief Gets the filter for a topic.\n @ingroup topic_filter\n @deprecated Use dds_get_topic_filter_and_arg() or dds_get_topic_filter_extended() instead.\n @warning Unstable API\n\n To be replaced by proper filtering on readers.\n\n @param[in]  topic  The topic from which to get the filter.\n\n @returns The topic filter, or 0 when of type other than \"sample\"."]
     pub fn dds_get_topic_filter(topic: dds_entity_t) -> dds_topic_filter_fn;
 }
 unsafe extern "C" {
+    #[doc = " @brief Gets the filter for a topic.\n @ingroup topic_filter\n @warning Unstable API\n\n To be replaced by proper filtering on readers\n\n @param[in]  topic  The topic from which to get the filter.\n @param[out] fn     The topic filter function (fn may be NULL).\n @param[out] arg    Filter function argument (arg may be NULL).\n\n @retval DDS_RETCODE_OK  Filter set successfully\n @retval DDS_RETCODE_PRECONDITION_NOT_MET  Filter is not of \"none\" or \"sample_arg\"\n @retval DDS_RETCODE_BAD_PARAMETER  The topic handle is invalid"]
     pub fn dds_get_topic_filter_and_arg(
         topic: dds_entity_t,
         fn_: *mut dds_topic_filter_arg_fn,
@@ -1888,12 +2320,14 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Gets the filter for a topic.\n @ingroup topic_filter\n @warning Unstable API\n\n To be replaced by proper filtering on readers\n\n @param[in]  topic  The topic from which to get the filter.\n @param[out] filter The topic filter specification.\n\n @retval DDS_RETCODE_OK  Filter set successfully\n @retval DDS_RETCODE_BAD_PARAMETER  The topic handle is invalid"]
     pub fn dds_get_topic_filter_extended(
         topic: dds_entity_t,
         filter: *mut dds_topic_filter,
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Creates a new instance of a DDS subscriber\n @ingroup subscriber\n\n @param[in]  participant The participant on which the subscriber is being created.\n @param[in]  qos         The QoS to set on the new subscriber (can be NULL).\n @param[in]  listener    Any listener functions associated with the new subscriber (can be NULL).\n\n @returns A valid subscriber handle or an error code.\n\n @retval >0\n             A valid subscriber handle.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the parameters is invalid."]
     pub fn dds_create_subscriber(
         participant: dds_entity_t,
         qos: *const dds_qos_t,
@@ -1901,6 +2335,7 @@ unsafe extern "C" {
     ) -> dds_entity_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Creates a new instance of a DDS publisher\n @ingroup publisher\n\n @param[in]  participant The participant to create a publisher for.\n @param[in]  qos         The QoS to set on the new publisher (can be NULL).\n @param[in]  listener    Any listener functions associated with the new publisher (can be NULL).\n\n @returns A valid publisher handle or an error code.\n\n @retval >0\n            A valid publisher handle.\n @retval DDS_RETCODE_ERROR\n            An internal error has occurred."]
     pub fn dds_create_publisher(
         participant: dds_entity_t,
         qos: *const dds_qos_t,
@@ -1908,6 +2343,7 @@ unsafe extern "C" {
     ) -> dds_entity_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Creates a new instance of a DDS reader.\n @ingroup reader\n\n When a participant is used to create a reader, an implicit subscriber is created.\n This implicit subscriber will be deleted automatically when the created reader\n is deleted.\n\n @param[in]  participant_or_subscriber The participant or subscriber on which the reader is being created.\n @param[in]  topic                     The topic to read.\n @param[in]  qos                       The QoS to set on the new reader (can be NULL).\n @param[in]  listener                  Any listener functions associated with the new reader (can be NULL).\n\n @returns A valid reader handle or an error code.\n\n @retval >0\n            A valid reader handle.\n @retval DDS_RETCODE_ERROR\n            An internal error occurred.\n\n DOC_TODO: Complete list of error codes"]
     pub fn dds_create_reader(
         participant_or_subscriber: dds_entity_t,
         topic: dds_entity_t,
@@ -1916,6 +2352,7 @@ unsafe extern "C" {
     ) -> dds_entity_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Creates a new instance of a DDS writer.\n @ingroup writer\n\n When a participant is used to create a writer, an implicit publisher is created.\n This implicit publisher will be deleted automatically when the created writer\n is deleted.\n\n @param[in]  participant_or_publisher The participant or publisher on which the writer is being created.\n @param[in]  topic The topic to write.\n @param[in]  qos The QoS to set on the new writer (can be NULL).\n @param[in]  listener Any listener functions associated with the new writer (can be NULL).\n\n @returns A valid writer handle or an error code.\n\n @returns >0\n              A valid writer handle.\n @returns DDS_RETCODE_ERROR\n              An internal error occurred.\n\n DOC_TODO: Complete list of error codes"]
     pub fn dds_create_writer(
         participant_or_publisher: dds_entity_t,
         topic: dds_entity_t,
@@ -1924,18 +2361,23 @@ unsafe extern "C" {
     ) -> dds_entity_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Write the value of a data instance\n @ingroup writing\n\n With this API, the value of the source timestamp is automatically made\n available to the data reader by the service.\n\n @param[in]  writer The writer entity.\n @param[in]  data Value to be written.\n\n @returns dds_return_t indicating success or failure."]
     pub fn dds_write(writer: dds_entity_t, data: *const ::std::os::raw::c_void) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Flush a writers batched writes\n @ingroup writing\n\n When using the WriteBatch mode you can manually batch small writes into larger\n datapackets for network efficiency. The normal dds_write() calls will no longer\n automatically decide when to send data, you will do that manually using this function.\n\n DOC_TODO check if my assumptions about how this function works are correct\n\n @param[in]  writer The writer entity."]
     pub fn dds_write_flush(writer: dds_entity_t);
 }
 unsafe extern "C" {
+    #[doc = " @brief Write a serialized value of a data instance\n @ingroup writing\n\n This call causes the writer to write the serialized value that is provided\n in the serdata argument.  Timestamp and statusinfo fields are set to the\n current time and 0 (indicating a regular write), respectively.\n\n @param[in]  writer The writer entity.\n @param[in]  serdata Serialized value to be written.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             The writer successfully wrote the serialized value.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n @retval DDS_RETCODE_TIMEOUT\n             The writer failed to write the serialized value reliably within the specified max_blocking_time."]
     pub fn dds_writecdr(writer: dds_entity_t, serdata: *mut ddsi_serdata) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Write a serialized value of a data instance\n @ingroup writing\n\n This call causes the writer to write the serialized value that is provided\n in the serdata argument.  Timestamp and statusinfo are used as is.\n\n @param[in]  writer The writer entity.\n @param[in]  serdata Serialized value to be written.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             The writer successfully wrote the serialized value.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n @retval DDS_RETCODE_TIMEOUT\n             The writer failed to write the serialized value reliably within the specified max_blocking_time."]
     pub fn dds_forwardcdr(writer: dds_entity_t, serdata: *mut ddsi_serdata) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Write the value of a data instance along with the source timestamp passed.\n @ingroup writing\n\n @param[in]  writer The writer entity.\n @param[in]  data Value to be written.\n @param[in]  timestamp Source timestamp.\n\n @returns A dds_return_t indicating success or failure."]
     pub fn dds_write_ts(
         writer: dds_entity_t,
         data: *const ::std::os::raw::c_void,
@@ -1943,19 +2385,25 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Creates a readcondition associated to the given reader.\n @ingroup readcondition\n\n The readcondition allows specifying which samples are of interest in\n a data reader's history, by means of a mask. The mask is or'd with\n the flags that are dds_sample_state_t, dds_view_state_t and\n dds_instance_state_t.\n\n Based on the mask value set, the readcondition gets triggered when\n data is available on the reader.\n\n Waitsets allow waiting for an event on some of any set of entities.\n This means that the readcondition can be used to wake up a waitset when\n data is in the reader history with states that matches the given mask.\n\n @note The parent reader and every of its associated conditions (whether\n       they are readconditions or queryconditions) share the same resources.\n       This means that one of these entities reads or takes data, the states\n       of the data will change for other entities automatically. For instance,\n       if one reads a sample, then the sample state will become 'read' for all\n       associated reader/conditions. Or if one takes a sample, then it's not\n       available to any other associated reader/condition.\n\n @param[in]  reader  Reader to associate the condition to.\n @param[in]  mask    Interest (dds_sample_state_t|dds_view_state_t|dds_instance_state_t).\n\n @returns A valid condition handle or an error code.\n\n @retval >0\n             A valid condition handle\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_create_readcondition(reader: dds_entity_t, mask: u32) -> dds_entity_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Reads the trigger status of a guardcondition.\n @ingroup guardcondition\n\n @param[in]   guardcond  Guard condition to read the trigger status of.\n @param[out]  triggered  The triggered status read from the guard condition.\n\n @retval DDS_RETCODE_OK\n             Operation successful\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_read_guardcondition(guardcond: dds_entity_t, triggered: *mut bool) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Reads and resets the trigger status of a guardcondition.\n @ingroup guardcondition\n\n @param[in]   guardcond  Guard condition to read and reset the trigger status of.\n @param[out]  triggered  The triggered status read from the guard condition.\n\n @retval DDS_RETCODE_OK\n             Operation successful\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_take_guardcondition(guardcond: dds_entity_t, triggered: *mut bool) -> dds_return_t;
 }
+#[doc = " @brief Waitset attachment argument.\n @ingroup waitset\n\n Every entity that is attached to the waitset can be accompanied by such\n an attachment argument. When the waitset wait is unblocked because of an\n entity that triggered, then the returning array will be populated with\n these attachment arguments that are related to the triggered entity."]
 pub type dds_attach_t = isize;
 unsafe extern "C" {
+    #[doc = " @brief Create a waitset and allocate the resources required\n @ingroup waitset\n\n A WaitSet object allows an application to wait until one or more of the\n conditions of the attached entities evaluates to TRUE or until the timeout\n expires.\n\n @param[in]  participant  Domain participant which the WaitSet contains.\n\n @returns A valid waitset handle or an error code.\n\n @retval >=0\n             A valid waitset handle.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_create_waitset(participant: dds_entity_t) -> dds_entity_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Acquire previously attached entities.\n @ingroup waitset\n\n This functions takes a pre-allocated list to put the entities in and\n will return the number of found entities. It is possible that the given\n size of the list is not the same as the number of found entities. If\n less entities are found, then the last few entries in the list are\n untouched. When more entities are found, then only 'size' number of\n entries are inserted into the list, but still the complete count of the\n found entities is returned. Which entities are returned in the latter\n case is undefined.\n\n @param[in]  waitset  Waitset from which to get its attached entities.\n @param[out] entities Pre-allocated array to contain the found entities.\n @param[in]  size     Size of the pre-allocated entities' list.\n\n @returns A dds_return_t with the number of children or an error code.\n\n @retval >=0\n             Number of children found (can be larger than 'size').\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The entities parameter is NULL, while a size is provided.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The waitset has already been deleted."]
     pub fn dds_waitset_get_entities(
         waitset: dds_entity_t,
         entities: *mut dds_entity_t,
@@ -1963,6 +2411,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief This operation attaches an Entity to the WaitSet.\n @ingroup waitset\n\n This operation attaches an Entity to the WaitSet. The dds_waitset_wait()\n will block when none of the attached entities are triggered. 'Triggered'\n (dds_triggered()) doesn't mean the same for every entity:\n  - Reader/Writer/Publisher/Subscriber/Topic/Participant\n      - These are triggered when their status changed.\n  - WaitSet\n      - Triggered when trigger value was set to true by the application.\n        It stays triggered until application sets the trigger value to\n        false (dds_waitset_set_trigger()). This can be used to wake up an\n        waitset for different reasons (f.i. termination) than the 'normal'\n        status change (like new data).\n  - ReadCondition/QueryCondition\n      - Triggered when data is available on the related Reader that matches\n        the Condition.\n\n Multiple entities can be attached to a single waitset. A particular entity\n can be attached to multiple waitsets. However, a particular entity can not\n be attached to a particular waitset multiple times.\n\n @param[in]  waitset  The waitset to attach the given entity to.\n @param[in]  entity   The entity to attach.\n @param[in]  x        Blob that will be supplied when the waitset wait is\n                      triggered by the given entity.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             Entity attached.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The given waitset or entity are not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The waitset has already been deleted.\n @retval DDS_RETCODE_PRECONDITION_NOT_MET\n             The entity was already attached."]
     pub fn dds_waitset_attach(
         waitset: dds_entity_t,
         entity: dds_entity_t,
@@ -1970,12 +2419,15 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief This operation detaches an Entity from the WaitSet.\n @ingroup waitset\n\n @param[in]  waitset  The waitset to detach the given entity from.\n @param[in]  entity   The entity to detach.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             Entity detached.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The given waitset or entity are not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The waitset has already been deleted.\n @retval DDS_RETCODE_PRECONDITION_NOT_MET\n             The entity is not attached."]
     pub fn dds_waitset_detach(waitset: dds_entity_t, entity: dds_entity_t) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Sets the trigger_value associated with a waitset.\n @ingroup waitset\n\n When the waitset is attached to itself and the trigger value is\n set to 'true', then the waitset will wake up just like with an\n other status change of the attached entities.\n\n This can be used to forcefully wake up a waitset, for instance\n when the application wants to shut down. So, when the trigger\n value is true, the waitset will wake up or not wait at all.\n\n The trigger value will remain true until the application sets it\n false again deliberately.\n\n @param[in]  waitset  The waitset to set the trigger value on.\n @param[in]  trigger  The trigger value to set.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             Trigger value set.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The given waitset is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The waitset has already been deleted."]
     pub fn dds_waitset_set_trigger(waitset: dds_entity_t, trigger: bool) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief This operation allows an application thread to wait for the a status\n        change or other trigger on (one of) the entities that are attached to\n        the WaitSet.\n @ingroup waitset\n\n The dds_waitset_wait() operation blocks until the some of the attached\n entities have triggered or \"reltimeout\" has elapsed.\n 'Triggered' (dds_triggered()) doesn't mean the same for every entity:\n  - Reader/Writer/Publisher/Subscriber/Topic/Participant\n      - These are triggered when their status changed.\n  - WaitSet\n      - Triggered when trigger value was set to true by the application.\n        It stays triggered until application sets the trigger value to\n        false (dds_waitset_set_trigger()). This can be used to wake up an\n        waitset for different reasons (f.i. termination) than the 'normal'\n        status change (like new data).\n  - ReadCondition/QueryCondition\n      - Triggered when data is available on the related Reader that matches\n        the Condition.\n\n This functions takes a pre-allocated list to put the \"xs\" blobs in (that\n were provided during the attach of the related entities) and will return\n the number of triggered entities. It is possible that the given size\n of the list is not the same as the number of triggered entities. If less\n entities were triggered, then the last few entries in the list are\n untouched. When more entities are triggered, then only 'size' number of\n entries are inserted into the list, but still the complete count of the\n triggered entities is returned. Which \"xs\" blobs are returned in the\n latter case is undefined.\n\n In case of a time out, the return value is 0.\n\n Deleting the waitset while the application is blocked results in an\n error code (i.e. < 0) returned by \"wait\".\n\n Multiple threads may block on a single waitset at the same time;\n the calls are entirely independent.\n\n An empty waitset never triggers (i.e., dds_waitset_wait on an empty\n waitset is essentially equivalent to a sleep).\n\n The \"dds_waitset_wait_until\" operation is the same as the\n \"dds_waitset_wait\" except that it takes an absolute timeout.\n\n @param[in]  waitset    The waitset to set the trigger value on.\n @param[out] xs         Pre-allocated list to store the 'blobs' that were\n                        provided during the attach of the triggered entities.\n @param[in]  nxs        The size of the pre-allocated blobs list.\n @param[in]  reltimeout Relative timeout\n\n @returns A dds_return_t with the number of entities triggered or an error code\n\n @retval >0\n             Number of entities triggered.\n @retval  0\n             Time out (no entities were triggered).\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The given waitset is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The waitset has already been deleted."]
     pub fn dds_waitset_wait(
         waitset: dds_entity_t,
         xs: *mut dds_attach_t,
@@ -1984,6 +2436,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief This operation allows an application thread to wait for the a status\n        change or other trigger on (one of) the entities that are attached to\n        the WaitSet.\n @ingroup waitset\n\n The dds_waitset_wait() operation blocks until the some of the attached\n entities have triggered or \"abstimeout\" has been reached.\n 'Triggered' (dds_triggered()) doesn't mean the same for every entity:\n  - Reader/Writer/Publisher/Subscriber/Topic/Participant\n      - These are triggered when their status changed.\n  - WaitSet\n      - Triggered when trigger value was set to true by the application.\n        It stays triggered until application sets the trigger value to\n        false (dds_waitset_set_trigger()). This can be used to wake up an\n        waitset for different reasons (f.i. termination) than the 'normal'\n        status change (like new data).\n  - ReadCondition/QueryCondition\n      - Triggered when data is available on the related Reader that matches\n        the Condition.\n\n This functions takes a pre-allocated list to put the \"xs\" blobs in (that\n were provided during the attach of the related entities) and will return\n the number of triggered entities. It is possible that the given size\n of the list is not the same as the number of triggered entities. If less\n entities were triggered, then the last few entries in the list are\n untouched. When more entities are triggered, then only 'size' number of\n entries are inserted into the list, but still the complete count of the\n triggered entities is returned. Which \"xs\" blobs are returned in the\n latter case is undefined.\n\n In case of a time out, the return value is 0.\n\n Deleting the waitset while the application is blocked results in an\n error code (i.e. < 0) returned by \"wait\".\n\n Multiple threads may block on a single waitset at the same time;\n the calls are entirely independent.\n\n An empty waitset never triggers (i.e., dds_waitset_wait on an empty\n waitset is essentially equivalent to a sleep).\n\n The \"dds_waitset_wait\" operation is the same as the\n \"dds_waitset_wait_until\" except that it takes an relative timeout.\n\n The \"dds_waitset_wait\" operation is the same as the \"dds_wait\"\n except that it takes an absolute timeout.\n\n @param[in]  waitset    The waitset to set the trigger value on.\n @param[out] xs         Pre-allocated list to store the 'blobs' that were\n                        provided during the attach of the triggered entities.\n @param[in]  nxs        The size of the pre-allocated blobs list.\n @param[in]  abstimeout Absolute timeout\n\n @returns A dds_return_t with the number of entities triggered or an error code.\n\n @retval >0\n             Number of entities triggered.\n @retval  0\n             Time out (no entities were triggered).\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The given waitset is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The waitset has already been deleted."]
     pub fn dds_waitset_wait_until(
         waitset: dds_entity_t,
         xs: *mut dds_attach_t,
@@ -1992,6 +2445,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Access and read the collection of data values (of same type) and sample info from the\n        data reader, readcondition or querycondition.\n @ingroup reading\n\n Return value provides information about number of samples read, which will\n be <= maxs. Based on the count, the buffer will contain data to be read only\n when valid_data bit in sample info structure is set.\n The buffer required for data values, could be allocated explicitly or can\n use the memory from data reader to prevent copy. In the latter case, buffer and\n sample_info should be returned back, once it is no longer using the Data.\n Data values once read will remain in the buffer with the sample_state set to READ\n and view_state set to NOT_NEW.\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value.\n @param[in]  bufsz The size of buffer provided.\n @param[in]  maxs Maximum number of samples to read.\n\n @returns A dds_return_t with the number of samples read or an error code.\n\n @retval >=0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_read(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2001,6 +2455,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Access and read loaned samples of data reader, readcondition or querycondition.\n @ingroup reading\n\n After dds_read_wl function is being called and the data has been handled, dds_return_loan() function must be called to possibly free memory.\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL)\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value\n @param[in]  maxs Maximum number of samples to read\n\n @returns A dds_return_t with the number of samples read or an error code\n\n @retval >=0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_read_wl(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2009,6 +2464,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Read the collection of data values and sample info from the data reader, readcondition\n        or querycondition based on mask.\n @ingroup reading\n\n When using a readcondition or querycondition, their masks are or'd with the given mask.\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value.\n @param[in]  bufsz The size of buffer provided.\n @param[in]  maxs Maximum number of samples to read.\n @param[in]  mask Filter the data based on dds_sample_state_t|dds_view_state_t|dds_instance_state_t.\n\n @returns A dds_return_t with the number of samples read or an error code.\n\n @retval >=0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_read_mask(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2019,6 +2475,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Access and read loaned samples of data reader, readcondition\n        or querycondition based on mask\n @ingroup reading\n\n When using a readcondition or querycondition, their masks are or'd with the given mask.\n\n After dds_read_mask_wl function is being called and the data has been handled, dds_return_loan() function must be called to possibly free memory\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value.\n @param[in]  maxs Maximum number of samples to read.\n @param[in]  mask Filter the data based on dds_sample_state_t|dds_view_state_t|dds_instance_state_t.\n\n @returns A dds_return_t with the number of samples read or an error code.\n\n @retval >=0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_read_mask_wl(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2028,6 +2485,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Access and read the collection of data values (of same type) and sample info from the\n        data reader, readcondition or querycondition, coped by the provided instance handle.\n @ingroup reading\n\n This operation implements the same functionality as dds_read, except that only data scoped to\n the provided instance handle is read.\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value.\n @param[in]  bufsz The size of buffer provided.\n @param[in]  maxs Maximum number of samples to read.\n @param[in]  handle Instance handle related to the samples to read.\n\n @returns A dds_return_t with the number of samples read or an error code.\n\n @retval >=0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n @retval DDS_RETCODE_PRECONDITION_NOT_MET\n             The instance handle has not been registered with this reader."]
     pub fn dds_read_instance(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2038,6 +2496,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Access and read loaned samples of data reader, readcondition or querycondition,\n        scoped by the provided instance handle.\n @ingroup reading\n\n This operation implements the same functionality as dds_read_wl, except that only data\n scoped to the provided instance handle is read.\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value.\n @param[in]  maxs Maximum number of samples to read.\n @param[in]  handle Instance handle related to the samples to read.\n\n @returns A dds_return_t with the number of samples read or an error code.\n\n @retval >=0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n @retval DDS_RETCODE_PRECONDITION_NOT_MET\n             The instance handle has not been registered with this reader."]
     pub fn dds_read_instance_wl(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2047,6 +2506,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Read the collection of data values and sample info from the data reader, readcondition\n        or querycondition based on mask and scoped by the provided instance handle.\n @ingroup reading\n\n This operation implements the same functionality as dds_read_mask, except that only data\n scoped to the provided instance handle is read.\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value.\n @param[in]  bufsz The size of buffer provided.\n @param[in]  maxs Maximum number of samples to read.\n @param[in]  handle Instance handle related to the samples to read.\n @param[in]  mask Filter the data based on dds_sample_state_t|dds_view_state_t|dds_instance_state_t.\n\n @returns A dds_return_t with the number of samples read or an error code.\n\n @retval >=0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n @retval DDS_RETCODE_PRECONDITION_NOT_MET\n             The instance handle has not been registered with this reader."]
     pub fn dds_read_instance_mask(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2058,6 +2518,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Access and read loaned samples of data reader, readcondition or\n        querycondition based on mask, scoped by the provided instance handle.\n @ingroup reading\n\n This operation implements the same functionality as dds_read_mask_wl, except that\n only data scoped to the provided instance handle is read.\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value.\n @param[in]  maxs Maximum number of samples to read.\n @param[in]  handle Instance handle related to the samples to read.\n @param[in]  mask Filter the data based on dds_sample_state_t|dds_view_state_t|dds_instance_state_t.\n\n @returns A dds_return_t with the number of samples read or an error code.\n\n @retval >=0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n @retval DDS_RETCODE_PRECONDITION_NOT_MET\n             The instance handle has not been registered with this reader."]
     pub fn dds_read_instance_mask_wl(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2068,6 +2529,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Access the collection of data values (of same type) and sample info from the\n        data reader, readcondition or querycondition.\n @ingroup reading\n\n Data value once read is removed from the Data Reader cannot to\n 'read' or 'taken' again.\n Return value provides information about number of samples read, which will\n be <= maxs. Based on the count, the buffer will contain data to be read only\n when valid_data bit in sample info structure is set.\n The buffer required for data values, could be allocated explicitly or can\n use the memory from data reader to prevent copy. In the latter case, buffer and\n sample_info should be returned back, once it is no longer using the Data.\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value.\n @param[in]  bufsz The size of buffer provided.\n @param[in]  maxs Maximum number of samples to read.\n\n @returns A dds_return_t with the number of samples read or an error code.\n\n @retval >=0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_take(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2077,6 +2539,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Access loaned samples of data reader, readcondition or querycondition.\n @ingroup reading\n\n After dds_take_wl function is being called and the data has been handled, dds_return_loan() function must be called to possibly free memory\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value.\n @param[in]  maxs Maximum number of samples to read.\n\n @returns A dds_return_t with the number of samples read or an error code.\n\n @retval >=0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_take_wl(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2085,6 +2548,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Take the collection of data values (of same type) and sample info from the\n        data reader, readcondition or querycondition based on mask\n @ingroup reading\n\n When using a readcondition or querycondition, their masks are or'd with the given mask.\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value.\n @param[in]  bufsz The size of buffer provided.\n @param[in]  maxs Maximum number of samples to read.\n @param[in]  mask Filter the data based on dds_sample_state_t|dds_view_state_t|dds_instance_state_t.\n\n @returns A dds_return_t with the number of samples read or an error code.\n\n @retval >=0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_take_mask(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2095,6 +2559,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief  Access loaned samples of data reader, readcondition or querycondition based on mask.\n @ingroup reading\n\n When using a readcondition or querycondition, their masks are or'd with the given mask.\n\n After dds_take_mask_wl function is being called and the data has been handled, dds_return_loan() function must be called to possibly free memory\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value.\n @param[in]  maxs Maximum number of samples to read.\n @param[in]  mask Filter the data based on dds_sample_state_t|dds_view_state_t|dds_instance_state_t.\n\n @returns A dds_return_t with the number of samples read or an error code.\n\n @retval >=0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_take_mask_wl(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2104,6 +2569,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Access the collection of serialized data values (of same type) and\n        sample info from the data reader, readcondition or querycondition.\n @ingroup reading\n\n This call accesses the serialized data from the data reader, readcondition or\n querycondition and makes it available to the application. The serialized data\n is made available through @ref ddsi_serdata structures. Returned samples are\n marked as READ.\n\n Return value provides information about the number of samples read, which will\n be <= maxs. Based on the count, the buffer will contain serialized data to be\n read only when valid_data bit in sample info structure is set.\n The buffer required for data values, could be allocated explicitly or can\n use the memory from data reader to prevent copy. In the latter case, buffer and\n sample_info should be returned back, once it is no longer using the data.\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity.\n @param[out] buf An array of pointers to @ref ddsi_serdata structures that contain\n                 the serialized data. The pointers can be NULL.\n @param[in]  maxs Maximum number of samples to read.\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value.\n @param[in]  mask Filter the data based on dds_sample_state_t|dds_view_state_t|dds_instance_state_t.\n\n @returns A dds_return_t with the number of samples read or an error code.\n\n @retval >=0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n @retval DDS_RETCODE_PRECONDITION_NOT_MET\n             The precondition for this operation is not met."]
     pub fn dds_readcdr(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ddsi_serdata,
@@ -2113,6 +2579,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Access the collection of serialized data values (of same type) and\n        sample info from the data reader, readcondition or querycondition.\n @ingroup reading\n\n This call accesses the serialized data from the data reader, readcondition or\n querycondition and makes it available to the application. The serialized data\n is made available through @ref ddsi_serdata structures. Once read the data is\n removed from the reader and cannot be 'read' or 'taken' again.\n\n Return value provides information about the number of samples read, which will\n be <= maxs. Based on the count, the buffer will contain serialized data to be\n read only when valid_data bit in sample info structure is set.\n The buffer required for data values, could be allocated explicitly or can\n use the memory from data reader to prevent copy. In the latter case, buffer and\n sample_info should be returned back, once it is no longer using the data.\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity.\n @param[out] buf An array of pointers to @ref ddsi_serdata structures that contain\n                 the serialized data. The pointers can be NULL.\n @param[in]  maxs Maximum number of samples to read.\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value.\n @param[in]  mask Filter the data based on dds_sample_state_t|dds_view_state_t|dds_instance_state_t.\n\n @returns A dds_return_t with the number of samples read or an error code.\n\n @retval >=0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n @retval DDS_RETCODE_PRECONDITION_NOT_MET\n             The precondition for this operation is not met."]
     pub fn dds_takecdr(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ddsi_serdata,
@@ -2122,6 +2589,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Access the collection of data values (of same type) and sample info from the\n        data reader, readcondition or querycondition but scoped by the given\n        instance handle.\n @ingroup reading\n\n This operation mplements the same functionality as dds_take, except that only data\n scoped to the provided instance handle is taken.\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value.\n @param[in]  bufsz The size of buffer provided.\n @param[in]  maxs Maximum number of samples to read.\n @param[in]  handle Instance handle related to the samples to read.\n\n @returns A dds_return_t with the number of samples read or an error code.\n\n @retval >=0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n @retval DDS_RETCODE_PRECONDITION_NOT_MET\n             The instance handle has not been registered with this reader."]
     pub fn dds_take_instance(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2132,6 +2600,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Access loaned samples of data reader, readcondition or querycondition,\n        scoped by the given instance handle.\n @ingroup reading\n\n This operation implements the same functionality as dds_take_wl, except that\n only data scoped to the provided instance handle is read.\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value.\n @param[in]  maxs Maximum number of samples to read.\n @param[in]  handle Instance handle related to the samples to read.\n\n @returns A dds_return_t with the number of samples read or an error code.\n\n @retval >=0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n @retval DDS_RETCODE_PRECONDITION_NOT_MET\n             The instance handle has not been registered with this reader."]
     pub fn dds_take_instance_wl(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2141,6 +2610,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Take the collection of data values (of same type) and sample info from the\n        data reader, readcondition or querycondition based on mask and scoped\n        by the given instance handle.\n @ingroup reading\n\n This operation implements the same functionality as dds_take_mask, except that only\n data scoped to the provided instance handle is read.\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value.\n @param[in]  bufsz The size of buffer provided.\n @param[in]  maxs Maximum number of samples to read.\n @param[in]  handle Instance handle related to the samples to read.\n @param[in]  mask Filter the data based on dds_sample_state_t|dds_view_state_t|dds_instance_state_t.\n\n @returns A dds_return_t with the number of samples read or an error code.\n\n @retval >=0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n @retval DDS_RETCODE_PRECONDITION_NOT_MET\n             The instance handle has not been registered with this reader."]
     pub fn dds_take_instance_mask(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2152,6 +2622,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief  Access loaned samples of data reader, readcondition or querycondition based\n         on mask and scoped by the given intance handle.\n @ingroup reading\n\n This operation implements the same functionality as dds_take_mask_wl, except that\n only data scoped to the provided instance handle is read.\n\n @param[in]  reader_or_condition Reader, readcondition or querycondition entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si Pointer to an array of @ref dds_sample_info_t returned for each data value.\n @param[in]  maxs Maximum number of samples to read.\n @param[in]  handle Instance handle related to the samples to read.\n @param[in]  mask Filter the data based on dds_sample_state_t|dds_view_state_t|dds_instance_state_t.\n\n @returns A dds_return_t with the number of samples or an error code.\n\n @retval >= 0\n             Number of samples read.\n @retval DDS_RETCODE_ERROR\n             An internal error has occurred.\n @retval DDS_RETCODE_BAD_PARAMETER\n             One of the given arguments is not valid.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted.\n @retval DDS_RETCODE_PRECONDITION_NOT_MET\n             The instance handle has not been registered with this reader."]
     pub fn dds_take_instance_mask_wl(
         reader_or_condition: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2162,6 +2633,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Read, copy and remove the status set for the entity\n @ingroup reading\n\n This operation copies the next, non-previously accessed\n data value and corresponding sample info and removes from\n the data reader. As an entity, only reader is accepted.\n\n The read/take next functions return a single sample. The returned sample\n has a sample state of NOT_READ, a view state of ANY_VIEW_STATE and an\n instance state of ANY_INSTANCE_STATE.\n\n @param[in]  reader The reader entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si The pointer to @ref dds_sample_info_t returned for a data value.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             The operation was successful.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The entity parameter is not a valid parameter.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_take_next(
         reader: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2169,6 +2641,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Read, copy and remove the status set for the entity\n @ingroup reading\n\n This operation copies the next, non-previously accessed\n data value and corresponding sample info and removes from\n the data reader. As an entity, only reader is accepted.\n\n The read/take next functions return a single sample. The returned sample\n has a sample state of NOT_READ, a view state of ANY_VIEW_STATE and an\n instance state of ANY_INSTANCE_STATE.\n\n After dds_take_next_wl function is being called and the data has been handled,\n dds_return_loan() function must be called to possibly free memory.\n\n @param[in]  reader The reader entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si The pointer to @ref dds_sample_info_t returned for a data value.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             The operation was successful.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The entity parameter is not a valid parameter.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_take_next_wl(
         reader: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2176,6 +2649,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Read and copy the status set for the entity\n @ingroup reading\n\n This operation copies the next, non-previously accessed\n data value and corresponding sample info. As an entity,\n only reader is accepted.\n\n The read/take next functions return a single sample. The returned sample\n has a sample state of NOT_READ, a view state of ANY_VIEW_STATE and an\n instance state of ANY_INSTANCE_STATE.\n\n @param[in]  reader The reader entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si The pointer to @ref dds_sample_info_t returned for a data value.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             The operation was successful.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The entity parameter is not a valid parameter.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_read_next(
         reader: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2183,6 +2657,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Read and copy the status set for the loaned sample\n @ingroup reading\n\n This operation copies the next, non-previously accessed\n data value and corresponding loaned sample info. As an entity,\n only reader is accepted.\n\n The read/take next functions return a single sample. The returned sample\n has a sample state of NOT_READ, a view state of ANY_VIEW_STATE and an\n instance state of ANY_INSTANCE_STATE.\n\n After dds_read_next_wl function is being called and the data has been handled,\n dds_return_loan() function must be called to possibly free memory.\n\n @param[in]  reader The reader entity.\n @param[out] buf An array of pointers to samples into which data is read (pointers can be NULL).\n @param[out] si The pointer to @ref dds_sample_info_t returned for a data value.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             The operation was successful.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The entity parameter is not a valid parameter.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_read_next_wl(
         reader: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2190,6 +2665,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Return loaned samples to a reader or writer\n @ingroup loan\n\n Used to release sample buffers returned by a read/take operation (a reader-loan)\n or, in case shared memory is enabled, of the loan_sample operation (a writer-loan).\n\n When the application provides an empty buffer to a reader-loan, memory is allocated and\n managed by DDS. By calling dds_return_loan(), the reader-loan is released so that the buffer\n can be reused during a successive read/take operation. When a condition is provided, the\n reader to which the condition belongs is looked up.\n\n Writer-loans are normally released implicitly when writing a loaned sample, but you can\n cancel a writer-loan prematurely by invoking the return_loan() operation. For writer loans, buf is\n overwritten with null pointers for all successfully returned entries. Any failure causes it to abort,\n possibly midway through buf.\n\n @param[in] entity The entity that the loan belongs to.\n @param[in,out] buf An array of (pointers to) samples, some or all of which will be set to null pointers.\n @param[in] bufsz The number of (pointers to) samples stored in buf.\n\n @returns A dds_return_t indicating success or failure\n @retval DDS_RETCODE_OK\n             - the operation was successful; for a writer loan, all entries in buf are set to null\n             - this specifically includes cases where bufsz <= 0 while entity is valid\n @retval DDS_RETCODE_BAD_PARAMETER\n             - the entity parameter is not a valid parameter\n             - buf is null, or bufsz > 0 and buf[0] = null\n             - (for writer loans) buf[0 <= i < bufsz] is null; operation is aborted, all buf[j < i] = null on return\n @retval DDS_RETCODE_PRECONDITION_NOT_MET\n             - (for reader loans) buf was already returned (not guaranteed to be detected)\n             - (for writer loans) buf[0 <= i < bufsz] does not correspond to an outstanding loan, all buf[j < i] = null on return\n @retval DDS_RETCODE_UNSUPPORTED\n             - (for writer loans) invoked on a writer not supporting loans.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             - the operation is invoked on an inappropriate object."]
     pub fn dds_return_loan(
         entity: dds_entity_t,
         buf: *mut *mut ::std::os::raw::c_void,
@@ -2197,12 +2673,15 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Checks whether the entity has one of its enabled statuses triggered.\n @ingroup entity\n\n @param[in]  entity  Entity for which to check for triggered status.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             The operation was successful.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The entity parameter is not a valid parameter.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_triggered(entity: dds_entity_t) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Get the topic\n @ingroup entity\n\n This operation returns a topic (handle) when the function call is done\n with reader, writer, read condition or query condition. For instance, it\n will return the topic when it is used for creating the reader or writer.\n For the conditions, it returns the topic that is used for creating the reader\n which was used to create the condition.\n\n @param[in] entity The entity.\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             The operation was successful.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The entity parameter is not a valid parameter.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_ALREADY_DELETED\n             The entity has already been deleted."]
     pub fn dds_get_topic(entity: dds_entity_t) -> dds_entity_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Get instance handles of the data readers matching a writer\n @ingroup builtintopic\n\n This operation fills the provided array with the instance handles\n of the data readers that match the writer.  On successful output,\n the number of entries of \"rds\" set is the minimum of the return\n value and the value of \"nrds\".\n\n @param[in] writer   The writer.\n @param[in] rds      The array to be filled.\n @param[in] nrds     The size of the rds array, at most the first\n                     nrds entries will be filled.  rds = NULL and nrds = 0\n                     is a valid way of determining the number of matched\n                     readers, but inefficient compared to relying on the\n                     matched publication status.\n\n @returns A dds_return_t indicating the number of matched readers\n             or failure.  The return value may be larger than nrds\n             if there are more matching readers than the array can\n             hold.\n\n @retval >=0\n             The number of matching readers.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The entity parameter is not valid or rds = NULL and\n             nrds > 0.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object."]
     pub fn dds_get_matched_subscriptions(
         writer: dds_entity_t,
         rds: *mut dds_instance_handle_t,
@@ -2210,12 +2689,14 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Get a description of a reader matched with the provided writer\n @ingroup builtintopic\n\n This operation looks up the reader instance handle in the set of\n readers matched with the specified writer, returning a freshly\n allocated sample of the DCPSSubscription built-in topic if found,\n and NULL if not.  The caller is responsible for freeing the\n memory allocated, e.g. using dds_builtintopic_free_endpoint.\n\n This operation is similar to performing a read of the given\n instance handle on a reader of the DCPSSubscription built-in\n topic, but this operation additionally filters on whether the\n reader is matched by the provided writer.\n\n @param[in] writer   The writer.\n @param[in] ih       The instance handle of a reader.\n\n @returns A newly allocated sample containing the information on the\n             reader, or a NULL pointer for any kind of failure.\n\n @retval != NULL\n             The requested data\n @retval NULL\n             The writer is not valid or ih is not an instance handle\n             of a matched reader."]
     pub fn dds_get_matched_subscription_data(
         writer: dds_entity_t,
         ih: dds_instance_handle_t,
     ) -> *mut dds_builtintopic_endpoint_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Get instance handles of the data writers matching a reader\n @ingroup builtintopic\n\n This operation fills the provided array with the instance handles\n of the data writers that match the reader.  On successful output,\n the number of entries of \"wrs\" set is the minimum of the return\n value and the value of \"nwrs\".\n\n @param[in] reader   The reader.\n @param[in] wrs      The array to be filled.\n @param[in] nwrs     The size of the wrs array, at most the first\n             nwrs entries will be filled.  wrs = NULL and wrds = 0\n             is a valid way of determining the number of matched\n             readers, but inefficient compared to relying on the\n             matched publication status.\n\n @returns A dds_return_t indicating the number of matched writers\n             or failure.  The return value may be larger than nwrs\n             if there are more matching writers than the array can\n             hold.\n\n @retval >=0\n             The number of matching writers.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The entity parameter is not valid or wrs = NULL and\n             nwrs > 0.\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object."]
     pub fn dds_get_matched_publications(
         reader: dds_entity_t,
         wrs: *mut dds_instance_handle_t,
@@ -2223,12 +2704,14 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Get a description of a writer matched with the provided reader\n @ingroup builtintopic\n\n This operation looks up the writer instance handle in the set of\n writers matched with the specified reader, returning a freshly\n allocated sample of the DCPSPublication built-in topic if found,\n and NULL if not.  The caller is responsible for freeing the\n memory allocated, e.g. using dds_builtintopic_free_endpoint.\n\n This operation is similar to performing a read of the given\n instance handle on a reader of the DCPSPublication built-in\n topic, but this operation additionally filters on whether the\n writer is matched by the provided reader.\n\n @param[in] reader   The reader.\n @param[in] ih       The instance handle of a writer.\n\n @returns A newly allocated sample containing the information on the\n             writer, or a NULL pointer for any kind of failure.\n\n @retval != NULL\n             The requested data\n @retval NULL\n             The reader is not valid or ih is not an instance handle\n             of a matched writer."]
     pub fn dds_get_matched_publication_data(
         reader: dds_entity_t,
         ih: dds_instance_handle_t,
     ) -> *mut dds_builtintopic_endpoint_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief This function resolves the type for the provided type identifier,\n which can e.g. be retrieved from endpoint or topic discovery data.\n @ingroup xtypes\n\n @param[in]   entity              A domain entity or an entity bound to a domain, such\n                                  as a participant, reader or writer.\n @param[in]   type_id             Type identifier\n @param[in]   timeout             Timeout for waiting for requested type information to be available\n @param[out]  type_obj            The type information, untouched if type is not resolved\n\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             The operation was successful.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The entity parameter is not a valid parameter, type_id or type name\n             is not provided, or the sertype out parameter is NULL\n @retval DDS_RETCODE_NOT_FOUND\n             A type with the provided type_id and type_name was not found\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_UNSUPPORTED\n             Cyclone DDS built without type discovery\n             (cf. DDS_HAS_TYPE_DISCOVERY)"]
     pub fn dds_get_typeobj(
         entity: dds_entity_t,
         type_id: *const dds_typeid_t,
@@ -2237,15 +2720,18 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Free the type object that was retrieved using dds_get_typeobj\n @ingroup xtypes\n\n @param[in]  type_obj     The type object\n\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             The operation was successful.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The type_obj parameter is NULL\n @retval DDS_RETCODE_UNSUPPORTED\n             Cyclone DDS built without type discovery\n             (cf. DDS_HAS_TYPE_DISCOVERY)"]
     pub fn dds_free_typeobj(type_obj: *mut dds_typeobj_t) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief This function gets the type information from the\n provided topic, reader or writer\n @ingroup xtypes\n\n @param[in]   entity          A topic/reader/writer entity\n @param[out]  type_info       The type information, untouched if returncode indicates failure\n\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             The operation was successful.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The type_info parameter is null\n @retval DDS_RETCODE_NOT_FOUND\n             The entity does not have type information set\n @retval DDS_RETCODE_ILLEGAL_OPERATION\n             The operation is invoked on an inappropriate object.\n @retval DDS_RETCODE_UNSUPPORTED\n             Cyclone DDS built without type discovery\n             (cf. DDS_HAS_TYPE_DISCOVERY)"]
     pub fn dds_get_typeinfo(
         entity: dds_entity_t,
         type_info: *mut *mut dds_typeinfo_t,
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Free the type information that was retrieved using dds_get_typeinfo\n @ingroup xtypes\n\n @param[in]  type_info     The type information\n\n\n @returns A dds_return_t indicating success or failure.\n\n @retval DDS_RETCODE_OK\n             The operation was successful.\n @retval DDS_RETCODE_BAD_PARAMETER\n             The type_info parameter is NULL\n @retval DDS_RETCODE_UNSUPPORTED\n             Cyclone DDS built without type discovery\n             (cf. DDS_HAS_TYPE_DISCOVERY)"]
     pub fn dds_free_typeinfo(type_info: *mut dds_typeinfo_t) -> dds_return_t;
 }
 #[repr(C)]
@@ -2272,6 +2758,7 @@ impl Default for iovec {
 }
 pub type ddsrt_iovec_t = iovec;
 pub type ddsrt_msg_iovlen_t = usize;
+#[doc = " @brief Types on which atomic operations are defined.\n\n @note 64-bit types are defined even if atomic operations on them are not\n       really supported. atomic"]
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
 pub struct ddsrt_atomic_uint32_t {
@@ -3250,6 +3737,7 @@ pub const DDSI_TYPEID_KIND_PLAIN_COLLECTION_COMPLETE: ddsi_typeid_kind = 3;
 pub const DDSI_TYPEID_KIND_FULLY_DESCRIPTIVE: ddsi_typeid_kind = 4;
 pub type ddsi_typeid_kind = ::std::os::raw::c_uint;
 pub use self::ddsi_typeid_kind as ddsi_typeid_kind_t;
+#[doc = " @anchor ddsi_sertype\n @brief DDSI sertype\n @ingroup dds\n DOC_TODO"]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ddsi_sertype {
@@ -3627,6 +4115,7 @@ pub const SDK_EMPTY: ddsi_serdata_kind = 0;
 pub const SDK_KEY: ddsi_serdata_kind = 1;
 pub const SDK_DATA: ddsi_serdata_kind = 2;
 pub type ddsi_serdata_kind = ::std::os::raw::c_uint;
+#[doc = " @anchor ddsi_serdata\n @brief DDSI Serdata\n @ingroup dds\n DOC_TODO"]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ddsi_serdata {
@@ -3832,10 +4321,12 @@ unsafe extern "C" {
     );
 }
 unsafe extern "C" {
+    #[doc = " @brief Return a pointer to the keyhash in the message fragchain if it was present, or else NULL.\n\n @param[in] fragchain the fragchain argument passed to @ref ddsi_serdata_from_ser (the first one, not any subsequent ones)\n @returns A pointer to the keyhash in the message if it was present, NULL if not. The lifetime is at least that of the fragchain itself."]
     pub fn ddsi_serdata_keyhash_from_fragchain(fragchain: *const nn_rdata)
     -> *const ddsi_keyhash_t;
 }
 unsafe extern "C" {
+    #[doc = " @brief Return a reference to a serdata with possible type conversion\n\n If `serdata` is of type `type`, this increments the reference count and returns\n `serdata`.  Otherwise, it constructs a new one from the serialised representation of\n `serdata`.  This can fail, in which case it returns NULL.\n\n @param[in] type    sertype the returned serdata must have\n @param[in] serdata  source sample (untouched except for the reference count and/or\n   extracting the serialised representation)\n @returns A reference to a serdata that is equivalent to the input with the correct\n   topic, or a null pointer on failure.  The reference must be released with @ref\n   ddsi_serdata_unref."]
     pub fn ddsi_serdata_ref_as_type(
         type_: *const ddsi_sertype,
         serdata: *mut ddsi_serdata,
@@ -4014,6 +4505,7 @@ unsafe extern "C" {
 pub struct cpp2c_Subscriber {
     _unused: [u8; 0],
 }
+#[doc = " @brief Subscriber handle"]
 pub type iox_sub_t = *mut cpp2c_Subscriber;
 pub const IOX_CHUNK_UNINITIALIZED: iox_shm_data_state_t = 0;
 pub const IOX_CHUNK_CONTAINS_RAW_DATA: iox_shm_data_state_t = 1;
@@ -4068,6 +4560,7 @@ unsafe extern "C" {
     ) -> *mut iceoryx_header_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup loan\n @brief Loan a shared memory buffer of a specific size from the writer.\n\n @note Currently this function is to be used with dds_writecdr by adding the\n loaned buffer to serdata as iox_chunk.\n @note The function can only be used if dds_is_shared_memory_available is\n       true for the writer.\n\n @param[in] writer the writer to loan the buffer from\n @param[in] size the requested buffer size\n @param[out] buffer the loaned buffer\n\n @returns DDS_RETCODE_OK if successful, DDS_RETCODE_ERROR otherwise"]
     pub fn dds_loan_shared_memory_buffer(
         writer: dds_entity_t,
         size: usize,
@@ -4075,6 +4568,7 @@ unsafe extern "C" {
     ) -> dds_return_t;
 }
 unsafe extern "C" {
+    #[doc = " @ingroup loan\n @brief Loan a sample from the writer.\n\n @note This function is to be used with dds_write to publish the loaned\n sample.\n @note The function can only be used if dds_is_loan_available is\n       true for the writer.\n\n @param[in] writer the writer to loan the buffer from\n @param[out] sample the loaned sample\n\n @returns DDS_RETCODE_OK if successful, DDS_RETCODE_ERROR otherwise"]
     pub fn dds_loan_sample(
         writer: dds_entity_t,
         sample: *mut *mut ::std::os::raw::c_void,

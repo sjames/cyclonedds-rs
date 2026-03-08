@@ -45,3 +45,5 @@ The current release only supports the 0.10.X release branch. https://github.com/
 * cmake
 * make
 * a C/C++ compiler for cmake to use
+
+vendored 依存ライブラリのビルド手順は [vendor/README.md](vendor/README.md) を参照してください。
