@@ -16,12 +16,14 @@
 
 use thiserror::Error;
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug, Clone, PartialEq)]
 pub enum ReaderError {
     #[error("Missed a requested deadline")]
     RequestedDeadLineMissed,
     #[error("Reader is not async type")]
     ReaderNotAsync,
+    #[error("Publisher liveliness change to [{0}]")]
+    ChangeAliveCount(u32),
     #[error("DDS Binding error")]
     DdsError(#[from] crate::DDSError),
 }

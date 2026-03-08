@@ -14,13 +14,16 @@
     limitations under the License.
 */
 
-use crate::{dds_listener::DdsListener, dds_participant::DdsParticipant, dds_qos::DdsQos, Entity};
+use crate::{
+    dds_listener::DdsListener, dds_participant::DdsParticipant, dds_qos::DdsQos, sertype::SerType,
+    Entity,
+};
 
 use std::convert::From;
 use std::ffi::CString;
 use std::marker::PhantomData;
 
-use crate::serdes::{SerType, TopicType};
+use crate::serdes::TopicType;
 pub use cyclonedds_sys::{ddsi_sertype, DDSError, DdsEntity};
 
 pub struct TopicBuilder<T: TopicType> {
@@ -83,12 +86,67 @@ where
     }
 }
 
-pub struct DdsTopic<T: Sized + TopicType>(DdsEntity, PhantomData<T>, Option<DdsListener>);
+/// DDSのトピックを表す型
+///
+/// 基本的な利用方法としては、シリアライズ、デシリアライズ可能な型を紐付けて
+/// 内部実装を気にする事なく任意の型のやり取りを想定している
+///
+/// 一部の目的のために受信時のデシリアライズ処理を省略した`Untyped`型を利用したトピックも作成可能
+pub struct DdsTopic<T> {
+    p: DdsEntity,
+    _marker: PhantomData<T>,
+    _maybe_listener: Option<DdsListener>,
+}
+
+impl<T> DdsTopic<T> {
+    fn new(p: DdsEntity, maybe_listener: Option<DdsListener>) -> Self {
+        DdsTopic {
+            p,
+            _marker: PhantomData,
+            _maybe_listener: maybe_listener,
+        }
+    }
+
+    /// シリアライズ、デシリアライズを行わないトピックを作成する
+    ///
+    /// レコーディング用途やドメイン間転送など、CDRのまま受け渡したい場合に利用する。
+    pub fn create_untyped(
+        participant: &DdsParticipant,
+        name: &str,
+        type_name: &str,
+        maybe_qos: Option<DdsQos>,
+        maybe_listener: Option<DdsListener>,
+    ) -> Result<Self, DDSError> {
+        let t = SerType::<T>::untyped(type_name);
+        let mut t = SerType::into_sertype(t);
+        let tt = &mut t as *mut *mut ddsi_sertype;
+        unsafe {
+            let strname = CString::new(name).expect("CString::new failed");
+            let topic = cyclonedds_sys::dds_create_topic_sertype(
+                Entity::entity(participant).entity(),
+                strname.as_ptr(),
+                tt,
+                maybe_qos.map_or(std::ptr::null(), |q| q.into()),
+                maybe_listener
+                    .as_ref()
+                    .map_or(std::ptr::null(), |l| l.into()),
+                std::ptr::null_mut(),
+            );
+
+            if topic >= 0 {
+                Ok(Self::new(DdsEntity::new(topic), maybe_listener))
+            } else {
+                Err(DDSError::from(topic))
+            }
+        }
+    }
+}
 
 impl<T> DdsTopic<T>
 where
     T: std::marker::Sized + TopicType,
 {
+    /// 型付きトピックを作成する
     pub fn create(
         participant: &DdsParticipant,
         name: &str,
@@ -113,7 +171,7 @@ where
             );
 
             if topic >= 0 {
-                Ok(DdsTopic(DdsEntity::new(topic), PhantomData, maybe_listener))
+                Ok(DdsTopic::new(DdsEntity::new(topic), maybe_listener))
             } else {
                 Err(DDSError::from(topic))
             }
@@ -121,21 +179,15 @@ where
     }
 }
 
-impl<T> Entity for DdsTopic<T>
-where
-    T: std::marker::Sized + TopicType,
-{
+impl<T> Entity for DdsTopic<T> {
     fn entity(&self) -> &DdsEntity {
-        &self.0
+        &self.p
     }
 }
 
-impl<T> Clone for DdsTopic<T>
-where
-    T: std::marker::Sized + TopicType,
-{
+impl<T> Clone for DdsTopic<T> {
     fn clone(&self) -> Self {
-        Self(self.0.clone(), PhantomData, self.2.clone())
+        Self::new(self.p.clone(), self._maybe_listener.clone())
     }
 }
 
@@ -144,9 +196,10 @@ mod test {
     use super::*;
     use crate::SampleBuffer;
     use crate::{DdsPublisher, DdsWriter};
-    use cdds_derive::Topic;
-    use serde_derive::{Deserialize, Serialize};
+    use cyclonedds_derive::Topic;
+    use serde::{Deserialize, Serialize};
     use std::sync::Arc;
+
     #[test]
     fn test_topic_creation() {
         #[derive(Default, Deserialize, Serialize, Topic)]

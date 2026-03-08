@@ -16,19 +16,13 @@
 
 use cyclonedds_sys::*;
 use std::convert::From;
-use std::future::Future;
-use std::os::raw::c_void;
-use std::pin::Pin;
-use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll, Waker};
-//use std::convert::TryInto;
+use std::marker::PhantomData;
+use std::sync::Arc;
+use tracing::error;
 
 pub use cyclonedds_sys::{DdsDomainId, DdsEntity};
 
-use std::marker::PhantomData;
-
-use crate::dds_listener::DdsListenerBuilder;
-use crate::error::ReaderError;
+use crate::futures::{data_reader_listener, ReaderType};
 use crate::serdes::{SampleBuffer, TopicType};
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsReadable, Entity};
 
@@ -103,27 +97,33 @@ where
     }
 }
 
-enum ReaderType {
-    Async(Arc<Mutex<(Option<Waker>, Result<(), crate::error::ReaderError>)>>),
-    Sync,
-}
-
-struct Inner<T: Sized + TopicType> {
+struct Inner<T> {
     entity: DdsEntity,
     _listener: Option<DdsListener>,
     reader_type: ReaderType,
     _phantom: PhantomData<T>,
-    // The callback closures that can be attached to a reader
 }
 
-pub struct DdsReader<T: Sized + TopicType> {
+impl<T> Inner<T> {
+    fn new(
+        entity: DdsEntity,
+        maybe_listener: Option<DdsListener>,
+        reader_type: ReaderType,
+    ) -> Self {
+        Inner {
+            entity,
+            _listener: maybe_listener,
+            reader_type,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+pub struct DdsReader<T> {
     inner: Arc<Inner<T>>,
 }
 
-impl<'a, T> DdsReader<T>
-where
-    T: Sized + TopicType,
-{
+impl<T> DdsReader<T> {
     pub fn create(
         entity: &dyn DdsReadable,
         topic: DdsTopic<T>,
@@ -152,12 +152,7 @@ where
 
             if w >= 0 {
                 Ok(DdsReader {
-                    inner: Arc::new(Inner {
-                        entity: DdsEntity::new(w),
-                        _listener: maybe_listener,
-                        reader_type,
-                        _phantom: PhantomData,
-                    }),
+                    inner: Arc::new(Inner::new(DdsEntity::new(w), maybe_listener, reader_type)),
                 })
             } else {
                 Err(DDSError::from(w))
@@ -171,73 +166,124 @@ where
         topic: DdsTopic<T>,
         maybe_qos: Option<DdsQos>,
     ) -> Result<Self, DDSError> {
-        let waker = Arc::new(<Mutex<(
-            Option<Waker>,
-            Result<(), crate::error::ReaderError>,
-        )>>::new((None, Ok(()))));
-        let waker_cb = waker.clone();
-        let requested_deadline_waker = waker.clone();
+        let (listener, waker) = data_reader_listener();
 
-        let listener = DdsListenerBuilder::new()
-            .on_data_available(move |_entity| {
-                //println!("Data available ");
-                let mut maybe_waker = waker_cb.lock().unwrap();
-                if let Some(waker) = maybe_waker.0.take() {
-                    waker.wake();
-                }
-            })
-            .on_requested_deadline_missed(move |entity, status| {
-                println!(
-                    "Deadline missed: Entity:{:?} Status:{:?}",
-                    unsafe { entity.entity() },
-                    status
-                );
-                let mut maybe_waker = requested_deadline_waker.lock().unwrap();
-                maybe_waker.1 = Err(ReaderError::RequestedDeadLineMissed);
-                if let Some(waker) = maybe_waker.0.take() {
-                    waker.wake();
-                }
-            })
-            .build();
-
-        match Self::create_sync_or_async(
-            entity,
-            topic,
-            maybe_qos,
-            Some(listener),
-            ReaderType::Async(waker),
-        ) {
+        match Self::create_sync_or_async(entity, topic, maybe_qos, Some(listener), waker) {
             Ok(reader) => Ok(reader),
             Err(e) => Err(e),
         }
     }
 
-    /// read synchronously
+    /// CDRバッファ(デシリアライズ前)を読み出す
+    pub fn readcdrn_from_entity_now(
+        entity: &DdsEntity,
+        buf: &mut SampleBuffer<T>,
+        take: bool,
+    ) -> Result<usize, DDSError> {
+        use cyclonedds_sys::{
+            dds_readcdr, dds_takecdr, DDS_ALIVE_INSTANCE_STATE, DDS_ANY_SAMPLE_STATE,
+            DDS_ANY_VIEW_STATE, DDS_NOT_READ_SAMPLE_STATE,
+        };
+        let maxs = buf.capacity();
+        // dds_readcdr/dds_takecdrの場合は内部で`to_sample`が呼び出されないため、SerDataで受信を行う
+        let mut data = Box::<[*mut ddsi_serdata]>::new_uninit_slice(maxs);
+        let data_ptr = data.as_mut_ptr().cast();
+        let info_ptr = buf.sample_info.as_mut_ptr();
+        let ret = unsafe {
+            if take {
+                // 保持しているサンプルのうち、まだ読んでいないものを読む
+                let mask =
+                    DDS_NOT_READ_SAMPLE_STATE | DDS_ANY_VIEW_STATE | DDS_ALIVE_INSTANCE_STATE;
+                dds_takecdr(entity.entity(), data_ptr, maxs as u32, info_ptr, mask)
+            } else {
+                // 保持しているサンプルすべてを読む
+                let mask = DDS_ANY_SAMPLE_STATE | DDS_ANY_VIEW_STATE | DDS_ALIVE_INSTANCE_STATE;
+                dds_readcdr(entity.entity(), data_ptr, maxs as u32, info_ptr, mask)
+            }
+        };
+        match ret {
+            ..0 => Err(DDSError::from(ret)),
+            0 => Err(DDSError::NoData),
+            1.. => {
+                // 受信データを公開構造体であるSampleBufferにセットする
+                for (i, data) in data.iter().enumerate().take(ret as usize) {
+                    unsafe {
+                        let serdata = data.assume_init();
+                        buf.buffer[i].set_serdata(serdata);
+                    }
+                }
+                buf.size = ret as usize;
+                Ok(ret as usize)
+            }
+        }
+    }
+
+    /// CDRバッファ(デシリアライズ前)を同期で読み出す。データを消費しないので2回目でも同じデータが得られる
+    pub fn readcdr_now(&self, buf: &mut SampleBuffer<T>) -> Result<usize, DDSError> {
+        Self::readcdrn_from_entity_now(self.entity(), buf, false)
+    }
+
+    /// CDRバッファ(デシリアライズ前)を同期で取り出す
+    pub fn takecdr_now(&self, buf: &mut SampleBuffer<T>) -> Result<usize, DDSError> {
+        Self::readcdrn_from_entity_now(self.entity(), buf, true)
+    }
+
+    /// 保持しているサンプルを非同期で読み出す
+    ///
+    /// wakerが設定されていない場合は`Err(ReaderError::ReaderNotAsync)`を返す
+    pub async fn readcdr_async(
+        &self,
+        samples: &mut SampleBuffer<T>,
+    ) -> Result<usize, crate::error::ReaderError> {
+        crate::futures::read(&self.inner.reader_type, || {
+            Self::readcdrn_from_entity_now(self.entity(), samples, false)
+        })
+        .await
+    }
+
+    /// 保持しているサンプルを非同期で取り出す
+    ///
+    /// wakerが設定されていない場合はErr(ReaderError::ReaderNotAsync)を返す
+    pub async fn takecdr_async(
+        &self,
+        samples: &mut SampleBuffer<T>,
+    ) -> Result<usize, crate::error::ReaderError> {
+        crate::futures::read(&self.inner.reader_type, move || {
+            Self::readcdrn_from_entity_now(self.entity(), samples, true)
+        })
+        .await
+    }
+}
+
+/// 型付きリーダー
+impl<'a, T> DdsReader<T>
+where
+    T: Sized + TopicType,
+{
+    /// データを同期で読み出す
     pub fn read_now(&self, buf: &mut SampleBuffer<T>) -> Result<usize, DDSError> {
         Self::readn_from_entity_now(self.entity(), buf, false)
     }
 
-    /// take synchronously
+    /// データを同期で取り出す
     pub fn take_now(&self, buf: &mut SampleBuffer<T>) -> Result<usize, DDSError> {
         Self::readn_from_entity_now(self.entity(), buf, true)
     }
 
-    /// Read multiple samples from the reader synchronously. The buffer for the sampes must be passed in.
-    /// On success, returns the number of samples read.
+    /// データを同期で読み出す（内部でデシリアライズされる）
     pub fn readn_from_entity_now(
         entity: &DdsEntity,
         buf: &mut SampleBuffer<T>,
         take: bool,
     ) -> Result<usize, DDSError> {
-        let (voidp, info_ptr) = unsafe { buf.as_mut_ptr() };
-        let voidpp = voidp as *mut *mut c_void;
-        //println!("Infoptr:{:?}",info_ptr);
+        let (mut data, info_ptr) = buf.as_mut_recv_ptr();
+        let data_ptr = data.as_mut_ptr().cast();
 
         let ret = unsafe {
             if take {
                 dds_take(
                     entity.entity(),
-                    voidpp,
+                    data_ptr,
                     info_ptr as *mut _,
                     buf.len(),
                     buf.len() as u32,
@@ -245,52 +291,25 @@ where
             } else {
                 dds_read(
                     entity.entity(),
-                    voidpp,
+                    data_ptr,
                     info_ptr as *mut _,
                     buf.len(),
                     buf.len() as u32,
                 )
             }
         };
-        if ret > 0 {
-            // If first sample is value we assume all are
-            if buf.is_valid_sample(0) {
-                Ok(ret as usize)
-            } else {
-                Err(DDSError::NoData)
+        match ret {
+            ..0 => Err(DDSError::from(ret)),
+            0 => Err(DDSError::NoData),
+            1.. => {
+                // 先頭が有効データなら受信分は全て有効とみなす
+                if buf.is_valid_sample(0) {
+                    buf.size = ret as usize;
+                    Ok(ret as usize)
+                } else {
+                    Err(DDSError::NoData)
+                }
             }
-        } else {
-            Err(DDSError::OutOfResources)
-        }
-    }
-
-    /// Read samples asynchronously. The number of samples actually read is returned.
-    pub async fn read(&self, samples: &mut SampleBuffer<T>) -> Result<usize, ReaderError> {
-        if let ReaderType::Async(waker) = &self.inner.reader_type {
-            let future_sample = SampleArrayFuture::new(
-                self.inner.entity.clone(),
-                waker.clone(),
-                samples,
-                FutureType::Read,
-            );
-            future_sample.await
-        } else {
-            Err(ReaderError::ReaderNotAsync)
-        }
-    }
-
-    /// Get samples asynchronously. The number of samples actually read is returned.
-    pub async fn take(&self, samples: &mut SampleBuffer<T>) -> Result<usize, ReaderError> {
-        if let ReaderType::Async(waker) = &self.inner.reader_type {
-            let future_sample = SampleArrayFuture::new(
-                self.inner.entity.clone(),
-                waker.clone(),
-                samples,
-                FutureType::Take,
-            );
-            future_sample.await
-        } else {
-            Err(ReaderError::ReaderNotAsync)
         }
     }
 
@@ -300,11 +319,37 @@ where
     ) -> Result<DdsReadCondition<'a, T>, DDSError> {
         DdsReadCondition::create(self, mask)
     }
+
+    /// データを非同期で読み出す
+    ///
+    /// wakerが設定されていない場合は`Err(ReaderError::ReaderNotAsync)`を返す
+    pub async fn read_async(
+        &self,
+        samples: &mut SampleBuffer<T>,
+    ) -> Result<usize, crate::error::ReaderError> {
+        crate::futures::read(&self.inner.reader_type, || {
+            Self::readn_from_entity_now(self.entity(), samples, false)
+        })
+        .await
+    }
+
+    /// データを非同期で取り出す
+    ///
+    /// wakerが設定されていない場合はErr(ReaderError::ReaderNotAsync)を返す
+    pub async fn take_async(
+        &self,
+        samples: &mut SampleBuffer<T>,
+    ) -> Result<usize, crate::error::ReaderError> {
+        crate::futures::read(&self.inner.reader_type, move || {
+            Self::readn_from_entity_now(self.entity(), samples, true)
+        })
+        .await
+    }
 }
 
 impl<T> Entity for DdsReader<T>
 where
-    T: std::marker::Sized + TopicType,
+    T: std::marker::Sized,
 {
     fn entity(&self) -> &DdsEntity {
         &self.inner.entity
@@ -313,27 +358,24 @@ where
 
 impl<T> Drop for DdsReader<T>
 where
-    T: Sized + TopicType,
+    T: Sized,
 {
     fn drop(&mut self) {
         unsafe {
-            //println!("Drop reader:{:?}", self.entity().entity());
             let ret: DDSError = cyclonedds_sys::dds_delete(self.inner.entity.entity()).into();
             if DDSError::DdsOk != ret {
-                //panic!("cannot delete Reader: {}", ret);
-                println!("Ignoring dds_delete failure for DdsReader");
-            } else {
-                //println!("Reader dropped");
+                error!("Ignoring dds_delete failure for DdsReader");
             }
         }
     }
 }
 
-pub struct DdsReadCondition<'a, T: Sized + TopicType>(DdsEntity, &'a DdsReader<T>);
+#[allow(dead_code)]
+pub struct DdsReadCondition<'a, T: Sized>(DdsEntity, &'a DdsReader<T>);
 
 impl<'a, T> DdsReadCondition<'a, T>
 where
-    T: Sized + TopicType,
+    T: Sized,
 {
     fn create(reader: &'a DdsReader<T>, mask: StateMask) -> Result<Self, DDSError> {
         unsafe {
@@ -350,81 +392,10 @@ where
 
 impl<'a, T> Entity for DdsReadCondition<'a, T>
 where
-    T: std::marker::Sized + TopicType,
+    T: std::marker::Sized,
 {
     fn entity(&self) -> &DdsEntity {
         &self.0
-    }
-}
-
-enum FutureType {
-    Take,
-    Read,
-}
-
-impl FutureType {
-    fn is_take(&self) -> bool {
-        match self {
-            FutureType::Take => true,
-            FutureType::Read => false,
-        }
-    }
-}
-
-struct SampleArrayFuture<'a, T> {
-    entity: DdsEntity,
-    waker: Arc<Mutex<(Option<Waker>, Result<(), crate::error::ReaderError>)>>,
-    take_or_read: FutureType,
-    buffer: &'a mut SampleBuffer<T>,
-}
-
-impl<'a, T> SampleArrayFuture<'a, T> {
-    fn new(
-        entity: DdsEntity,
-        waker: Arc<Mutex<(Option<Waker>, Result<(), crate::error::ReaderError>)>>,
-        buffer: &'a mut SampleBuffer<T>,
-        ty: FutureType,
-    ) -> Self {
-        Self {
-            entity,
-            waker,
-            take_or_read: ty,
-            buffer,
-        }
-    }
-}
-
-impl<'a, T> Future for SampleArrayFuture<'a, T>
-where
-    T: TopicType,
-{
-    type Output = Result<usize, ReaderError>;
-
-    fn poll(mut self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
-        // Lock the waker first in case a callback for read complete happens and we miss it
-        // clone to avoid the lifetime problem with self
-        let waker = self.waker.clone();
-        let mut waker = waker.lock().unwrap();
-        let is_take = self.take_or_read.is_take();
-        let entity = self.entity.clone();
-
-        // check if we have an error from any of the callbacks
-        if let Err(e) = &waker.1 {
-            return Poll::Ready(Err(e.clone()));
-        }
-
-        match DdsReader::<T>::readn_from_entity_now(&entity, self.buffer, is_take) {
-            Ok(len) => Poll::Ready(Ok(len)),
-            Err(DDSError::NoData) | Err(DDSError::OutOfResources) => {
-                let _ = waker.0.replace(ctx.waker().clone());
-                Poll::Pending
-            }
-            Err(e) => {
-                //println!("Error:{}",e);
-                // Some other error happened
-                Poll::Ready(Err(ReaderError::DdsError(e)))
-            }
-        }
     }
 }
 
@@ -437,8 +408,8 @@ mod test {
     use crate::{DdsParticipant, DdsSubscriber};
     use crate::{DdsPublisher, DdsWriter};
 
-    use cdds_derive::Topic;
-    use serde_derive::{Deserialize, Serialize};
+    use cyclonedds_derive::Topic;
+    use serde::{Deserialize, Serialize};
     use tokio::runtime::Runtime;
 
     #[repr(C)]
@@ -524,9 +495,14 @@ mod test {
         let _result = rt.block_on(async {
             let _task = tokio::spawn(async move {
                 let mut samplebuffer = SampleBuffer::new(1);
-                if let Ok(t) = reader.take(&mut samplebuffer).await {
-                    let sample = samplebuffer.iter().take(1).next().unwrap();
+                let res = reader.take_async(&mut samplebuffer).await;
+                assert_eq!(res, Err(crate::error::ReaderError::ChangeAliveCount(1)));
+
+                if let Ok(_t) = reader.take_async(&mut samplebuffer).await {
+                    let (sample, info) = samplebuffer.iter_items().take(1).next().unwrap();
                     assert!(*sample == TestTopic::default());
+                    assert!(info.is_valid());
+                    assert!(info.source_timestamp() > Duration::from_nanos(0));
                 } else {
                     panic!("reader get failed");
                 }
@@ -534,7 +510,9 @@ mod test {
 
             let _another_task = tokio::spawn(async move {
                 let mut samples = AnotherTopic::create_sample_buffer(5);
-                if let Ok(t) = another_reader.read(&mut samples).await {
+                let res = another_reader.take_async(&mut samples).await;
+                assert_eq!(res, Err(crate::error::ReaderError::ChangeAliveCount(1)));
+                if let Ok(t) = another_reader.read_async(&mut samples).await {
                     assert_eq!(t, 1);
                     for s in samples.iter() {
                         println!("Got sample {}", s.key);
@@ -545,7 +523,7 @@ mod test {
             });
 
             // add a delay to make sure the data is not ready immediately
-            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(100)).await;
             let data = Arc::new(TestTopic::default());
             writer.write(data).unwrap();
 
@@ -553,51 +531,7 @@ mod test {
                 .write(Arc::new(AnotherTopic::default()))
                 .unwrap();
 
-            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+            tokio::time::sleep(Duration::from_millis(300)).await;
         });
     }
-    /*
-        #[test]
-        fn test_requested_deadline_miss() {
-            let participant = DdsParticipant::create(None, None, None).unwrap();
-            let topic = TestTopic::create_topic(&participant, Some("test_topic"), None, None).unwrap();
-            let publisher = DdsPublisher::create(&participant, None, None).unwrap();
-
-            let writer_qos = DdsQos::create().unwrap().set_deadline(std::time::Duration::from_millis(50));
-            let mut writer = DdsWriter::create(&publisher, topic.clone(), Some(writer_qos), None).unwrap();
-
-
-
-
-            let reader_qos = DdsQos::create().unwrap().set_deadline(std::time::Duration::from_millis(500));
-            let subscriber = DdsSubscriber::create(&participant, None, None).unwrap();
-            let reader = DdsReader::create_async(&subscriber, topic, None).unwrap();
-
-            let rt = Runtime::new().unwrap();
-
-            let _result = rt.block_on(async {
-
-
-                let t = tokio::spawn(async move {
-
-                    loop {
-                        let d = writer.write(Arc::new(TestTopic::default())).unwrap();
-                        tokio::time::sleep(Duration::from_millis(1000)).await;
-                    }
-
-                });
-
-                loop {
-
-                    let d = reader.read1().await;
-                    tokio::time::sleep(Duration::from_millis(700)).await;
-                    println!("reader returned:{:?}",d);
-                }
-
-
-
-            });
-
-        }
-    */
 }

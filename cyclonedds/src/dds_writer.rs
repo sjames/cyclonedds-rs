@@ -18,11 +18,12 @@ use cyclonedds_sys::*;
 use std::convert::From;
 use std::ffi::c_void;
 use std::ptr::NonNull;
+use tracing::error;
 
 pub use cyclonedds_sys::DdsEntity;
 use std::marker::PhantomData;
 
-use crate::serdes::{Sample, TopicType};
+use crate::serdes::{FixedTopicType, Sample, TopicType};
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsWritable, Entity};
 
 pub struct WriterBuilder<T: TopicType> {
@@ -128,12 +129,21 @@ where
 }
 
 #[derive(Clone)]
-pub struct DdsWriter<T: Sized + TopicType>(DdsEntity, Option<DdsListener>, PhantomData<T>);
+pub struct DdsWriter<T> {
+    p: DdsEntity,
+    _maybe_listener: Option<DdsListener>,
+    _phantom: PhantomData<T>,
+}
 
-impl<T> DdsWriter<T>
-where
-    T: Sized + TopicType,
-{
+impl<T> DdsWriter<T> {
+    fn new(entity: DdsEntity, maybe_listener: Option<DdsListener>) -> DdsWriter<T> {
+        DdsWriter {
+            p: entity,
+            _maybe_listener: maybe_listener,
+            _phantom: PhantomData,
+        }
+    }
+
     pub fn create(
         entity: &dyn DdsWritable,
         topic: DdsTopic<T>,
@@ -151,13 +161,46 @@ where
             );
 
             if w >= 0 {
-                Ok(DdsWriter(DdsEntity::new(w), maybe_listener, PhantomData))
+                Ok(DdsWriter::new(DdsEntity::new(w), maybe_listener))
             } else {
                 Err(DDSError::from(w))
             }
         }
     }
 
+    pub fn set_listener(&mut self, listener: DdsListener) -> Result<(), DDSError> {
+        unsafe {
+            let refl = &listener;
+            let rc = dds_set_listener(self.p.entity(), refl.into());
+            if rc == 0 {
+                self._maybe_listener = Some(listener);
+                Ok(())
+            } else {
+                Err(DDSError::from(rc))
+            }
+        }
+    }
+
+    /// [crate::DdsReader]で読んだサンプルを転送する
+    ///
+    // 受信データの場合はすでにシリアライズされているため、型を知らなくても転送できる
+    pub fn forward(&mut self, sample: &Sample<T>) -> Result<(), DDSError> {
+        let serdata = sample.serdata.expect("Sample has no SerData");
+        unsafe {
+            let ret = dds_forwardcdr(self.entity().entity(), serdata);
+            if ret >= 0 {
+                Ok(())
+            } else {
+                Err(DDSError::from(ret))
+            }
+        }
+    }
+}
+
+impl<T> DdsWriter<T>
+where
+    T: Sized + TopicType,
+{
     pub fn write_to_entity(entity: &DdsEntity, msg: std::sync::Arc<T>) -> Result<(), DDSError> {
         unsafe {
             let sample = Sample::<T>::from(msg);
@@ -172,21 +215,35 @@ where
         }
     }
 
+    /// fixed_sizeでない型のサンプルを書き込むためのメソッド
     pub fn write(&mut self, msg: std::sync::Arc<T>) -> Result<(), DDSError> {
-        Self::write_to_entity(&self.0, msg)
+        Self::write_to_entity(&self.p, msg)
     }
+}
 
-    // Loan memory buffers for zero copy operation. Only supported for fixed size types
+impl<T> DdsWriter<T>
+where
+    T: Sized + FixedTopicType,
+{
+    /// fixed_sizeなデータ型をIceoryxメモリバッファに直接書き込むためのメソッド
+    /// 全ての参加者によって送受信のメモリレイアウトが保証できる場合にのみ使用可能
+    ///
+    /// [Self::write]にFixed Sizeの型を渡すと、CycloneDDSはそのポインタからTのサイズ分のメモリをコピーする
+    /// この時ポインタは本来書き込みたい[T]ではなく[Sample<T>]を指しているため意図しないデータが書かれる。
+    /// これを回避するために利用側がIceoryxメモリバッファを借用し直接データを書き込む方法を提供している
+    /// 内部では `serdata_from_iox_buffer` を使って[crate::serdata::SerData]を構築している
+    ///
+    /// # Panics
+    ///
+    /// fixed_size制約は非常に厳しく、構造体のメモリのアライメント、レイアウトが同じでなければならない。
+    /// もしも対応関係がなければ壊れたデータが送受信される。
+    /// また、参加者がシリアライズを必要とする場合(pythonクライアントなど)は
+    /// 送信側が`serdata_from_sample`関数にフォールバックされて、sampleの型不整合によりパニックが発生する
     pub fn loan(&mut self) -> Result<Loaned<T>, DDSError> {
-        if !T::is_fixed_size() {
-            // Loaning is not supported for types that are not fixed size
-            return Err(DDSError::Unsupported);
-        }
-
         let mut p_sample: *mut T = std::ptr::null_mut();
         let voidpp: *mut *mut T = &mut p_sample;
         let voidpp = voidpp as *mut *mut c_void;
-        let res = unsafe { dds_loan_sample(self.0.entity(), voidpp) };
+        let res = unsafe { dds_loan_sample(self.p.entity(), voidpp) };
         if res == 0 {
             Ok(Loaned {
                 inner: LoanedInner::Uninitialized(
@@ -221,39 +278,20 @@ where
             Err(DDSError::from(res))
         }
     }
-
-    pub fn set_listener(&mut self, listener: DdsListener) -> Result<(), DDSError> {
-        unsafe {
-            let refl = &listener;
-            let rc = dds_set_listener(self.0.entity(), refl.into());
-            if rc == 0 {
-                self.1 = Some(listener);
-                Ok(())
-            } else {
-                Err(DDSError::from(rc))
-            }
-        }
-    }
 }
 
-impl<T> Entity for DdsWriter<T>
-where
-    T: std::marker::Sized + TopicType,
-{
+impl<T> Entity for DdsWriter<T> {
     fn entity(&self) -> &DdsEntity {
-        &self.0
+        &self.p
     }
 }
 
-impl<T> Drop for DdsWriter<T>
-where
-    T: std::marker::Sized + TopicType,
-{
+impl<T> Drop for DdsWriter<T> {
     fn drop(&mut self) {
         unsafe {
-            let ret: DDSError = cyclonedds_sys::dds_delete(self.0.entity()).into();
+            let ret: DDSError = cyclonedds_sys::dds_delete(self.p.entity()).into();
             if DDSError::DdsOk != ret && DDSError::AlreadyDeleted != ret {
-                //panic!("cannot delete Writer: {}", ret);
+                error!("cannot delete Writer: {}", ret);
             }
         }
     }
@@ -264,24 +302,10 @@ mod test {
     use core::panic;
 
     use super::*;
-    use crate::{DdsParticipant, DdsReader, DdsSubscriber};
-    use crate::{DdsPublisher, DdsWriter};
-
+    use crate::*;
     use cyclonedds_derive::Topic;
-    use serde_derive::{Deserialize, Serialize};
+    use serde::{Deserialize, Serialize};
     use tokio::runtime::Runtime;
-
-    const cyclone_shm_config: &str = r###"<?xml version="1.0" encoding="UTF-8" ?>
-    <CycloneDDS xmlns="https://cdds.io/config"
-                xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                xsi:schemaLocation="https://cdds.io/config https://raw.githubusercontent.com/eclipse-cyclonedds/cyclonedds/iceoryx/etc/cyclonedds.xsd">
-        <Domain id="any">
-            <SharedMemory>
-                <Enable>true</Enable>
-                <LogLevel>info</LogLevel>
-            </SharedMemory>
-        </Domain>
-    </CycloneDDS>"###;
 
     #[repr(C)]
     #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -322,63 +346,28 @@ mod test {
         }
     }
 
-    #[derive(Serialize, Deserialize, Topic, Debug, PartialEq)]
-    struct AnotherTopic {
-        pub value: u32,
-        pub name: String,
-        pub arr: [String; 2],
-        pub vec: Vec<String>,
-        #[topic_key]
-        pub key: u32,
-    }
-
-    impl Default for AnotherTopic {
-        fn default() -> Self {
-            assert!(Self::has_key());
-            Self {
-                value: 42,
-                name: "the answer".to_owned(),
-                arr: ["one".to_owned(), "two".to_owned()],
-                vec: vec!["Hello".to_owned(), "world".to_owned()],
-                key: 0,
-            }
-        }
-    }
-
-    //#[test]
+    #[test]
+    #[ignore = "requires iox-roudi to be running"]
     fn test_loan() {
-        // Make sure iox-roudi is running
-        unsafe {
-            std::env::set_var("CYCLONEDDS_URI", cyclone_shm_config);
-        }
+        crate::common::tests::setup_shm_config();
 
-        let participant = DdsParticipant::create(None, None, None).unwrap();
+        let participant = DdsParticipant::create(Some(2), None, None).unwrap();
 
         let topic = TestTopic::create_topic(&participant, Some("test_topic"), None, None).unwrap();
-        let another_topic = AnotherTopic::create_topic(&participant, None, None, None).unwrap();
 
         let publisher = DdsPublisher::create(&participant, None, None).unwrap();
 
         let mut writer = DdsWriter::create(&publisher, topic.clone(), None, None).unwrap();
-        let mut another_writer =
-            DdsWriter::create(&publisher, another_topic.clone(), None, None).unwrap();
-
-        // this writer does not have a fixed size. Loan should fail
-
-        if let Ok(r) = another_writer.loan() {
-            panic!("This must fail");
-        }
 
         let subscriber = DdsSubscriber::create(&participant, None, None).unwrap();
         let reader = DdsReader::create_async(&subscriber, topic, None).unwrap();
-        let another_reader = DdsReader::create_async(&subscriber, another_topic, None).unwrap();
 
         let rt = Runtime::new().unwrap();
 
         let _result = rt.block_on(async {
             let _another_task = tokio::spawn(async move {
                 let mut samples = TestTopic::create_sample_buffer(5);
-                if let Ok(t) = reader.take(&mut samples).await {
+                if let Ok(t) = reader.take_async(&mut samples).await {
                     assert_eq!(t, 1);
                     for s in samples.iter() {
                         println!("Got sample {:?}", s);

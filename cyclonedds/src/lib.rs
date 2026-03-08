@@ -32,7 +32,12 @@ pub mod dds_topic;
 mod dds_waitset;
 pub mod dds_writer;
 pub mod error;
+mod futures;
+pub(crate) mod serdata;
 pub mod serdes;
+pub(crate) mod sertype;
+pub mod untyped;
+pub(crate) mod util;
 
 pub use common::{DdsReadable, DdsWritable, Entity};
 pub use dds_api::*;
@@ -50,4 +55,4 @@ pub use serdes::{Sample, SampleBuffer, TopicType};
 pub use cdr;
 pub use cyclonedds_sys::dds_error::DDSError;
 
-pub use serde_derive::{Deserialize, Serialize};
+pub use serde::{Deserialize, Serialize};
