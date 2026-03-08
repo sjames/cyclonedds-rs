@@ -23,6 +23,12 @@ pub struct PublisherBuilder {
     maybe_listener: Option<DdsListener>,
 }
 
+impl Default for PublisherBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PublisherBuilder {
     pub fn new() -> Self {
         Self {
@@ -49,7 +55,7 @@ impl PublisherBuilder {
 #[derive(Clone)]
 pub struct DdsPublisher(DdsEntity, Option<DdsListener>);
 
-impl<'a> DdsPublisher {
+impl DdsPublisher {
     pub fn create(
         participant: &DdsParticipant,
         maybe_qos: Option<DdsQos>,
@@ -72,7 +78,7 @@ impl<'a> DdsPublisher {
     }
 }
 
-impl<'a> DdsWritable for DdsPublisher {
+impl DdsWritable for DdsPublisher {
     fn entity(&self) -> &DdsEntity {
         &self.0
     }

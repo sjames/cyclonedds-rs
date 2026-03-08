@@ -19,7 +19,6 @@ use std::convert::From;
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
-use crate::SampleBuffer;
 pub use cyclonedds_sys::DdsEntity;
 use std::marker::PhantomData;
 
@@ -30,6 +29,15 @@ pub struct WriterBuilder<T: TopicType> {
     maybe_qos: Option<DdsQos>,
     maybe_listener: Option<DdsListener>,
     phantom: PhantomData<T>,
+}
+
+impl<T> Default for WriterBuilder<T>
+where
+    T: TopicType,
+{
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T> WriterBuilder<T>
@@ -122,7 +130,7 @@ where
 #[derive(Clone)]
 pub struct DdsWriter<T: Sized + TopicType>(DdsEntity, Option<DdsListener>, PhantomData<T>);
 
-impl<'a, T> DdsWriter<T>
+impl<T> DdsWriter<T>
 where
     T: Sized + TopicType,
 {
@@ -228,7 +236,7 @@ where
     }
 }
 
-impl<'a, T> Entity for DdsWriter<T>
+impl<T> Entity for DdsWriter<T>
 where
     T: std::marker::Sized + TopicType,
 {
@@ -237,7 +245,7 @@ where
     }
 }
 
-impl<'a, T> Drop for DdsWriter<T>
+impl<T> Drop for DdsWriter<T>
 where
     T: std::marker::Sized + TopicType,
 {
@@ -254,13 +262,12 @@ where
 #[cfg(test)]
 mod test {
     use core::panic;
-    use std::{ops::Deref, sync::Arc, time::Duration};
 
     use super::*;
     use crate::{DdsParticipant, DdsReader, DdsSubscriber};
     use crate::{DdsPublisher, DdsWriter};
 
-    use cdds_derive::{Topic, TopicFixedSize};
+    use cyclonedds_derive::Topic;
     use serde_derive::{Deserialize, Serialize};
     use tokio::runtime::Runtime;
 
@@ -289,7 +296,8 @@ mod test {
         }
     }
 
-    #[derive(Serialize, Deserialize, TopicFixedSize, Debug, PartialEq)]
+    #[derive(Serialize, Deserialize, Topic, Debug, PartialEq)]
+    #[cdds(fixed_size)]
     struct TestTopic {
         a: u32,
         b: u16,
@@ -340,7 +348,9 @@ mod test {
     //#[test]
     fn test_loan() {
         // Make sure iox-roudi is running
-        std::env::set_var("CYCLONEDDS_URI", cyclone_shm_config);
+        unsafe {
+            std::env::set_var("CYCLONEDDS_URI", cyclone_shm_config);
+        }
 
         let participant = DdsParticipant::create(None, None, None).unwrap();
 

@@ -22,21 +22,25 @@ use proc_macro2::Span;
 use quote::quote;
 use syn::{parse_macro_input, Field, Ident};
 
-#[proc_macro_derive(TopicFixedSize, attributes(topic_key, topic_key_enum))]
-pub fn derive_topic_fixed_size(item: TokenStream) -> TokenStream {
-    derive_topic_impl(item, true)
-}
-
-#[proc_macro_derive(Topic, attributes(topic_key, topic_key_enum))]
+/// TopicTypeを実装するderiveマクロ
+///
+/// # Attributes
+/// * `cdds(fixed_size)` - トピックが固定長であることを示す。Iceoryx転送でCDRシリアライズされなくなる
+/// * `cdds(typename = "custom_msg/CustomTypeName")` - トピックの型名を入力した名前にする
+///
+/// # Field Attributes
+/// * `topic_key` - フィールドをCDRのキーとして扱うことを示す
+/// * `topic_key_enum` - フィールドがキーであり、かつ列挙型であることを示す（列挙型はプリミティブとして扱う）
+#[proc_macro_derive(Topic, attributes(cdds, topic_key, topic_key_enum))]
 pub fn derive_topic(item: TokenStream) -> TokenStream {
-    derive_topic_impl(item, false)
+    derive_topic_impl(item)
 }
 
-fn derive_topic_impl(item: TokenStream, is_fixed_size: bool) -> TokenStream {
+fn derive_topic_impl(item: TokenStream) -> TokenStream {
     let topic_struct = parse_macro_input!(item as syn::ItemStruct);
 
     let mut ts = build_key_holder_struct(&topic_struct);
-    let ts2 = create_keyhash_functions(&topic_struct, is_fixed_size);
+    let ts2 = create_keyhash_functions(&topic_struct);
     let ts3 = create_topic_functions(&topic_struct);
 
     ts.extend(ts2);
@@ -145,43 +149,99 @@ fn build_key_holder_struct(item: &syn::ItemStruct) -> TokenStream {
     ts.into()
 }
 
+/// Containerアトリビュートのパース結果を保持する構造体
+struct Container {
+    fixed_size: bool,
+    typename: proc_macro2::TokenStream,
+}
+
+impl Container {
+    fn parse(item: &syn::ItemStruct) -> Self {
+        let mut fixed_size = false;
+        let mut typename = quote! {};
+        for attr in &item.attrs {
+            if let Some(ident) = attr.path.get_ident() {
+                if ident == "cdds" {
+                    //parse the attribute meta
+                    if let Ok(syn::Meta::List(meta_list)) = attr.parse_meta() {
+                        for nested_meta in meta_list.nested.iter() {
+                            if let syn::NestedMeta::Meta(syn::Meta::Path(path)) = nested_meta {
+                                if path.is_ident("fixed_size") {
+                                    fixed_size = true;
+                                }
+                            } else if let syn::NestedMeta::Meta(syn::Meta::NameValue(nv)) =
+                                nested_meta
+                            {
+                                if nv.path.is_ident("typename") {
+                                    if let syn::Lit::Str(lit_str) = &nv.lit {
+                                        typename = quote! {
+                                            fn typename() -> std::ffi::CString {
+                                                std::ffi::CString::new(#lit_str).expect("Unable to create CString for type name")
+                                            }
+                                        };
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Container {
+            fixed_size,
+            typename,
+        }
+    }
+}
+
 // create the keyhash methods for this type
-fn create_keyhash_functions(item: &syn::ItemStruct, is_fixed_size: bool) -> TokenStream {
+// PID_KEY_HASH仕様に従い、フィールドの順番通りにCDRエンコーディングを行う構造体
+fn create_keyhash_functions(item: &syn::ItemStruct) -> TokenStream {
     let topic_key_ident = &item.ident;
     let topic_key_holder_ident = quote::format_ident!("{}KeyHolder_", &item.ident);
+    let Container {
+        fixed_size,
+        typename,
+    } = Container::parse(item);
 
-    let ts = quote! {
+    let mut ts = quote! {
         impl TopicType for #topic_key_ident {
             /// return the cdr encoding for the key. The encoded string includes the four byte
             /// encapsulation string.
             fn key_cdr(&self) -> Vec<u8> {
                 let holder_struct : #topic_key_holder_ident = self.into();
-
                 let encoded = cdr::serialize::<_, _, cdr::CdrBe>(&holder_struct, cdr::Infinite).expect("Unable to serialize key");
-               encoded
+                encoded
             }
 
             fn is_fixed_size() -> bool {
-                #is_fixed_size
+                #fixed_size
             }
 
             fn has_key() -> bool {
-                if std::mem::size_of::<#topic_key_holder_ident>() > 0 {
-                    true
-                } else {
-                    false
-                }
+                std::mem::size_of::<#topic_key_holder_ident>() > 0
             }
 
             fn force_md5_keyhash() -> bool {
                  #topic_key_holder_ident::is_variable_length()
             }
+
+            #typename
         }
     };
+
+    if fixed_size {
+        let ts_fixed = quote! {
+            impl FixedTopicType for #topic_key_ident {}
+        };
+        ts.extend(ts_fixed);
+    }
 
     ts.into()
 }
 
+// Util関数の追加。型からTopicを作成したり、サンプルバッファを作成したりする
 fn create_topic_functions(item: &syn::ItemStruct) -> TokenStream {
     let topic_key_ident = &item.ident;
 
@@ -275,7 +335,7 @@ fn is_key_enum(field: &Field) -> bool {
 }
 
 fn is_primitive_type_path(type_path: &syn::TypePath) -> bool {
-    if type_path.path.is_ident("bool")
+    type_path.path.is_ident("bool")
         || type_path.path.is_ident("i8")
         || type_path.path.is_ident("i16")
         || type_path.path.is_ident("i32")
@@ -291,11 +351,6 @@ fn is_primitive_type_path(type_path: &syn::TypePath) -> bool {
         || type_path.path.is_ident("f32")
         || type_path.path.is_ident("f64")
         || type_path.path.is_ident("String")
-    {
-        true
-    } else {
-        false
-    }
 }
 
 // check if a field is of a primitive type. We assume anything not primitive
@@ -315,11 +370,7 @@ fn is_primitive(field: &Field) -> bool {
 // length is variable.
 fn is_variable_length(field: &Field) -> bool {
     if let syn::Type::Path(type_path) = &field.ty {
-        if type_path.path.is_ident("Vec") || type_path.path.is_ident("String") {
-            true
-        } else {
-            false
-        }
+        type_path.path.is_ident("Vec") || type_path.path.is_ident("String")
     } else {
         false
     }

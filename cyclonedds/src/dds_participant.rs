@@ -42,6 +42,12 @@ pub struct ParticipantBuilder {
     maybe_listener: Option<DdsListener>,
 }
 
+impl Default for ParticipantBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ParticipantBuilder {
     pub fn new() -> Self {
         ParticipantBuilder {

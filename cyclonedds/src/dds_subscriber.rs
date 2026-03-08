@@ -23,6 +23,12 @@ pub struct SubscriberBuilder {
     maybe_listener: Option<DdsListener>,
 }
 
+impl Default for SubscriberBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SubscriberBuilder {
     pub fn new() -> Self {
         Self {
@@ -49,7 +55,7 @@ impl SubscriberBuilder {
 #[derive(Clone)]
 pub struct DdsSubscriber(DdsEntity, Option<DdsListener>);
 
-impl<'a> DdsSubscriber {
+impl DdsSubscriber {
     pub fn create(
         participant: &DdsParticipant,
         maybe_qos: Option<DdsQos>,
@@ -72,7 +78,7 @@ impl<'a> DdsSubscriber {
     }
 }
 
-impl<'a> DdsReadable for DdsSubscriber {
+impl DdsReadable for DdsSubscriber {
     fn entity(&self) -> &DdsEntity {
         &self.0
     }

@@ -40,6 +40,15 @@ pub struct ReaderBuilder<T: TopicType> {
     phantom: PhantomData<T>,
 }
 
+impl<T> Default for ReaderBuilder<T>
+where
+    T: TopicType,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> ReaderBuilder<T>
 where
     T: TopicType,
@@ -230,7 +239,7 @@ where
                     entity.entity(),
                     voidpp,
                     info_ptr as *mut _,
-                    buf.len() as usize,
+                    buf.len(),
                     buf.len() as u32,
                 )
             } else {
@@ -238,7 +247,7 @@ where
                     entity.entity(),
                     voidpp,
                     info_ptr as *mut _,
-                    buf.len() as usize,
+                    buf.len(),
                     buf.len() as u32,
                 )
             }
@@ -293,7 +302,7 @@ where
     }
 }
 
-impl<'a, T> Entity for DdsReader<T>
+impl<T> Entity for DdsReader<T>
 where
     T: std::marker::Sized + TopicType,
 {
@@ -302,7 +311,7 @@ where
     }
 }
 
-impl<'a, T> Drop for DdsReader<T>
+impl<T> Drop for DdsReader<T>
 where
     T: Sized + TopicType,
 {

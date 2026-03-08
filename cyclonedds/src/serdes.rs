@@ -73,7 +73,6 @@ pub trait TopicType: Serialize + DeserializeOwned {
         let topic_name_parts: String = format!(
             "/{}",
             std::any::type_name::<Self>()
-                .to_string()
                 .split("::")
                 .skip(1)
                 .collect::<Vec<_>>()
@@ -102,7 +101,7 @@ pub trait TopicType: Serialize + DeserializeOwned {
     fn force_md5_keyhash() -> bool;
 }
 
-impl<'a, T> SerType<T> {
+impl<T> SerType<T> {
     pub fn new() -> Box<SerType<T>>
     where
         T: DeserializeOwned + Serialize + TopicType,
@@ -165,10 +164,7 @@ impl<T> Deref for SampleStorage<T> {
 
 impl<T> Drop for SampleStorage<T> {
     fn drop(&mut self) {
-        match self {
-            SampleStorage::Loaned(_t) => {}
-            _ => {}
-        }
+        if let SampleStorage::Loaned(_t) = self {}
     }
 }
 
@@ -180,7 +176,7 @@ pub struct Sample<T> {
     sample: Option<SampleStorage<T>>,
 }
 
-impl<'a, T> Sample<T>
+impl<T> Sample<T>
 where
     T: TopicType,
 {
@@ -274,17 +270,16 @@ impl<T> Drop for Sample<T> {
     }
 }
 
-///
-/// TODO: UNSAFE WARNING Review needed. Forcing SampleBuffer<T> to be Send
-/// DDS read API uses an array of void* pointers. The SampleBuffer<T> structure
-/// is used to create the sample array in the necessary format.
-/// We allocate the Sample<T> structure and set it to deallocated here.
-/// Cyclone does not allocate the sample, it only sets the value of the Arc<T>
-/// inside the Sample<T>::Value<Arc<T>>.
-/// So this structure always points to a valid sample memory, but the serdes callbacks
-/// can change the value of the sample under us.
-/// To be absolutely sure, I think we must put each sample into an RwLock<Arc<T>> instead of
-/// an Arc<T>, I guess this is the cost we pay for zero copy.
+// TODO: UNSAFE WARNING Review needed. Forcing SampleBuffer<T> to be Send
+// DDS read API uses an array of void* pointers. The SampleBuffer<T> structure
+// is used to create the sample array in the necessary format.
+// We allocate the Sample<T> structure and set it to deallocated here.
+// Cyclone does not allocate the sample, it only sets the value of the Arc<T>
+// inside the Sample<T>::Value<Arc<T>>.
+// So this structure always points to a valid sample memory, but the serdes callbacks
+// can change the value of the sample under us.
+// To be absolutely sure, I think we must put each sample into an RwLock<Arc<T>> instead of
+// an Arc<T>, I guess this is the cost we pay for zero copy.
 
 unsafe impl<T> Send for SampleBuffer<T> {}
 pub struct SampleBuffer<T> {
@@ -317,6 +312,10 @@ impl<'a, T: TopicType> SampleBuffer<T> {
         self.buffer.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.buffer.is_empty()
+    }
+
     pub fn iter(&'a self) -> impl Iterator<Item = &'a T> + 'a {
         let p = self.buffer.iter().filter_map(|p| {
             let sample = unsafe { &*(*p) };
@@ -339,7 +338,7 @@ impl<'a, T: TopicType> SampleBuffer<T> {
     }
 }
 
-impl<'a, T> Drop for SampleBuffer<T> {
+impl<T> Drop for SampleBuffer<T> {
     fn drop(&mut self) {
         for p in &self.buffer {
             unsafe {
@@ -375,13 +374,9 @@ extern "C" fn realloc_samples<T>(
 ) {
     //println!("realloc");
     let old = unsafe {
-        Vec::<*mut Sample<T>>::from_raw_parts(
-            old as *mut *mut Sample<T>,
-            old_count as usize,
-            old_count as usize,
-        )
+        Vec::<*mut Sample<T>>::from_raw_parts(old as *mut *mut Sample<T>, old_count, old_count)
     };
-    let mut new = Vec::<*mut Sample<T>>::with_capacity(new_count as usize);
+    let mut new = Vec::<*mut Sample<T>>::with_capacity(new_count);
 
     if new_count >= old_count {
         for entry in old {
@@ -392,7 +387,7 @@ extern "C" fn realloc_samples<T>(
             new.push(Box::into_raw(Box::default()));
         }
     } else {
-        for e in old.into_iter().take(new_count as usize) {
+        for e in old.into_iter().take(new_count) {
             new.push(e)
         }
     }
@@ -419,13 +414,11 @@ extern "C" fn free_samples<T>(
     let ptrs_v: *mut *mut Sample<T> = ptrs as *mut *mut Sample<T>;
 
     if (op & DDS_FREE_ALL_BIT) != 0 {
-        let _samples =
-            unsafe { Vec::<Sample<T>>::from_raw_parts(*ptrs_v, len as usize, len as usize) };
+        let _samples = unsafe { Vec::<Sample<T>>::from_raw_parts(*ptrs_v, len, len) };
         // all samples will get freed when samples goes out of scope
     } else {
         assert_ne!(op & DDS_FREE_CONTENTS_BIT, 0);
-        let mut samples =
-            unsafe { Vec::<Sample<T>>::from_raw_parts(*ptrs_v, len as usize, len as usize) };
+        let mut samples = unsafe { Vec::<Sample<T>>::from_raw_parts(*ptrs_v, len, len) };
         for sample in samples.iter_mut() {
             //let _old_sample = std::mem::take(sample);
             sample.clear()
@@ -462,7 +455,6 @@ where
 {
     //println!("serdata_from_fragchain");
     let mut off: u32 = 0;
-    let size = size as usize;
     let fragchain_ref = &*fragchain;
 
     let mut serdata = SerData::<T>::new(sertype, kind);
@@ -620,21 +612,13 @@ unsafe extern "C" fn serdata_from_iov<T>(
 where
     T: DeserializeOwned + TopicType,
 {
-    let size = size as usize;
-    let niov = niov as usize;
-    //println!("serdata_from_iov");
-
     let mut serdata = SerData::<T>::new(sertype, kind);
 
-    let iovs = std::slice::from_raw_parts(iov as *const cyclonedds_sys::iovec, niov);
+    let iovs = std::slice::from_raw_parts(iov, niov);
 
     let iov_slices: Vec<&[u8]> = iovs
         .iter()
-        .map(|iov| {
-            let iov = iov;
-
-            std::slice::from_raw_parts(iov.iov_base as *const u8, iov.iov_len as usize)
-        })
+        .map(|iov| std::slice::from_raw_parts(iov.iov_base as *const u8, iov.iov_len))
         .collect();
 
     // make a reader out of the sg_list
@@ -731,7 +715,7 @@ unsafe extern "C" fn serdata_to_ser<T>(
     //println!("serdata_to_ser");
     let serdata = SerData::<T>::const_ref_from_serdata(serdata);
     let buf = buf as *mut u8;
-    let buf = buf.add(offset as usize);
+    let buf = buf.add(offset);
 
     if size == 0 {
         return;
@@ -743,12 +727,12 @@ unsafe extern "C" fn serdata_to_ser<T>(
         }
         SampleData::SDKKey => match &serdata.key_hash {
             KeyHash::None => {}
-            KeyHash::CdrKey(k) => std::ptr::copy_nonoverlapping(k.as_ptr(), buf, size as usize),
-            KeyHash::RawKey(k) => std::ptr::copy_nonoverlapping(k.as_ptr(), buf, size as usize),
+            KeyHash::CdrKey(k) => std::ptr::copy_nonoverlapping(k.as_ptr(), buf, size),
+            KeyHash::RawKey(k) => std::ptr::copy_nonoverlapping(k.as_ptr(), buf, size),
         },
         // We may serialize both SDK data as well as SHM Data
         SampleData::SDKData(serdata) => {
-            let buf_slice = std::slice::from_raw_parts_mut(buf, size as usize);
+            let buf_slice = std::slice::from_raw_parts_mut(buf, size);
             if let Err(e) = cdr::serialize_into::<_, T, _, CdrBe>(
                 buf_slice,
                 serdata.deref(),
@@ -758,7 +742,7 @@ unsafe extern "C" fn serdata_to_ser<T>(
             }
         }
         SampleData::SHMData(serdata) => {
-            let buf_slice = std::slice::from_raw_parts_mut(buf, size as usize);
+            let buf_slice = std::slice::from_raw_parts_mut(buf, size);
             if let Err(e) = cdr::serialize_into::<_, T, _, CdrBe>(
                 buf_slice,
                 serdata.as_ref(),
@@ -794,15 +778,14 @@ where
             };
 
             iov.iov_base = p as *mut c_void;
-            iov.iov_len = len as usize;
+            iov.iov_len = len;
         }
         SampleData::SDKData(sample) => {
             if serdata.cdr.is_none() {
                 serdata.cdr = serialize_type::<T>(sample, serdata.serialized_size).ok();
             }
             if let Some(cdr) = &serdata.cdr {
-                let offset = offset as usize;
-                let mut last = offset + size as usize;
+                let mut last = offset + size;
                 if last > cdr.len() - 1 {
                     last = cdr.len() - 1;
                 }
@@ -822,11 +805,10 @@ where
                 serdata.cdr = serialize_type::<T>(sample.as_ref(), serdata.serialized_size).ok();
             }
             if let Some(cdr) = &serdata.cdr {
-                let offset = offset as usize;
-                let last = offset + size as usize;
+                let last = offset + size;
                 let cdr = &cdr[offset..last];
                 iov.iov_base = cdr.as_ptr() as *mut c_void;
-                iov.iov_len = cdr.len() as usize;
+                iov.iov_len = cdr.len();
             } else {
                 println!("Serialization error (SHM)!");
                 return std::ptr::null_mut();
@@ -883,7 +865,7 @@ where
     //    "serdata to sample serdata:{:?} sample:{:?} bufptr:{:?} buflim:{:?}",
     //    serdata, sample, _bufptr, _buflim
     //);
-    let mut serdata = SerData::<T>::mut_ref_from_serdata(serdata_ptr);
+    let serdata = SerData::<T>::mut_ref_from_serdata(serdata_ptr);
     let mut s = Box::<Sample<T>>::from_raw(sample as *mut Sample<T>);
     assert!(!sample.is_null());
 
@@ -1032,7 +1014,7 @@ unsafe extern "C" fn get_keyhash<T>(
 }
 
 #[allow(dead_code)]
-unsafe extern "C" fn print<T>(
+unsafe extern "C" fn print(
     _sertype: *const ddsi_sertype,
     _serdata: *const ddsi_serdata,
     _buf: *mut std::os::raw::c_char,
@@ -1052,7 +1034,7 @@ where
         zero_samples: Some(zero_samples::<T>),
         realloc_samples: Some(realloc_samples::<T>),
         free_samples: Some(free_samples::<T>),
-        equal: Some(equal::<T>),
+        equal: Some(equal),
         hash: Some(hash::<T>),
         ..Default::default()
     })
@@ -1121,13 +1103,12 @@ where
         to_untyped: Some(serdata_to_untyped::<T>),
         untyped_to_sample: Some(untyped_to_sample::<T>),
         free: Some(free_serdata::<T>),
-        print: Some(print::<T>),
+        print: Some(print),
         get_keyhash: Some(get_keyhash::<T>),
         #[cfg(feature = "shm")]
         get_sample_size: Some(get_sample_size),
         #[cfg(feature = "shm")]
         from_iox_buffer: Some(from_iox_buffer::<T>),
-        ..Default::default()
     })
 }
 
@@ -1164,37 +1145,27 @@ unsafe extern "C" fn hash<T: TopicType>(tp: *const ddsi_sertype) -> u32 {
     }
 }
 
-unsafe extern "C" fn equal<T>(acmn: *const ddsi_sertype, bcmn: *const ddsi_sertype) -> bool {
+unsafe extern "C" fn equal(acmn: *const ddsi_sertype, bcmn: *const ddsi_sertype) -> bool {
     let acmn = CStr::from_ptr((*acmn).type_name as *mut std::os::raw::c_char);
     let bcmn = CStr::from_ptr((*bcmn).type_name as *mut std::os::raw::c_char);
     acmn == bcmn
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 enum SampleData<T> {
+    #[default]
     Uninitialized,
     SDKKey,
     SDKData(std::sync::Arc<T>),
     SHMData(NonNull<T>),
 }
 
-impl<T> Default for SampleData<T> {
-    fn default() -> Self {
-        Self::Uninitialized
-    }
-}
-
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Default)]
 enum KeyHash {
+    #[default]
     None,
     CdrKey([u8; 20]),
     RawKey([u8; 16]),
-}
-
-impl Default for KeyHash {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 impl KeyHash {
@@ -1262,8 +1233,8 @@ impl<T> Clone for SerData<T> {
     fn clone(&self) -> Self {
         Self {
             serdata: {
-                let mut newdata = self.serdata;
-                unsafe { ddsi_serdata_addref(&mut newdata) };
+                let newdata = self.serdata;
+                unsafe { ddsi_serdata_addref(&newdata) };
                 newdata
             },
             sample: match &self.sample {
@@ -1356,6 +1327,7 @@ mod test {
     use super::*;
     use crate::{DdsListener, DdsParticipant, DdsQos, DdsTopic};
     use cdds_derive::Topic;
+    use cyclonedds_derive::Topic;
     use serde_derive::{Deserialize, Serialize};
     use std::ffi::CString;
 

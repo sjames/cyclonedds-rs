@@ -30,6 +30,15 @@ pub struct TopicBuilder<T: TopicType> {
     phantom: PhantomData<T>,
 }
 
+impl<T> Default for TopicBuilder<T>
+where
+    T: TopicType,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> TopicBuilder<T>
 where
     T: TopicType,

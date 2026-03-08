@@ -80,7 +80,7 @@ pub struct DdsListener {
     inner: std::sync::Arc<std::sync::Mutex<Inner>>,
 }
 
-impl<'a> DdsListener {
+impl DdsListener {
     pub fn new() -> Self {
         Self {
             inner: std::sync::Arc::new(std::sync::Mutex::new(Inner {
@@ -92,13 +92,13 @@ impl<'a> DdsListener {
     }
 }
 
-impl<'a> Default for DdsListener {
+impl Default for DdsListener {
     fn default() -> Self {
         DdsListener::new()
     }
 }
 
-impl<'a> From<&DdsListener> for *const dds_listener_t {
+impl From<&DdsListener> for *const dds_listener_t {
     fn from(listener: &DdsListener) -> Self {
         if let Some(listener) = listener.inner.lock().unwrap().listener {
             listener
@@ -108,7 +108,7 @@ impl<'a> From<&DdsListener> for *const dds_listener_t {
     }
 }
 
-impl<'a> DdsListener {
+impl DdsListener {
     // take ownership as we're going to do some bad stuff here.
     pub fn hook(self) -> Self {
         // we're going to grab the Boxed callbacks and keep them separately as
@@ -119,7 +119,7 @@ impl<'a> DdsListener {
         if let Some(raw) = self.inner.lock().unwrap().raw_ptr.take() {
             unsafe {
                 // take ownership and free when out of scope
-                Box::from_raw(raw);
+                let _ = Box::from_raw(raw);
             }
         }
 
@@ -237,7 +237,7 @@ impl DdsListener {
     }
 }
 
-impl<'a> DdsListener {
+impl DdsListener {
     /////
     #[deprecated]
     pub fn on_sample_lost<F>(self, callback: F) -> Self
@@ -264,7 +264,7 @@ impl<'a> DdsListener {
     }
 }
 
-impl<'a> DdsListener {
+impl DdsListener {
     //////
     #[deprecated]
     pub fn on_sample_rejected<F>(self, callback: F) -> Self
@@ -292,7 +292,7 @@ impl<'a> DdsListener {
 }
 
 // Liveliness changed
-impl<'a> DdsListener {
+impl DdsListener {
     #[deprecated]
     pub fn on_liveliness_changed<F>(self, callback: F) -> Self
     where
@@ -318,7 +318,7 @@ impl<'a> DdsListener {
     }
 }
 
-impl<'a> DdsListener {
+impl DdsListener {
     #[deprecated]
     pub fn on_requested_deadline_missed<F>(self, callback: F) -> Self
     where
@@ -344,7 +344,7 @@ impl<'a> DdsListener {
     }
 }
 
-impl<'a> DdsListener {
+impl DdsListener {
     #[deprecated]
     pub fn on_requested_incompatible_qos<F>(self, callback: F) -> Self
     where
@@ -370,7 +370,7 @@ impl<'a> DdsListener {
     }
 }
 
-impl<'a> DdsListener {
+impl DdsListener {
     #[deprecated]
     pub fn on_subscription_matched<F>(self, callback: F) -> Self
     where
@@ -396,7 +396,7 @@ impl<'a> DdsListener {
     }
 }
 
-impl<'a> DdsListener {
+impl DdsListener {
     #[deprecated]
     pub fn on_liveliness_lost<F>(self, callback: F) -> Self
     where
@@ -422,7 +422,7 @@ impl<'a> DdsListener {
     }
 }
 
-impl<'a> DdsListener {
+impl DdsListener {
     #[deprecated]
     pub fn on_offered_deadline_missed<F>(self, callback: F) -> Self
     where
@@ -448,7 +448,7 @@ impl<'a> DdsListener {
     }
 }
 
-impl<'a> DdsListener {
+impl DdsListener {
     #[deprecated]
     pub fn on_offered_incompatible_qos<F>(self, callback: F) -> Self
     where
@@ -474,7 +474,7 @@ impl<'a> DdsListener {
     }
 }
 
-impl<'a> DdsListener {
+impl DdsListener {
     #[deprecated]
     pub fn on_publication_matched<F>(self, callback: F) -> Self
     where
@@ -500,7 +500,7 @@ impl<'a> DdsListener {
     }
 }
 
-impl<'a> DdsListener {
+impl DdsListener {
     #[deprecated]
     pub fn on_inconsistent_topic<F>(self, callback: F) -> Self
     where
@@ -526,7 +526,7 @@ impl<'a> DdsListener {
     }
 }
 
-impl<'a> DdsListener {
+impl DdsListener {
     #[deprecated]
     pub fn on_data_on_readers<F>(self, callback: F) -> Self
     where
@@ -551,7 +551,7 @@ impl<'a> DdsListener {
     }
 }
 
-impl<'a> Drop for DdsListener {
+impl Drop for DdsListener {
     fn drop(&mut self) {
         // delete the listener so we are sure of not
         // getting any callbacks

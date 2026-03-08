@@ -5,10 +5,11 @@ description = "Derive macros for cyclonedds-rs"
 edition.workspace = true
 license-file.workspace = true
 homepage.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 derive-syn-parse = "0.1.5"
-proc-macro2 = "1.0.27"
+proc-macro2 = "1.0.106"
 quote = "1.0"
 syn = { version = "1.0", features = ["full", "extra-traits"] }
 

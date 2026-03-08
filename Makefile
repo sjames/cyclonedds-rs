@@ -1,6 +1,6 @@
 fmt:
 	cargo fmt --all
-	cargo clippy --all -- -D warnings
+	cargo clippy --all --fix --allow-staged -- -D warnings
 
 check-fmt:
 	cargo fmt --all -- --check

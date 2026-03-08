@@ -15,7 +15,7 @@
 */
 
 use crate::{DdsParticipant, Entity};
-pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
+pub use cyclonedds_sys::{DDSError, DdsEntity};
 use std::convert::From;
 use std::marker::PhantomData;
 
