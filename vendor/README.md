@@ -52,3 +52,32 @@ export CYCLONEDDS_INCLUDE_DIR=${CYCLONEDDS_HOME}/include
 ```bash
 make clean
 ```
+
+## 6. Debian パッケージを作成する
+
+`cargo-deb` を使用して、runtime パッケージとヘッダを含む dev パッケージを作成できます。
+`debian/Cargo.toml` は `debian/Cargo-template.toml` から自動生成されます。
+
+```bash
+cargo install cargo-deb
+make -C debian deb
+```
+
+個別に作成する場合:
+
+```bash
+make -C debian runtime
+make -C debian dev
+```
+
+`maintainer` / `copyright` を実行時に上書きする場合:
+
+```bash
+make -C debian deb \
+	MAINTAINER="Your Team <dev@example.com>" \
+	COPYRIGHT="2026, Your Team <dev@example.com>"
+```
+
+未指定時は `debian/Cargo.toml` の値が使われます。
+
+生成された `.deb` はリポジトリルートの `deb/` に出力されます。
