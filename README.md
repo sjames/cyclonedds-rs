@@ -1,9 +1,23 @@
-# cyclonedds-rs 
+# cyclonedds-rs
 
-Rust bindings for cyclonedds https://github.com/eclipse-cyclonedds/cyclonedds.
-This create no longer depends on a code generator. The Cyclone serialization
+Rust bindings for [Eclipse CycloneDDS](https://github.com/eclipse-cyclonedds/cyclonedds).
+This crate no longer depends on a code generator. The Cyclone serialization
 interface is used to implement the Rust interface. You can annotate a structure
 with the new derive macro and start subscribing and publishing right from Rust.
+
+A refactored fork of the original [cyclonedds-rs](https://github.com/sjames/cyclonedds-rs) and [cyclonedds-sys](https://github.com/sjames/cyclonedds-sys).
+
+## Project Structure
+This repository is organized as a Cargo Workspace:
+- `cyclonedds`: High-level, safe Rust API.
+- `cyclonedds-sys`: Raw FFI bindings (generated via bindgen).
+- `cyclonedds-derive`: Procedural macros for DdsType.
+
+## Acknowledgment
+This project is based on the initial work by [sjames](https://github.com/sjames). We have refactored the architecture to improve maintainability and developer experience.
+
+## License and Notice
+This project is licensed under Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE) for details and attribution.
 
 # Introduction
 
@@ -18,18 +32,9 @@ cyclone serialization/deserialization interface for high performance and IDL fre
 4. Async reader 
 5. multiple and nested keys
 
-# Roadmap Features
-1. Shared memory support using iceoryx
-
-# Examples
-
-1. https://github.com/sjames/demo-vehicle-speed-subscriber  (Vehicle speed subscriber with async reader)
-2. https://github.com/sjames/demo-vehicle-speed-publisher (Vehicle speed publisher)
-
 # Special Instructions
 
 The current release only supports the 0.10.X release branch. https://github.com/eclipse-cyclonedds/cyclonedds/tree/releases/0.10.x .
-Install this before building this crate or the examples.
 
 # Dependencies
 
