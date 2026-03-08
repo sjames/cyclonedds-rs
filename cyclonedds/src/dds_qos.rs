@@ -15,8 +15,9 @@
 */
 
 use cyclonedds_sys::{dds_qos_t, *};
-use std::clone::Clone;
 use std::convert::From;
+use std::time::Duration;
+use std::{clone::Clone, fmt::Debug};
 
 pub use cyclonedds_sys::{
     dds_destination_order_kind, dds_durability_kind, dds_duration_t, dds_history_kind,
@@ -25,14 +26,21 @@ pub use cyclonedds_sys::{
 };
 
 /// Safety Check:
-/// The dds_qos_t pointer is not accesible externally. I'm assuming the Qos structure created
+/// The dds_qos_t pointer is not accessible externally. I'm assuming the QoS structure created
 /// by Cyclone is Sendable here.
 unsafe impl Send for DdsQos {}
 
-#[derive(Debug)]
 pub struct DdsQos(*mut dds_qos_t);
 
 impl DdsQos {
+    fn from_dds_duration(value: dds_duration_t) -> Duration {
+        if value <= 0 {
+            Duration::ZERO
+        } else {
+            Duration::from_nanos(value as u64)
+        }
+    }
+
     pub fn create() -> Result<Self, DDSError> {
         unsafe {
             let p = cyclonedds_sys::dds_create_qos();
@@ -57,6 +65,9 @@ impl DdsQos {
         self
     }
 
+    /// 信頼性のための再送用バッファのサイズを設定する
+    ///
+    /// 同期のための履歴保持は [Self::set_durability_service] を利用すること
     pub fn set_history(&mut self, history: dds_history_kind, depth: i32) -> &mut Self {
         unsafe {
             dds_qset_history(self.0, history, depth);
@@ -188,9 +199,24 @@ impl DdsQos {
         self
     }
 
+    /// 同期（あとから参加しても過去配信データを受信できる）に関わるQoS設定。
+    ///
+    /// CycloneDDSでは、`TRANSIENT_LOCAL` の永続性レベルにおいて、あとから参加した
+    /// Reader向けの履歴保持設定をこのQoSで行う。一般的な解釈では [Self::set_history] に
+    /// 期待される機能を、こちらで担っている。
+    /// OMGのDCPS QoS定義では、`TRANSIENT` または `PERSISTENT` の永続性レベルにおいて、
+    /// データを管理する「仮想的なサービス」の設定として定義されている。
+    ///
+    /// この仕様差は、CycloneDDSメンテナが `DURABILITY_SERVICE` QoS を
+    /// 「接続の確立時（または再確立時）のデータ同期」の設定、`HISTORY` QoS を
+    /// 「接続確立後の再送用バッファサイズ」の設定として、意図的に使い分けているためであり、
+    /// ライブデータの全数配信のためのKEEP_ALLで保証しつつ、
+    /// 後から参加者には直近n件のみといった実用上有用な設定をサポートできる設計となっている。
+    ///
+    /// Reference: https://github.com/eclipse-cyclonedds/cyclonedds/issues/49
     pub fn set_durability_service(
         &mut self,
-        service_cleanup_delay: dds_duration_t,
+        service_cleanup_delay: Duration,
         history_kind: dds_history_kind,
         history_depth: i32,
         max_samples: i32,
@@ -200,7 +226,7 @@ impl DdsQos {
         unsafe {
             dds_qset_durability_service(
                 self.0,
-                service_cleanup_delay,
+                service_cleanup_delay.as_nanos() as i64,
                 history_kind,
                 history_depth,
                 max_samples,
@@ -222,7 +248,71 @@ impl DdsQos {
         unsafe { dds_qset_partition1(self.0, name.as_ptr()) }
         self
     }
-    //TODO:  Not implementing any getters for now
+
+    pub fn durability(&self) -> dds_durability_kind {
+        let mut kind = dds_durability_kind::DDS_DURABILITY_VOLATILE;
+        unsafe {
+            let _ = dds_qget_durability(self.0, &mut kind as *mut _);
+        }
+        kind
+    }
+
+    pub fn history(&self) -> (dds_history_kind, i32) {
+        let mut depth = 1;
+        let mut kind = dds_history_kind::DDS_HISTORY_KEEP_LAST;
+        unsafe {
+            let _ = dds_qget_history(self.0, &mut kind as *mut _, &mut depth as *mut i32);
+        }
+        (kind, depth)
+    }
+
+    pub fn reliability(&self) -> (dds_reliability_kind, std::time::Duration) {
+        let mut max_blocking_time = 0;
+        let mut kind = dds_reliability_kind::DDS_RELIABILITY_BEST_EFFORT;
+        unsafe {
+            let _ = dds_qget_reliability(
+                self.0,
+                &mut kind as *mut _,
+                &mut max_blocking_time as *mut _,
+            );
+        }
+        (kind, Self::from_dds_duration(max_blocking_time))
+    }
+
+    pub fn lifespan(&self) -> std::time::Duration {
+        let mut lifespan = 0;
+        unsafe {
+            let _ = dds_qget_lifespan(self.0, &mut lifespan as *mut _);
+        }
+        Self::from_dds_duration(lifespan)
+    }
+
+    pub fn deadline(&self) -> std::time::Duration {
+        let mut deadline = 0;
+        unsafe {
+            let _ = dds_qget_deadline(self.0, &mut deadline as *mut _);
+        }
+        Self::from_dds_duration(deadline)
+    }
+
+    pub fn liveliness(&self) -> (dds_liveliness_kind, std::time::Duration) {
+        let mut lease_duration = 0;
+        let mut kind = dds_liveliness_kind::DDS_LIVELINESS_AUTOMATIC;
+        unsafe {
+            let _ = dds_qget_liveliness(self.0, &mut kind as *mut _, &mut lease_duration as *mut _);
+        }
+        (kind, Self::from_dds_duration(lease_duration))
+    }
+
+    // 内部でポインタからDdsQosを作成する
+    pub(crate) fn from_ptr(ptr: *mut dds_qos_t) -> Self {
+        DdsQos(ptr)
+    }
+
+    // 借用したQosのポインタは開放しない
+    fn forget(mut self) {
+        self.0 = std::ptr::null_mut();
+    }
 }
 
 impl Default for DdsQos {
@@ -241,10 +331,7 @@ impl Drop for DdsQos {
 
 impl PartialEq for DdsQos {
     fn eq(&self, other: &Self) -> bool {
-        unsafe {
-            println!("Dropping");
-            dds_qos_equal(self.0, other.0)
-        }
+        unsafe { dds_qos_equal(self.0, other.0) }
     }
 }
 
@@ -258,7 +345,7 @@ impl Clone for DdsQos {
             if let DDSError::DdsOk = err {
                 DdsQos(q)
             } else {
-                panic!("dds_copy_qos failed. Panicing as Clone should not fail");
+                panic!("dds_copy_qos failed. Panicking as Clone should not fail");
             }
         }
     }
@@ -273,6 +360,19 @@ impl From<DdsQos> for *const dds_qos_t {
         q
     }
 }
+
+impl Debug for DdsQos {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("DdsQos")
+            .field("durability", &self.durability())
+            .field("history", &self.history())
+            .field("reliability", &self.reliability())
+            .field("lifespan", &self.lifespan())
+            .field("deadline", &self.deadline())
+            .field("liveliness", &self.liveliness())
+            .finish()
+    }
+}
 /*
 impl From<&mut DdsQos> for *const dds_qos_t {
     fn from(qos: &mut DdsQos) -> Self {
@@ -284,6 +384,154 @@ impl From<&mut DdsQos> for *const dds_qos_t {
     }
 }
 */
+
+/// メッセージ履歴設定
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum History {
+    /// 指定された数だけ過去のサンプルを保持する
+    /// 想定インスタンス数はPolicy::SUPPORT_INSTANCESに依存する
+    KeepLast(i32),
+    /// すべてのサンプルを保持する
+    KeepAll,
+}
+
+impl Default for History {
+    fn default() -> Self {
+        History::KeepLast(1)
+    }
+}
+
+/// 到達保証設定
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum Reliability {
+    /// 信頼性あり。最大ブロッキング時間を指定する
+    Reliable(Duration),
+    /// ベストエフォート
+    #[default]
+    BestEffort,
+}
+
+/// 永続性設定
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum Durability {
+    /// Readerが起動している間のみデータを保持する
+    #[default]
+    Volatile,
+    /// データをローカルに保存し、後から起動したReaderにも配信する
+    TransientLocal,
+}
+
+/// 通信可否に関わる重要なQoS要素のみをまとめた構造体
+///
+/// QoSは実際には効果のない設定があり設定が煩雑で、
+/// インスタンスに紐づく情報が含まれるため比較が難しいため
+/// 実用上の比較や設定はこちらを利用することを推奨する
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub struct Policy {
+    pub history: History,
+    pub reliability: Reliability,
+    pub durability: Durability,
+}
+
+impl Policy {
+    const SUPPORT_INSTANCES: i32 = 4;
+    pub fn create_transient_local(history: i32, deadline: Option<Duration>) -> Self {
+        Policy {
+            history: History::KeepLast(history),
+            reliability: Reliability::Reliable(deadline.unwrap_or(Duration::from_millis(100))),
+            durability: Durability::TransientLocal,
+        }
+    }
+
+    pub fn to_qos(&self) -> DdsQos {
+        let mut qos = DdsQos::create().expect("Unable to create DdsQos");
+        // History
+        match self.history {
+            History::KeepLast(depth) => {
+                qos.set_history(dds_history_kind::DDS_HISTORY_KEEP_LAST, depth);
+                let max_sample = depth * Self::SUPPORT_INSTANCES;
+                qos.set_resource_limits(max_sample, Self::SUPPORT_INSTANCES, depth);
+            }
+            History::KeepAll => {
+                qos.set_history(dds_history_kind::DDS_HISTORY_KEEP_ALL, 0);
+            }
+        }
+        // Reliability
+        match self.reliability {
+            Reliability::Reliable(max_blocking_time) => {
+                qos.set_reliability(
+                    dds_reliability_kind::DDS_RELIABILITY_RELIABLE,
+                    max_blocking_time,
+                );
+            }
+            Reliability::BestEffort => {
+                qos.set_reliability(
+                    dds_reliability_kind::DDS_RELIABILITY_BEST_EFFORT,
+                    Duration::from_nanos(0),
+                );
+            }
+        }
+        // Durability
+        match self.durability {
+            Durability::Volatile => {
+                qos.set_durability(dds_durability_kind::DDS_DURABILITY_VOLATILE);
+            }
+            Durability::TransientLocal => {
+                qos.set_durability(dds_durability_kind::DDS_DURABILITY_TRANSIENT_LOCAL);
+                if self.reliability == Reliability::BestEffort {
+                    // TransientLocal で BestEffort は非推奨なので Reliable に変更する
+                    qos.set_reliability(
+                        dds_reliability_kind::DDS_RELIABILITY_RELIABLE,
+                        Duration::from_millis(100),
+                    );
+                }
+            }
+        }
+        qos
+    }
+}
+
+impl From<&DdsQos> for Policy {
+    fn from(qos: &DdsQos) -> Self {
+        let history = match qos.history().0 {
+            dds_history_kind::DDS_HISTORY_KEEP_LAST => History::KeepLast(qos.history().1),
+            dds_history_kind::DDS_HISTORY_KEEP_ALL => History::KeepAll,
+        };
+        let reliability = match qos.reliability().0 {
+            dds_reliability_kind::DDS_RELIABILITY_RELIABLE => {
+                Reliability::Reliable(qos.reliability().1)
+            }
+            dds_reliability_kind::DDS_RELIABILITY_BEST_EFFORT => Reliability::BestEffort,
+        };
+        let durability = match qos.durability() {
+            dds_durability_kind::DDS_DURABILITY_VOLATILE => Durability::Volatile,
+            _ => Durability::TransientLocal,
+        };
+        Policy {
+            history,
+            reliability,
+            durability,
+        }
+    }
+}
+
+impl From<*mut dds_qos_t> for Policy {
+    fn from(qos: *mut dds_qos_t) -> Self {
+        if qos.is_null() {
+            return Policy::default();
+        }
+        let q = DdsQos::from_ptr(qos);
+        let p = Policy::from(&q);
+        q.forget();
+        p
+    }
+}
+
+impl From<*const dds_qos_t> for Policy {
+    fn from(qos: *const dds_qos_t) -> Self {
+        Self::from(qos as *mut dds_qos_t)
+    }
+}
 
 #[cfg(test)]
 mod dds_qos_tests {
@@ -344,7 +592,14 @@ mod dds_qos_tests {
                 )
                 .set_writer_data_lifecycle(true)
                 .set_reader_data_lifecycle(100, 100)
-                .set_durability_service(0, dds_history_kind::DDS_HISTORY_KEEP_LAST, 3, 3, 3, 3)
+                .set_durability_service(
+                    Duration::ZERO,
+                    dds_history_kind::DDS_HISTORY_KEEP_LAST,
+                    3,
+                    3,
+                    3,
+                    3,
+                )
                 .set_partition(&std::ffi::CString::new("partition1").unwrap());
         } else {
             assert!(false);

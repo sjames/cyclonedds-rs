@@ -332,7 +332,7 @@ mod build {
     fn add_whitelist(builder: bindgen::Builder) -> bindgen::Builder {
         builder
             .derive_default(true)
-            .generate_cstr(false)
+            .generate_cstr(true)
             .prepend_enum_name(false)
             // basic operations
             .allowlist_function(r"^dds_(get|read|take|write|forward)(_.+|cdr)?$")

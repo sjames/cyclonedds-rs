@@ -83,3 +83,22 @@ pub(crate) fn data_reader_listener() -> (DdsListener, ReaderType) {
         .build();
     (listener, ReaderType::Async(waker))
 }
+
+/// BuiltinDataReader向けのリスナー
+///
+/// こちらはメタデータの読み出しなのでデータの到達イベントだけ
+pub(crate) fn participant_reader_listener() -> (DdsListener, ReaderType) {
+    let waker = Arc::new((AtomicWaker::new(), Mutex::new(None)));
+
+    let listener = DdsListenerBuilder::new()
+        .on_data_available({
+            let waker = waker.clone();
+            move |_entity| {
+                // 有効なデータが届いたときに反応する
+                waker.0.wake();
+            }
+        })
+        .build();
+
+    (listener, ReaderType::Async(waker))
+}

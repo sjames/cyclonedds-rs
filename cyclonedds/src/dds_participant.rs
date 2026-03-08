@@ -17,10 +17,11 @@
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, DdsReadable, DdsWritable, Entity};
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 use std::convert::From;
+use tracing::trace;
 
 /// Builder struct for a Participant.
-/// #Example
-/// ```
+/// # Example
+/// ```text
 /// use cyclonedds_rs::{DdsListener, ParticipantBuilder};
 /// let listener = DdsListener::new()
 ///   .on_subscription_matched(|a,b| {
@@ -77,6 +78,7 @@ impl ParticipantBuilder {
     }
 }
 
+#[allow(dead_code)]
 pub struct DdsParticipant(DdsEntity, Option<DdsListener>);
 
 impl DdsParticipant {
@@ -94,28 +96,37 @@ impl DdsParticipant {
                     .map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
-                Ok(DdsParticipant(DdsEntity::new(p), maybe_listener))
+                let p = DdsParticipant(DdsEntity::new(p), maybe_listener);
+                trace!("Created participant with guid: {}", p.guid());
+                Ok(p)
             } else {
                 Err(DDSError::from(p))
             }
         }
     }
+
+    pub fn guid(&self) -> uuid::Uuid {
+        let mut guid = cyclonedds_sys::dds_guid_t::default();
+        let ret = unsafe { cyclonedds_sys::dds_get_guid(self.0.entity(), &mut guid) };
+        if ret >= 0 {
+            parse_guid(&guid)
+        } else {
+            uuid::Uuid::nil()
+        }
+    }
 }
 
-/*
 impl Drop for DdsParticipant {
     fn drop(&mut self) {
+        trace!("Dropping participant with guid: {}", self.guid());
         unsafe {
             let ret: DDSError = cyclonedds_sys::dds_delete(self.0.entity()).into();
             if DDSError::DdsOk != ret {
                 panic!("cannot delete participant: {}", ret);
-            } else {
-                //println!("Participant dropped");
             }
         }
     }
 }
-*/
 
 impl DdsWritable for DdsParticipant {
     fn entity(&self) -> &DdsEntity {
@@ -133,6 +144,10 @@ impl Entity for DdsParticipant {
     fn entity(&self) -> &DdsEntity {
         &self.0
     }
+}
+
+pub(crate) fn parse_guid(guid_t: &cyclonedds_sys::dds_guid_t) -> uuid::Uuid {
+    uuid::Uuid::from_bytes(guid_t.v)
 }
 
 #[cfg(test)]

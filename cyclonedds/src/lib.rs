@@ -21,6 +21,7 @@
 pub mod alloc;
 mod common;
 pub mod dds_api;
+pub mod dds_builtin;
 pub mod dds_domain;
 pub mod dds_listener;
 pub mod dds_participant;
