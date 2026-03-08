@@ -12,10 +12,10 @@
     bindings. This dummy function forces the dds_status_id_t to be used.
  */
 
-void _dummy(dds_status_id_t status); 
+void _dummy(dds_status_id_t status);
 // cyclone inline functions needed by bindings reimplemented here
-struct ddsi_serdata *ddsi_serdata_addref (const struct ddsi_serdata *serdata_const);
-void ddsi_serdata_removeref (struct ddsi_serdata *serdata);
+struct ddsi_serdata *ddsi_serdata_addref(const struct ddsi_serdata *serdata_const);
+void ddsi_serdata_removeref(struct ddsi_serdata *serdata);
 
 const int BUILTIN_TOPIC_DCPSPARTICIPANT = DDS_BUILTIN_TOPIC_DCPSPARTICIPANT;
 const int BUILTIN_TOPIC_DCPSTOPIC = DDS_BUILTIN_TOPIC_DCPSTOPIC;
