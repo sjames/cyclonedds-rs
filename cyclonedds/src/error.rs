@@ -23,5 +23,5 @@ pub enum ReaderError {
     #[error("Reader is not async type")]
     ReaderNotAsync,
     #[error("DDS Binding error")]
-    DdsError(#[from] crate::DDSError )
+    DdsError(#[from] crate::DDSError),
 }

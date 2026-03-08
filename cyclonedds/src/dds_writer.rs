@@ -19,20 +19,23 @@ use std::convert::From;
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
-pub use cyclonedds_sys::{ DdsEntity};
-use std::marker::PhantomData;
 use crate::SampleBuffer;
+pub use cyclonedds_sys::DdsEntity;
+use std::marker::PhantomData;
 
-use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsWritable, Entity};
 use crate::serdes::{Sample, TopicType};
+use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsWritable, Entity};
 
 pub struct WriterBuilder<T: TopicType> {
     maybe_qos: Option<DdsQos>,
     maybe_listener: Option<DdsListener>,
-    phantom : PhantomData<T>,
+    phantom: PhantomData<T>,
 }
 
-impl <T>WriterBuilder<T> where T: TopicType {
+impl<T> WriterBuilder<T>
+where
+    T: TopicType,
+{
     pub fn new() -> Self {
         Self {
             maybe_qos: None,
@@ -41,21 +44,23 @@ impl <T>WriterBuilder<T> where T: TopicType {
         }
     }
 
-    pub fn with_qos(mut self, qos : DdsQos) -> Self {
+    pub fn with_qos(mut self, qos: DdsQos) -> Self {
         self.maybe_qos = Some(qos);
         self
     }
 
-    pub fn with_listener(mut self, listener : DdsListener) -> Self {
+    pub fn with_listener(mut self, listener: DdsListener) -> Self {
         self.maybe_listener = Some(listener);
         self
     }
 
-    pub fn create(self,  
+    pub fn create(
+        self,
         entity: &dyn DdsWritable,
-        topic: DdsTopic<T>) -> Result<DdsWriter<T>, DDSError> {
-            DdsWriter::create(entity, topic, self.maybe_qos, self.maybe_listener)
-        }
+        topic: DdsTopic<T>,
+    ) -> Result<DdsWriter<T>, DDSError> {
+        DdsWriter::create(entity, topic, self.maybe_qos, self.maybe_listener)
+    }
 }
 
 pub enum LoanedInner<T: Sized + TopicType> {
@@ -65,11 +70,13 @@ pub enum LoanedInner<T: Sized + TopicType> {
 }
 
 pub struct Loaned<T: Sized + TopicType> {
-    inner : LoanedInner<T>
+    inner: LoanedInner<T>,
 }
 
-impl <T> Loaned<T> 
-where T: Sized + TopicType {
+impl<T> Loaned<T>
+where
+    T: Sized + TopicType,
+{
     pub fn as_mut_ptr(&mut self) -> Option<*mut T> {
         match self.inner {
             LoanedInner::Uninitialized(p, _) => Some(p.as_ptr()),
@@ -80,36 +87,40 @@ where T: Sized + TopicType {
 
     pub fn assume_init(mut self) -> Self {
         match &mut self.inner {
-            LoanedInner::Uninitialized(p, e) => Self{inner : LoanedInner::Initialized(*p, e.clone())},
-            LoanedInner::Initialized(p, e) => Self{inner : LoanedInner::Initialized(*p, e.clone())},
-            LoanedInner::Empty => Self{inner : LoanedInner::Empty},
+            LoanedInner::Uninitialized(p, e) => Self {
+                inner: LoanedInner::Initialized(*p, e.clone()),
+            },
+            LoanedInner::Initialized(p, e) => Self {
+                inner: LoanedInner::Initialized(*p, e.clone()),
+            },
+            LoanedInner::Empty => Self {
+                inner: LoanedInner::Empty,
+            },
         }
     }
 }
 
-impl<T> Drop for Loaned<T> 
-where T : Sized + TopicType {
+impl<T> Drop for Loaned<T>
+where
+    T: Sized + TopicType,
+{
     fn drop(&mut self) {
         let (mut p_sample, entity) = match &mut self.inner {
-            LoanedInner::Uninitialized(p, entity) => (p.as_ptr(),Some(entity)),
-            LoanedInner::Initialized(p, entity) => (p.as_ptr(),Some(entity)),
+            LoanedInner::Uninitialized(p, entity) => (p.as_ptr(), Some(entity)),
+            LoanedInner::Initialized(p, entity) => (p.as_ptr(), Some(entity)),
             LoanedInner::Empty => (std::ptr::null_mut(), None),
         };
-    
+
         if let Some(entity) = entity {
-            let voidpp:*mut *mut T= &mut p_sample;
+            let voidpp: *mut *mut T = &mut p_sample;
             let voidpp = voidpp as *mut *mut c_void;
-            unsafe {dds_return_loan(entity.entity(),voidpp,1)};
-        }       
+            unsafe { dds_return_loan(entity.entity(), voidpp, 1) };
+        }
     }
 }
 
 #[derive(Clone)]
-pub struct DdsWriter<T: Sized + TopicType>(
-    DdsEntity,
-    Option<DdsListener>,
-    PhantomData<T>,
-);
+pub struct DdsWriter<T: Sized + TopicType>(DdsEntity, Option<DdsListener>, PhantomData<T>);
 
 impl<'a, T> DdsWriter<T>
 where
@@ -132,11 +143,7 @@ where
             );
 
             if w >= 0 {
-                Ok(DdsWriter(
-                    DdsEntity::new(w),
-                    maybe_listener,
-                    PhantomData,
-                ))
+                Ok(DdsWriter(DdsEntity::new(w), maybe_listener, PhantomData))
             } else {
                 Err(DDSError::from(w))
             }
@@ -159,53 +166,52 @@ where
 
     pub fn write(&mut self, msg: std::sync::Arc<T>) -> Result<(), DDSError> {
         Self::write_to_entity(&self.0, msg)
-
     }
 
     // Loan memory buffers for zero copy operation. Only supported for fixed size types
     pub fn loan(&mut self) -> Result<Loaned<T>, DDSError> {
-
         if !T::is_fixed_size() {
             // Loaning is not supported for types that are not fixed size
-            return Err(DDSError::Unsupported)
+            return Err(DDSError::Unsupported);
         }
 
-        let mut p_sample : *mut T = std::ptr::null_mut();
-        let voidpp:*mut *mut T= &mut p_sample;
+        let mut p_sample: *mut T = std::ptr::null_mut();
+        let voidpp: *mut *mut T = &mut p_sample;
         let voidpp = voidpp as *mut *mut c_void;
-        let res = unsafe {
-            dds_loan_sample(self.0.entity(), voidpp)
-        };
+        let res = unsafe { dds_loan_sample(self.0.entity(), voidpp) };
         if res == 0 {
-            Ok(Loaned { inner: LoanedInner::Uninitialized( NonNull::new(p_sample).unwrap(),  self.entity().clone()) })   
+            Ok(Loaned {
+                inner: LoanedInner::Uninitialized(
+                    NonNull::new(p_sample).unwrap(),
+                    self.entity().clone(),
+                ),
+            })
         } else {
             Err(DDSError::from(res))
-        } 
+        }
     }
 
-     // Return the loaned buffer.  If the buffer was initialized, then write the data to be published
-     pub fn return_loan(&mut self, mut buffer: Loaned<T>) -> Result<(),DDSError> {
+    // Return the loaned buffer.  If the buffer was initialized, then write the data to be published
+    pub fn return_loan(&mut self, mut buffer: Loaned<T>) -> Result<(), DDSError> {
         let res = match &mut buffer.inner {
-            
-            LoanedInner::Uninitialized(p,entity) => {
+            LoanedInner::Uninitialized(p, entity) => {
                 let mut p_sample = p.as_ptr();
-                let voidpp:*mut *mut T= &mut p_sample;
+                let voidpp: *mut *mut T = &mut p_sample;
                 let voidpp = voidpp as *mut *mut c_void;
-                unsafe {dds_return_loan(entity.entity(),voidpp,1)}
-            },
+                unsafe { dds_return_loan(entity.entity(), voidpp, 1) }
+            }
             LoanedInner::Initialized(p, entity) => {
                 let p_sample = p.as_ptr();
-                unsafe {dds_write(entity.entity(), p_sample as * const c_void)}
+                unsafe { dds_write(entity.entity(), p_sample as *const c_void) }
             }
             LoanedInner::Empty => 0,
         };
 
         if res == 0 {
-            Ok(())        
+            Ok(())
         } else {
             Err(DDSError::from(res))
-        } 
-        
+        }
     }
 
     pub fn set_listener(&mut self, listener: DdsListener) -> Result<(), DDSError> {
@@ -248,17 +254,17 @@ where
 #[cfg(test)]
 mod test {
     use core::panic;
-    use std::{time::Duration, sync::Arc, ops::Deref};
+    use std::{ops::Deref, sync::Arc, time::Duration};
 
-    use crate::{DdsParticipant, DdsSubscriber, DdsReader};
     use super::*;
+    use crate::{DdsParticipant, DdsReader, DdsSubscriber};
     use crate::{DdsPublisher, DdsWriter};
-    
+
     use cdds_derive::{Topic, TopicFixedSize};
     use serde_derive::{Deserialize, Serialize};
     use tokio::runtime::Runtime;
 
-    const cyclone_shm_config : &str = r###"<?xml version="1.0" encoding="UTF-8" ?>
+    const cyclone_shm_config: &str = r###"<?xml version="1.0" encoding="UTF-8" ?>
     <CycloneDDS xmlns="https://cdds.io/config"
                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                 xsi:schemaLocation="https://cdds.io/config https://raw.githubusercontent.com/eclipse-cyclonedds/cyclonedds/iceoryx/etc/cyclonedds.xsd">
@@ -270,9 +276,8 @@ mod test {
         </Domain>
     </CycloneDDS>"###;
 
-
     #[repr(C)]
-    #[derive(Serialize,Deserialize,Debug, PartialEq, Clone)]
+    #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
     enum Position {
         Front,
         Back,
@@ -283,56 +288,56 @@ mod test {
             Self::Front
         }
     }
-    
-    #[derive(Serialize,Deserialize,TopicFixedSize, Debug, PartialEq)]
+
+    #[derive(Serialize, Deserialize, TopicFixedSize, Debug, PartialEq)]
     struct TestTopic {
-        a : u32,
-        b : u16,
-        c: [u8;10],
-        d : [u8;15],
+        a: u32,
+        b: u16,
+        c: [u8; 10],
+        d: [u8; 15],
         #[topic_key]
-        e : u32,
+        e: u32,
         #[topic_key_enum]
-        pos : Position,
+        pos: Position,
     }
 
     impl Default for TestTopic {
         fn default() -> Self {
             Self {
-                a : 10,
-                b : 20,
-                c : [0,0,0,0,0,0,0,0,0,0],
-                d : [1,2,3,4,5,6,7,8,9,0,1,2,3,4,5],
-                e : 0,
-                pos : Position::default(),
+                a: 10,
+                b: 20,
+                c: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                d: [1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5],
+                e: 0,
+                pos: Position::default(),
             }
         }
     }
 
-    #[derive(Serialize,Deserialize,Topic, Debug, PartialEq)]
+    #[derive(Serialize, Deserialize, Topic, Debug, PartialEq)]
     struct AnotherTopic {
-        pub value : u32,
-        pub name : String,
-        pub arr : [String;2],
-        pub vec : Vec<String>,
+        pub value: u32,
+        pub name: String,
+        pub arr: [String; 2],
+        pub vec: Vec<String>,
         #[topic_key]
-        pub key : u32,
+        pub key: u32,
     }
 
     impl Default for AnotherTopic {
         fn default() -> Self {
             assert!(Self::has_key());
             Self {
-                value : 42,
-                name : "the answer".to_owned(),
-                arr : ["one".to_owned(), "two".to_owned()],
-                vec : vec!["Hello".to_owned(), "world".to_owned()],
-                key : 0,
+                value: 42,
+                name: "the answer".to_owned(),
+                arr: ["one".to_owned(), "two".to_owned()],
+                vec: vec!["Hello".to_owned(), "world".to_owned()],
+                key: 0,
             }
-    }
+        }
     }
 
-   //#[test]
+    //#[test]
     fn test_loan() {
         // Make sure iox-roudi is running
         std::env::set_var("CYCLONEDDS_URI", cyclone_shm_config);
@@ -345,10 +350,11 @@ mod test {
         let publisher = DdsPublisher::create(&participant, None, None).unwrap();
 
         let mut writer = DdsWriter::create(&publisher, topic.clone(), None, None).unwrap();
-        let mut another_writer = DdsWriter::create(&publisher, another_topic.clone(), None, None).unwrap();
+        let mut another_writer =
+            DdsWriter::create(&publisher, another_topic.clone(), None, None).unwrap();
 
         // this writer does not have a fixed size. Loan should fail
-        
+
         if let Ok(r) = another_writer.loan() {
             panic!("This must fail");
         }
@@ -360,18 +366,13 @@ mod test {
         let rt = Runtime::new().unwrap();
 
         let _result = rt.block_on(async {
-            
-          
-
             let _another_task = tokio::spawn(async move {
                 let mut samples = TestTopic::create_sample_buffer(5);
                 if let Ok(t) = reader.take(&mut samples).await {
-                    assert_eq!(t,1);
+                    assert_eq!(t, 1);
                     for s in samples.iter() {
-
                         println!("Got sample {:?}", s);
                     }
-                   
                 } else {
                     panic!("reader get failed");
                 }
@@ -380,21 +381,16 @@ mod test {
             // add a delay to make sure the data is not ready immediately
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-             let mut loaned = writer.loan().unwrap(); 
+            let mut loaned = writer.loan().unwrap();
 
-             let ptr = loaned.as_mut_ptr().unwrap();
-             let topic = TestTopic::default();
-            
-             unsafe {ptr.write(topic)};
-             let loaned = loaned.assume_init();
-             writer.return_loan(loaned).unwrap();
+            let ptr = loaned.as_mut_ptr().unwrap();
+            let topic = TestTopic::default();
+
+            unsafe { ptr.write(topic) };
+            let loaned = loaned.assume_init();
+            writer.return_loan(loaned).unwrap();
 
             tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-
         });
-
     }
-
-    
-
 }

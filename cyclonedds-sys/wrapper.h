@@ -3,8 +3,10 @@
 #include "dds/ddsi/ddsi_sertype.h"
 #include "dds/ddsi/q_radmin.h"
 #include "dds/ddsrt/md5.h"
+#ifdef CYCLONEDDS_RS_SHM
 #include "dds/ddsi/ddsi_shm_transport.h"
 #include "dds/ddsc/dds_loan_api.h"
+#endif
 
 /*  dds_status_id_t is not used by any function so it doesn't turn up in the generated
     bindings. This dummy function forces the dds_status_id_t to be used.

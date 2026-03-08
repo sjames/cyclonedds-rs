@@ -18,9 +18,9 @@
 // See discussion at https://github.com/eclipse-cyclonedds/cyclonedds/issues/830
 
 use proc_macro::TokenStream;
-use proc_macro2::{Span,};
+use proc_macro2::Span;
 use quote::quote;
-use syn::{Field, Ident, parse_macro_input};
+use syn::{parse_macro_input, Field, Ident};
 
 #[proc_macro_derive(TopicFixedSize, attributes(topic_key, topic_key_enum))]
 pub fn derive_topic_fixed_size(item: TokenStream) -> TokenStream {
@@ -32,8 +32,6 @@ pub fn derive_topic(item: TokenStream) -> TokenStream {
     derive_topic_impl(item, false)
 }
 
-
-
 fn derive_topic_impl(item: TokenStream, is_fixed_size: bool) -> TokenStream {
     let topic_struct = parse_macro_input!(item as syn::ItemStruct);
 
@@ -43,7 +41,7 @@ fn derive_topic_impl(item: TokenStream, is_fixed_size: bool) -> TokenStream {
 
     ts.extend(ts2);
     ts.extend(ts3);
-  
+
     //println!("KEYHOLDER:{:?}",ts.clone().to_string());
     ts
 }
@@ -51,9 +49,9 @@ fn derive_topic_impl(item: TokenStream, is_fixed_size: bool) -> TokenStream {
 ///Create a key holder struct from the given struct. The key
 ///fields will be included in this structure. The structure
 ///will be empty if there are no key fields.
-fn build_key_holder_struct(item : &syn::ItemStruct) -> TokenStream {
+fn build_key_holder_struct(item: &syn::ItemStruct) -> TokenStream {
     let key_holder_struct = item;
-    
+
     let mut holder_name = key_holder_struct.ident.to_string();
     let fields = &key_holder_struct.fields;
     holder_name.push_str("KeyHolder_");
@@ -72,38 +70,37 @@ fn build_key_holder_struct(item : &syn::ItemStruct) -> TokenStream {
             field_idents.push(field.ident.as_ref().unwrap().clone());
             if is_primitive(field) || is_key_enum(field) {
                 field_types.push(field.ty.clone());
-                clone_or_into.push(quote!{clone()});
-                ref_or_value.push(quote!{ });
+                clone_or_into.push(quote! {clone()});
+                ref_or_value.push(quote! {});
                 if !variable_length {
                     variable_length = is_variable_length(field);
                 }
             } else {
                 match field.ty.clone() {
-                    syn::Type::Path(mut type_path)  => {
+                    syn::Type::Path(mut type_path) => {
                         // if the key is another structure (not a primitive),
-                        // there should be a key holder structure for it. 
+                        // there should be a key holder structure for it.
                         // Change the type
-                        let last_segment= type_path.path.segments.last_mut().unwrap();
+                        let last_segment = type_path.path.segments.last_mut().unwrap();
                         let mut ident_string = last_segment.ident.to_string();
                         ident_string.push_str("KeyHolder_");
-                        let new_ident = Ident::new(&ident_string,Span::call_site());
+                        let new_ident = Ident::new(&ident_string, Span::call_site());
                         //replace the ident with the new name
                         last_segment.ident = new_ident;
                         contained_types.push(syn::Type::Path(type_path.clone()));
                         field_types.push(syn::Type::Path(type_path));
-                        clone_or_into.push(quote!{into()});
-                        ref_or_value.push(quote!{ &});
+                        clone_or_into.push(quote! {into()});
+                        ref_or_value.push(quote! { &});
                     }
-                    syn::Type::Array( type_arr)  =>   {
-                        if let syn::Type::Path( array_type_path) = *type_arr.elem {
+                    syn::Type::Array(type_arr) => {
+                        if let syn::Type::Path(array_type_path) = *type_arr.elem {
                             if is_primitive_type_path(&array_type_path) {
                                 field_types.push(field.ty.clone());
-                                clone_or_into.push(quote!{clone()});
-                                ref_or_value.push(quote!{ });
+                                clone_or_into.push(quote! {clone()});
+                                ref_or_value.push(quote! {});
                             } else {
                                 panic!("Only primitive arrays are supported as keys");
                             }
-
                         } else {
                             panic!("Unsupported type for array");
                         }
@@ -115,7 +112,7 @@ fn build_key_holder_struct(item : &syn::ItemStruct) -> TokenStream {
             }
         }
     }
-   
+
     let item_ident = &item.ident;
     //println!("Filtered fields:{:?}", &filtered_fields);
 
@@ -142,24 +139,24 @@ fn build_key_holder_struct(item : &syn::ItemStruct) -> TokenStream {
                 }
             }
         }
-    
+
     };
 
-    ts.into() 
+    ts.into()
 }
 
 // create the keyhash methods for this type
-fn create_keyhash_functions(item : &syn::ItemStruct, is_fixed_size: bool) -> TokenStream {
+fn create_keyhash_functions(item: &syn::ItemStruct, is_fixed_size: bool) -> TokenStream {
     let topic_key_ident = &item.ident;
-    let topic_key_holder_ident =  quote::format_ident!("{}KeyHolder_",&item.ident);
+    let topic_key_holder_ident = quote::format_ident!("{}KeyHolder_", &item.ident);
 
-    let ts = quote!{
+    let ts = quote! {
         impl TopicType for #topic_key_ident {
             /// return the cdr encoding for the key. The encoded string includes the four byte
             /// encapsulation string.
             fn key_cdr(&self) -> Vec<u8> {
                 let holder_struct : #topic_key_holder_ident = self.into();
-                
+
                 let encoded = cdr::serialize::<_, _, cdr::CdrBe>(&holder_struct, cdr::Infinite).expect("Unable to serialize key");
                encoded
             }
@@ -167,13 +164,13 @@ fn create_keyhash_functions(item : &syn::ItemStruct, is_fixed_size: bool) -> Tok
             fn is_fixed_size() -> bool {
                 #is_fixed_size
             }
-            
+
             fn has_key() -> bool {
                 if std::mem::size_of::<#topic_key_holder_ident>() > 0 {
                     true
                 } else {
                     false
-                } 
+                }
             }
 
             fn force_md5_keyhash() -> bool {
@@ -183,13 +180,12 @@ fn create_keyhash_functions(item : &syn::ItemStruct, is_fixed_size: bool) -> Tok
     };
 
     ts.into()
-    
 }
 
-fn create_topic_functions(item : &syn::ItemStruct) -> TokenStream {
+fn create_topic_functions(item: &syn::ItemStruct) -> TokenStream {
     let topic_key_ident = &item.ident;
 
-    let ts = quote!{
+    let ts = quote! {
         impl #topic_key_ident {
             /// Create a topic using of this Type specifying the topic name
             ///
@@ -253,13 +249,13 @@ fn struct_has_key(it: &ItemStruct) -> bool {
 }
 */
 
-fn is_key(field : &Field) -> bool {
+fn is_key(field: &Field) -> bool {
     for attr in &field.attrs {
         if let Some(ident) = attr.path.get_ident() {
-            if ident == "topic_key" || ident == "topic_key_enum"{
-                return true
+            if ident == "topic_key" || ident == "topic_key_enum" {
+                return true;
             }
-        } 
+        }
     }
     false
 }
@@ -267,44 +263,44 @@ fn is_key(field : &Field) -> bool {
 // There is no way to find out if the field is an enum or a struct,
 // so we need a special marker to indicate key enums
 // which we will treat like primitives.
-fn is_key_enum(field : &Field) -> bool {
+fn is_key_enum(field: &Field) -> bool {
     for attr in &field.attrs {
         if let Some(ident) = attr.path.get_ident() {
             if ident == "topic_key_enum" {
-                return true
+                return true;
             }
-        } 
+        }
     }
     false
 }
 
-fn is_primitive_type_path(type_path : &syn::TypePath) -> bool {
-    if  type_path.path.is_ident("bool") ||
-            type_path.path.is_ident("i8") ||
-            type_path.path.is_ident("i16") ||
-            type_path.path.is_ident("i32") ||
-            type_path.path.is_ident("i64") ||
-            type_path.path.is_ident("i128") ||
-            type_path.path.is_ident("isize") ||
-            type_path.path.is_ident("u8") ||
-            type_path.path.is_ident("u16") ||
-            type_path.path.is_ident("u32") ||
-            type_path.path.is_ident("u64") ||
-            type_path.path.is_ident("u128") ||
-            type_path.path.is_ident("usize") ||
-            type_path.path.is_ident("f32") ||
-            type_path.path.is_ident("f64") || 
-            type_path.path.is_ident("String")
-        {
-            true
-        } else {
-            false
-        }
+fn is_primitive_type_path(type_path: &syn::TypePath) -> bool {
+    if type_path.path.is_ident("bool")
+        || type_path.path.is_ident("i8")
+        || type_path.path.is_ident("i16")
+        || type_path.path.is_ident("i32")
+        || type_path.path.is_ident("i64")
+        || type_path.path.is_ident("i128")
+        || type_path.path.is_ident("isize")
+        || type_path.path.is_ident("u8")
+        || type_path.path.is_ident("u16")
+        || type_path.path.is_ident("u32")
+        || type_path.path.is_ident("u64")
+        || type_path.path.is_ident("u128")
+        || type_path.path.is_ident("usize")
+        || type_path.path.is_ident("f32")
+        || type_path.path.is_ident("f64")
+        || type_path.path.is_ident("String")
+    {
+        true
+    } else {
+        false
+    }
 }
 
 // check if a field is of a primitive type. We assume anything not primitive
 // is a struct
-fn is_primitive(field:&Field) -> bool {
+fn is_primitive(field: &Field) -> bool {
     if let syn::Type::Path(type_path) = &field.ty {
         is_primitive_type_path(type_path)
     } else {
@@ -312,21 +308,18 @@ fn is_primitive(field:&Field) -> bool {
     }
 }
 
-
 // Is the length of the underlying type variable. This is needed
 // According to the DDSI RTPS spec, the potential length of a field
 // must be checked to decide whether to use md5 checksum for the key
-// hash.  If a String (or Vec) is used as a key_field, then the 
+// hash.  If a String (or Vec) is used as a key_field, then the
 // length is variable.
-fn is_variable_length(field:&Field) -> bool {
+fn is_variable_length(field: &Field) -> bool {
     if let syn::Type::Path(type_path) = &field.ty {
-        if  type_path.path.is_ident("Vec") || 
-        type_path.path.is_ident("String")
-    {
-        true
-    } else {
-        false
-    }
+        if type_path.path.is_ident("Vec") || type_path.path.is_ident("String") {
+            true
+        } else {
+            false
+        }
     } else {
         false
     }

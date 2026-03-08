@@ -31,21 +31,20 @@ impl PublisherBuilder {
         }
     }
 
-    pub fn with_qos(mut self, qos : DdsQos) -> Self {
+    pub fn with_qos(mut self, qos: DdsQos) -> Self {
         self.maybe_qos = Some(qos);
         self
     }
 
-    pub fn with_listener(mut self, listener : DdsListener) -> Self {
+    pub fn with_listener(mut self, listener: DdsListener) -> Self {
         self.maybe_listener = Some(listener);
         self
     }
 
-    pub fn create(self,participant: &DdsParticipant) -> Result<DdsPublisher, DDSError> {
+    pub fn create(self, participant: &DdsParticipant) -> Result<DdsPublisher, DDSError> {
         DdsPublisher::create(participant, self.maybe_qos, self.maybe_listener)
     }
 }
-
 
 #[derive(Clone)]
 pub struct DdsPublisher(DdsEntity, Option<DdsListener>);
@@ -60,7 +59,9 @@ impl<'a> DdsPublisher {
             let p = cyclonedds_sys::dds_create_publisher(
                 participant.entity().entity(),
                 maybe_qos.map_or(std::ptr::null(), |d| d.into()),
-                maybe_listener.as_ref().map_or(std::ptr::null(), |l| l.into()),
+                maybe_listener
+                    .as_ref()
+                    .map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
                 Ok(DdsPublisher(DdsEntity::new(p), maybe_listener))
@@ -76,4 +77,3 @@ impl<'a> DdsWritable for DdsPublisher {
         &self.0
     }
 }
-

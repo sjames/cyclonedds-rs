@@ -579,7 +579,7 @@ pub struct DdsListenerBuilder {
 impl DdsListenerBuilder {
     pub fn new() -> Self {
         Self {
-            listener : Some(DdsListener::new())
+            listener: Some(DdsListener::new()),
         }
     }
 
@@ -591,7 +591,15 @@ impl DdsListenerBuilder {
     where
         F: FnMut(DdsEntity) + 'static,
     {
-        if let Some(callbacks) = &mut self.listener.as_ref().unwrap().inner.lock().unwrap().callbacks {
+        if let Some(callbacks) = &mut self
+            .listener
+            .as_ref()
+            .unwrap()
+            .inner
+            .lock()
+            .unwrap()
+            .callbacks
+        {
             callbacks.on_data_available = Some(Box::new(callback));
         }
 
@@ -603,7 +611,15 @@ impl DdsListenerBuilder {
     where
         F: FnMut(DdsEntity, dds_sample_lost_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.listener.as_ref().unwrap().inner.lock().unwrap().callbacks {
+        if let Some(callbacks) = &mut self
+            .listener
+            .as_ref()
+            .unwrap()
+            .inner
+            .lock()
+            .unwrap()
+            .callbacks
+        {
             callbacks.on_sample_lost = Some(Box::new(callback));
         }
         self
@@ -614,7 +630,15 @@ impl DdsListenerBuilder {
     where
         F: FnMut(DdsEntity, dds_sample_rejected_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.listener.as_ref().unwrap().inner.lock().unwrap().callbacks {
+        if let Some(callbacks) = &mut self
+            .listener
+            .as_ref()
+            .unwrap()
+            .inner
+            .lock()
+            .unwrap()
+            .callbacks
+        {
             callbacks.on_sample_rejected = Some(Box::new(callback));
         }
         self
@@ -625,7 +649,15 @@ impl DdsListenerBuilder {
     where
         F: FnMut(DdsEntity, dds_liveliness_changed_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.listener.as_ref().unwrap().inner.lock().unwrap().callbacks {
+        if let Some(callbacks) = &mut self
+            .listener
+            .as_ref()
+            .unwrap()
+            .inner
+            .lock()
+            .unwrap()
+            .callbacks
+        {
             callbacks.on_liveliness_changed = Some(Box::new(callback));
         }
         self
@@ -635,7 +667,15 @@ impl DdsListenerBuilder {
     where
         F: FnMut(DdsEntity, dds_requested_deadline_missed_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.listener.as_ref().unwrap().inner.lock().unwrap().callbacks {
+        if let Some(callbacks) = &mut self
+            .listener
+            .as_ref()
+            .unwrap()
+            .inner
+            .lock()
+            .unwrap()
+            .callbacks
+        {
             callbacks.on_requested_deadline_missed = Some(Box::new(callback));
         }
         self
@@ -645,7 +685,15 @@ impl DdsListenerBuilder {
     where
         F: FnMut(DdsEntity, dds_requested_incompatible_qos_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.listener.as_ref().unwrap().inner.lock().unwrap().callbacks {
+        if let Some(callbacks) = &mut self
+            .listener
+            .as_ref()
+            .unwrap()
+            .inner
+            .lock()
+            .unwrap()
+            .callbacks
+        {
             callbacks.on_requested_incompatible_qos = Some(Box::new(callback));
         }
         self
@@ -655,7 +703,15 @@ impl DdsListenerBuilder {
     where
         F: FnMut(DdsEntity, dds_subscription_matched_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.listener.as_ref().unwrap().inner.lock().unwrap().callbacks {
+        if let Some(callbacks) = &mut self
+            .listener
+            .as_ref()
+            .unwrap()
+            .inner
+            .lock()
+            .unwrap()
+            .callbacks
+        {
             callbacks.on_subscription_matched = Some(Box::new(callback));
         }
         self
@@ -665,7 +721,15 @@ impl DdsListenerBuilder {
     where
         F: FnMut(DdsEntity, dds_liveliness_lost_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.listener.as_ref().unwrap().inner.lock().unwrap().callbacks {
+        if let Some(callbacks) = &mut self
+            .listener
+            .as_ref()
+            .unwrap()
+            .inner
+            .lock()
+            .unwrap()
+            .callbacks
+        {
             callbacks.on_liveliness_lost = Some(Box::new(callback));
         }
         self
@@ -675,7 +739,15 @@ impl DdsListenerBuilder {
     where
         F: FnMut(DdsEntity, dds_offered_deadline_missed_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.listener.as_ref().unwrap().inner.lock().unwrap().callbacks {
+        if let Some(callbacks) = &mut self
+            .listener
+            .as_ref()
+            .unwrap()
+            .inner
+            .lock()
+            .unwrap()
+            .callbacks
+        {
             callbacks.on_offered_deadline_missed = Some(Box::new(callback));
         }
         self
@@ -685,7 +757,15 @@ impl DdsListenerBuilder {
     where
         F: FnMut(DdsEntity, dds_offered_incompatible_qos_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.listener.as_ref().unwrap().inner.lock().unwrap().callbacks {
+        if let Some(callbacks) = &mut self
+            .listener
+            .as_ref()
+            .unwrap()
+            .inner
+            .lock()
+            .unwrap()
+            .callbacks
+        {
             callbacks.on_offered_incompatible_qos = Some(Box::new(callback));
         }
         self
@@ -695,7 +775,15 @@ impl DdsListenerBuilder {
     where
         F: FnMut(DdsEntity, dds_publication_matched_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.listener.as_ref().unwrap().inner.lock().unwrap().callbacks {
+        if let Some(callbacks) = &mut self
+            .listener
+            .as_ref()
+            .unwrap()
+            .inner
+            .lock()
+            .unwrap()
+            .callbacks
+        {
             callbacks.on_publication_matched = Some(Box::new(callback));
         }
         self
@@ -705,7 +793,15 @@ impl DdsListenerBuilder {
     where
         F: FnMut(DdsEntity, dds_inconsistent_topic_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self.listener.as_ref().unwrap().inner.lock().unwrap().callbacks {
+        if let Some(callbacks) = &mut self
+            .listener
+            .as_ref()
+            .unwrap()
+            .inner
+            .lock()
+            .unwrap()
+            .callbacks
+        {
             callbacks.on_inconsistent_topic = Some(Box::new(callback));
         }
         self
@@ -715,7 +811,15 @@ impl DdsListenerBuilder {
     where
         F: FnMut(DdsEntity) + 'static,
     {
-        if let Some(callbacks) = &mut self.listener.as_ref().unwrap().inner.lock().unwrap().callbacks {
+        if let Some(callbacks) = &mut self
+            .listener
+            .as_ref()
+            .unwrap()
+            .inner
+            .lock()
+            .unwrap()
+            .callbacks
+        {
             callbacks.on_data_on_readers = Some(Box::new(callback));
         }
         self

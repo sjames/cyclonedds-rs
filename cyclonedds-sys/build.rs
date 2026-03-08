@@ -17,9 +17,11 @@
     limitations under the License.
 */
 
-use std::process::Command;
 use std::env;
-use cc;
+use std::process::Command;
+
+// Search paths for CycloneDDS, Iceoryx installation
+const SEARCH_TARGETS: &[&str] = &["/usr", "/usr/local"];
 
 fn main() {
     // Don't try to re-generate in docs.rs' build runner.
@@ -55,40 +57,39 @@ mod build {
 
     extern crate bindgen;
 
+    use super::*;
+    use glob::glob;
     use std::fs;
     use std::path::Path;
     use std::path::PathBuf;
-    //use walkdir::{DirEntry, WalkDir};
-    use super::*;
-    use glob::glob;
 
     static ENV_PREFIX: &str = "CYCLONEDDS";
     static LINKLIB: &str = "ddsc";
-    static GIT_COMMIT: &str = "9995905bce6c4cf9f740d6438bbf7fcfd1c83dfd";
+    static GIT_COMMIT: &str = "76360fb73907ce3dba397e89090a7a4ecf4f1246";
 
+    #[allow(clippy::enum_variant_names)]
     pub enum HeaderLocation {
         FromCMakeEnvironment(std::vec::Vec<String>, String),
-        FromYoctoSDKBuild(std::vec::Vec<String>, String),
         FromEnvironment(std::vec::Vec<String>),
         FromLocalBuild(std::vec::Vec<String>),
     }
 
     impl HeaderLocation {
+        #[cfg(feature = "shm")]
         fn add_paths(&mut self, mut path: Vec<String>) {
             match self {
                 HeaderLocation::FromCMakeEnvironment(paths, _) => paths.append(&mut path),
-                HeaderLocation::FromYoctoSDKBuild(paths, _) => paths.append(&mut path),
                 HeaderLocation::FromEnvironment(paths) => paths.append(&mut path),
                 HeaderLocation::FromLocalBuild(paths) => paths.append(&mut path),
             }
         }
 
+        #[cfg(feature = "shm")]
         fn get_paths(&self) -> Vec<String> {
             match self {
-                HeaderLocation::FromCMakeEnvironment(paths, _) | 
-                HeaderLocation::FromYoctoSDKBuild(paths, _) | 
-                HeaderLocation::FromEnvironment(paths) | 
-                HeaderLocation::FromLocalBuild(paths) => paths.clone()
+                HeaderLocation::FromCMakeEnvironment(paths, _)
+                | HeaderLocation::FromEnvironment(paths)
+                | HeaderLocation::FromLocalBuild(paths) => paths.clone(),
             }
         }
     }
@@ -146,13 +147,13 @@ mod build {
                 .arg("..")
                 .current_dir(format!("{}/build", cyclonedds_src_path.to_str().unwrap()));
 
-                #[cfg(feature="shm")]
-                command.arg("-DENABLE_SHM=YES");
+            #[cfg(feature = "shm")]
+            command.arg("-DENABLE_SHM=YES");
 
-                #[cfg(not(feature="shm"))]
-                command.arg("-DENABLE_SHM=NO");
+            #[cfg(not(feature = "shm"))]
+            command.arg("-DENABLE_SHM=NO");
 
-                command
+            command
         });
 
         run("make", |command| {
@@ -172,29 +173,24 @@ mod build {
         //cargo:rustc-link-lib=LIB
     }
 
-    fn find_iceoryx(iceoryx_version:&str) -> Option<HeaderLocation> {
-          // Check if we are building with an OE SDK and the OECORE_TARGET_SYSROOT is set
-        let iceoryx_header_path = format!("usr/include/iceoryx/{}/iceoryx_binding_c/api.h",iceoryx_version);
-        if let Ok(sysroot) = env::var("OECORE_TARGET_SYSROOT") {
-            let header  = PathBuf::from(&sysroot).join(&iceoryx_header_path);
+    // Iceoryxを順番に探索
+    // 1. インストール済みのiceoryxのヘッダーファイルを探す
+    // 2. ローカルビルドのヘッダーファイルを探す
+    #[cfg(feature = "shm")]
+    fn find_iceoryx(iceoryx_version: &str) -> Option<HeaderLocation> {
+        for target in SEARCH_TARGETS {
+            let iceoryx_header_path = format!(
+                "{}/include/iceoryx/{}/iceoryx_binding_c/api.h",
+                target, iceoryx_version
+            );
+            let header = PathBuf::from(&iceoryx_header_path);
             if header.exists() {
-                let iceoryx_include_path = header.parent().unwrap().parent().unwrap().to_str().unwrap();
+                let iceoryx_include_path =
+                    header.parent().unwrap().parent().unwrap().to_str().unwrap();
                 let paths = vec![iceoryx_include_path.into()];
-                //println!("cargo:warning=Found Iceoryx headers in OECORE_TARGET_SYSROOT");
-                
-                return Some(HeaderLocation::FromYoctoSDKBuild(paths,sysroot));
+                return Some(HeaderLocation::FromEnvironment(paths));
             }
         }
-
-        // now look in local paths - nothing fancy here for now, just using the paths where iceoryx gets installed on my Ubuntu machine.
-        let iceoryx_header_path = format!("/usr/local/include/iceoryx/{}/iceoryx_binding_c/api.h",iceoryx_version);
-        let header = PathBuf::from(&iceoryx_header_path);
-        if header.exists() {
-            //println!("cargo:warning=Found Iceoryx headers in {}",iceoryx_header_path);
-            let iceoryx_include_path = header.parent().unwrap().parent().unwrap().to_str().unwrap();
-            return Some(HeaderLocation::FromLocalBuild(vec![iceoryx_include_path.into()]));
-        }
-        
         println!("cargo:warning=Iceoryx headers not found");
         None
     }
@@ -205,16 +201,6 @@ mod build {
 
         let outdir = env::var("OUT_DIR").expect("OUT_DIR is not set");
 
-        // Check if we are building with an OE SDK and the OECORE_TARGET_SYSROOT is set
-        if let Ok(sysroot) = env::var("OECORE_TARGET_SYSROOT") {
-            let header  = PathBuf::from(&sysroot).join("usr/include/dds/dds.h");
-            if header.exists() {
-                let paths = vec![sysroot.clone()];
-                println!("Found OECORE_TARGET_SYSROOT");
-                return Some(HeaderLocation::FromYoctoSDKBuild(paths,sysroot));
-            }
-        }
-        
         //first priority is environment variable.
         if let Ok(dir) = env::var(format!("{}_LIB_DIR", ENV_PREFIX)) {
             println!("cargo:rustc-link-search={}", dir);
@@ -295,39 +281,43 @@ mod build {
             }
         } else {
             println!("No CMAKE environment or CYCLONEDDS_[LIB|INCLUDE]_DIR found");
+
+            for target in SEARCH_TARGETS {
+                let path = format!("{}/include/dds/dds.h", target);
+                let path = Path::new(&path);
+                if path.exists() {
+                    let lib_path = format!("{}/lib", target);
+                    println!("cargo:rustc-link-search={}", lib_path);
+                    return Some(HeaderLocation::FromEnvironment(vec![format!(
+                        "{}/include",
+                        target
+                    )]));
+                }
+            }
             //try some defaults
-            println!("cargo:rustc-link-search=/usr/local/lib");
 
-            let path = format!("{}/dds/dds.h", "/usr/local/include");
-            let path = Path::new(&path);
-            if path.exists() {
-                println!("Found {}", &path.to_str().unwrap());
-                let paths = vec![String::from("/usr/local/include")];
-                Some(HeaderLocation::FromEnvironment(paths))
-            } else {
-                println!("Cannot find dds/dds.h attempting to build");
-                download();
-                configure_and_build();
-                let local_build_libpath = format!("{}/install/lib/libddsc.so", &outdir);
-                let local_build_so = Path::new(local_build_libpath.as_str());
+            println!("Cannot find dds/dds.h attempting to build");
+            download();
+            configure_and_build();
+            let local_build_libpath = format!("{}/install/lib/libddsc.so", &outdir);
+            let local_build_so = Path::new(local_build_libpath.as_str());
 
-                if local_build_so.exists() {
-                    println!("cargo:rustc-link-search={}/install/lib", &outdir);
-                    let include_dir = String::from(format!("{}/install/include", &outdir));
-                    let path = format!("{}/dds/dds.h", &include_dir);
-                    let path = Path::new(&path);
+            if local_build_so.exists() {
+                println!("cargo:rustc-link-search={}/install/lib", &outdir);
+                let include_dir = format!("{}/install/include", &outdir);
+                let path = format!("{}/dds/dds.h", &include_dir);
+                let path = Path::new(&path);
 
-                    if path.exists() {
-                        println!("Found {}", &path.to_str().unwrap());
-                        let paths = vec![include_dir];
-                        Some(HeaderLocation::FromLocalBuild(paths))
-                    } else {
-                        println!("Cannot find dds/dds.h");
-                        None
-                    }
+                if path.exists() {
+                    println!("Found {}", &path.to_str().unwrap());
+                    let paths = vec![include_dir];
+                    Some(HeaderLocation::FromLocalBuild(paths))
                 } else {
+                    println!("Cannot find dds/dds.h");
                     None
                 }
+            } else {
+                None
             }
         }
     }
@@ -341,272 +331,54 @@ mod build {
 
     fn add_whitelist(builder: bindgen::Builder) -> bindgen::Builder {
         builder
-        .whitelist_function("dds_enable")
-        .whitelist_function("dds_delete")
-        .whitelist_function("dds_get_publisher")
-        .whitelist_function("dds_get_subscriber")
-        .whitelist_function("dds_get_datareader")
-        .whitelist_function("dds_get_mask")
-        .whitelist_function("dds_get_instance_handle")
-        .whitelist_function("dds_read_status")
-        .whitelist_function("dds_take_status")
-        .whitelist_function("dds_get_status_changes")
-        .whitelist_function("dds_get_status_mask")
-        .whitelist_function("dds_get_enabled_status")
-        .whitelist_function("dds_set_status_mask")
-        .whitelist_function("dds_set_enabled_status")
-        .whitelist_function("dds_get_qos")
-        .whitelist_function("dds_set_qos")
-        .whitelist_function("dds_get_listener")
-        .whitelist_function("dds_set_listener")
-        .whitelist_function("dds_read_status")
-        .whitelist_function("dds_create_participant")
-        .whitelist_function("dds_create_domain")
-        .whitelist_function("dds_get_parent")
-        .whitelist_function("dds_get_participant")
-        .whitelist_function("dds_get_children")
-        .whitelist_function("dds_get_domainid")
-        .whitelist_function("dds_lookup_participant")
-        .whitelist_function("dds_create_topic")
-        .whitelist_function("dds_create_topic_arbitrary")
-        .whitelist_function("dds_find_topic")
-        .whitelist_function("dds_get_name")
-        .whitelist_function("dds_get_type_name")
-        .whitelist_function("dds_set_topic_filter")
-        .whitelist_function("dds_get_topic_filter")
-        .whitelist_function("dds_create_subscriber")
-        .whitelist_function("dds_create_publisher")
-        .whitelist_function("dds_suspend")
-        .whitelist_function("dds_resume")
-        .whitelist_function("dds_wait_for_acks")
-        .whitelist_function("dds_create_reader")
-        .whitelist_function("dds_create_reader_rhc")
-        .whitelist_function("dds_reader_wait_for_historical_data")
-        .whitelist_function("dds_create_writer")
-        .whitelist_function("dds_register_instance")
-        .whitelist_function("dds_unregister_instance")
-        .whitelist_function("dds_unregister_instance_ih")
-        .whitelist_function("dds_unregister_instance_ts")
-        .whitelist_function("dds_unregister_instance_ih_ts")
-        .whitelist_function("dds_writedispose")
-        .whitelist_function("dds_writedispose_ts")
-        .whitelist_function("dds_dispose")
-        .whitelist_function("dds_dispose_ts")
-        .whitelist_function("dds_dispose_ih")
-        .whitelist_function("dds_dispose_ih_ts")
-        .whitelist_function("dds_write")
-        .whitelist_function("dds_write_flush")
-        .whitelist_function("dds_writecdr")
-        .whitelist_function("dds_write_ts")
-        .whitelist_function("dds_create_readcondition")
-        .whitelist_function("dds_create_querycondition")
-        .whitelist_function("dds_create_guardcondition")
-        .whitelist_function("dds_set_guardcondition")
-        .whitelist_function("dds_read_guardcondition")
-        .whitelist_function("dds_take_guardcondition")
-        .whitelist_function("dds_create_waitset")
-        .whitelist_function("dds_waitset_get_entities")
-        .whitelist_function("dds_waitset_attach")
-        .whitelist_function("dds_waitset_detach")
-        .whitelist_function("dds_waitset_set_trigger")
-        .whitelist_function("dds_waitset_wait")
-        .whitelist_function("dds_waitset_wait_until")
-        .whitelist_function("dds_read")
-        .whitelist_function("dds_read_wl")
-        .whitelist_function("dds_read_mask")
-        .whitelist_function("dds_read_mask_wl")
-        .whitelist_function("dds_read_instance")
-        .whitelist_function("dds_read_instance_wl")
-        .whitelist_function("dds_read_mask_wl")
-        .whitelist_function("dds_read_instance_mask")
-        .whitelist_function("dds_read_instance_mask_wl")
-        .whitelist_function("dds_take")
-        .whitelist_function("dds_take_wl")
-        .whitelist_function("dds_take_mask")
-        .whitelist_function("dds_take_mask_wl")
-        .whitelist_function("dds_take_cdr")
-        .whitelist_function("dds_take_instance")
-        .whitelist_function("dds_take_instance_wl")
-        .whitelist_function("dds_take_instance_mask")
-        .whitelist_function("dds_take_instance_mask_wl")
-        .whitelist_function("dds_take_next")
-        .whitelist_function("dds_take_next_wl")
-        .whitelist_function("dds_read_next")
-        .whitelist_function("dds_read_next_wl")
-        .whitelist_function("dds_return_loan")
-        .whitelist_function("dds_lookup_instance")
-        .whitelist_function("dds_instance_get_key")
-        .whitelist_function("dds_begin_coherent")
-        .whitelist_function("dds_end_coherent")
-        .whitelist_function("dds_notify_readers")
-        .whitelist_function("dds_triggered")
-        .whitelist_function("dds_get_topic")
-        .whitelist_function("dds_get_matched_subscriptions")
-        .whitelist_function("dds_get_matched_subscription_data")
-        .whitelist_function("dds_get_matched_publications")
-        .whitelist_function("dds_get_matched_publication_data")
-        .whitelist_function("dds_assert_liveliness")   /* DDS Public Listener API Follows */
-        .whitelist_function("dds_create_listener")
-        .whitelist_function("dds_delete_listener")
-        .whitelist_function("dds_reset_listener")
-        .whitelist_function("dds_copy_listener")
-        .whitelist_function("dds_merge_listener")
-        .whitelist_function("dds_lset_inconsistent_topic")
-        .whitelist_function("dds_lset_liveliness_lost")
-        .whitelist_function("dds_lset_offered_deadline_missed")
-        .whitelist_function("dds_lset_offered_incompatible_qos")
-        .whitelist_function("dds_lset_data_on_readers")
-        .whitelist_function("dds_lset_sample_lost")
-        .whitelist_function("dds_lset_data_available")
-        .whitelist_function("dds_lset_sample_rejected")
-        .whitelist_function("dds_lset_liveliness_changed")
-        .whitelist_function("dds_lset_requested_deadline_missed")
-        .whitelist_function("dds_lset_requested_incompatible_qos")
-        .whitelist_function("dds_lset_offered_incompatible_qos")
-        .whitelist_function("dds_lset_publication_matched")
-        .whitelist_function("dds_lset_subscription_matched")
-        .whitelist_function("dds_lget_inconsistent_topic")
-        .whitelist_function("dds_lget_liveliness_lost")
-        .whitelist_function("dds_lget_offered_deadline_missed")
-        .whitelist_function("dds_lget_offered_incompatible_qos")
-        .whitelist_function("dds_lget_data_on_readers")
-        .whitelist_function("dds_lget_sample_lost")
-        .whitelist_function("dds_lget_data_available")
-        .whitelist_function("dds_lget_sample_rejected")
-        .whitelist_function("dds_lget_liveliness_changed")
-        .whitelist_function("dds_lget_requested_deadline_missed")
-        .whitelist_function("dds_lget_requested_incompatible_qos")
-        .whitelist_function("dds_lget_publication_matched")
-        .whitelist_function("dds_lget_subscription_matched")  /* DDS Public Alloc APIs follow */
-        .whitelist_function("dds_alloc")
-        .whitelist_function("dds_realloc")
-        .whitelist_function("dds_realloc_zero")
-        .whitelist_function("dds_free")
-        .whitelist_function("dds_string_alloc")
-        .whitelist_function("dds_string_dup")
-        .whitelist_function("dds_string_free")
-        .whitelist_function("dds_sample_free")   /* DDS Public Status APIs follow */
-        .whitelist_function("dds_get_inconsistent_topic_status")
-        .whitelist_function("dds_get_publication_matched_status")
-        .whitelist_function("dds_get_liveliness_lost_status")
-        .whitelist_function("dds_get_offered_deadline_missed_status")
-        .whitelist_function("dds_get_inconsistent_topic_status")
-        .whitelist_function("dds_get_offered_incompatible_qos_status")
-        .whitelist_function("dds_get_subscription_matched_status")
-        .whitelist_function("dds_get_liveliness_changed_status")
-        .whitelist_function("dds_get_sample_rejected_status")
-        .whitelist_function("dds_get_sample_lost_status")
-        .whitelist_function("dds_get_requested_deadline_missed_status")
-        .whitelist_function("dds_get_requested_incompatible_qos_status")
-        .whitelist_function("dds_get_inconsistent_topic_status")  /* DDS Public QOS APIs follow */
-        .whitelist_function("dds_create_qos")
-        .whitelist_function("dds_delete_qos")
-        .whitelist_function("dds_reset_qos")
-        .whitelist_function("dds_copy_qos")
-        .whitelist_function("dds_merge_qos")
-        .whitelist_function("dds_qos_equal")
-        .whitelist_function("dds_qset_userdata")
-        .whitelist_function("dds_qset_topicdata")
-        .whitelist_function("dds_qset_groupdata")
-        .whitelist_function("dds_qset_durability")
-        .whitelist_function("dds_qset_history")
-        .whitelist_function("dds_qset_resource_limits")
-        .whitelist_function("dds_qset_presentation")
-        .whitelist_function("dds_qset_lifespan")
-        .whitelist_function("dds_qset_deadline")
-        .whitelist_function("dds_qset_latency_budget")
-        .whitelist_function("dds_qset_ownership")
-        .whitelist_function("dds_qset_ownership_strength")
-        .whitelist_function("dds_qset_liveliness")
-        .whitelist_function("dds_qset_time_based_filter")
-        .whitelist_function("dds_qset_partition")
-        .whitelist_function("dds_qset_partition1")
-        .whitelist_function("dds_qset_reliability")
-        .whitelist_function("dds_qset_transport_priority")
-        .whitelist_function("dds_qset_destination_order")
-        .whitelist_function("dds_qset_writer_data_lifecycle")
-        .whitelist_function("dds_qset_reader_data_lifecycle")
-        .whitelist_function("dds_qset_durability_service")
-        .whitelist_function("dds_qset_ignorelocal")
-        .whitelist_function("dds_qget_userdata")
-        .whitelist_function("dds_qget_topicdata")
-        .whitelist_function("dds_qget_groupdata")
-        .whitelist_function("dds_qget_durability")
-        .whitelist_function("dds_qget_history")
-        .whitelist_function("dds_qget_resource_limits")
-        .whitelist_function("dds_qget_presentation")
-        .whitelist_function("dds_qget_lifespan")
-        .whitelist_function("dds_qget_deadline")
-        .whitelist_function("dds_qget_latency_budget")
-        .whitelist_function("dds_qget_ownership")
-        .whitelist_function("dds_qget_ownership_strength")
-        .whitelist_function("dds_qget_liveliness")
-        .whitelist_function("dds_qget_time_based_filter")
-        .whitelist_function("dds_qget_partition")
-        .whitelist_function("dds_qget_reliability")
-        .whitelist_function("dds_qget_transport_priority")
-        .whitelist_function("dds_qget_destination_order")
-        .whitelist_function("dds_qget_writer_data_lifecycle")
-        .whitelist_function("dds_qget_reader_data_lifecyele")
-        .whitelist_function("dds_qget_durability_service")
-        .whitelist_function("dds_qget_history")
-        .whitelist_function("dds_qget_ignorelocal")
-        .whitelist_function("dds_qget_history")
-        .whitelist_function("dds_create_topic_sertype")
-        .whitelist_function("ddsi_sertype_init")
-        .whitelist_function("ddsi_sertype_fini")
-        .whitelist_function("ddsi_sertype_v0")
-        .whitelist_function("ddsi_serdata_init")
-        .whitelist_function("ddsi_serdata_addref")
-        .whitelist_function("ddsi_serdata_removeref")
-        .whitelist_function("ddsrt_md5_init")
-        .whitelist_function("ddsrt_md5_append")
-        .whitelist_function("ddsrt_md5_finish")
-        .whitelist_function("iceoryx_header_from_chunk")
-        .whitelist_function("shm_lock_iox_sub")
-        .whitelist_function("shm_unlock_iox_sub")
-        .whitelist_function("free_iox_chunk")
-        .whitelist_function("shm_set_loglevel")
-        .whitelist_function("shm_create_chunk")
-        .whitelist_function("shm_set_data_state")
-        .whitelist_function("shm_get_data_state")
-        .whitelist_function("dds_is_loan_available")
-        .whitelist_function("dds_is_shared_memory_available")
-        .whitelist_function("dds_loan_shared_memory_buffer")
-        .whitelist_function("dds_return_writer_loan")
-        .whitelist_function("dds_loan_sample")
-        .whitelist_function("_dummy")
-        .whitelist_type("dds_stream_opcode")
-        .whitelist_type("dds_stream_typecode")
-        .whitelist_type("dds_stream_typecode_primary")
-        .whitelist_type("dds_stream_typecode_subtype")
-        .whitelist_type("dds_sequence_t")
-        .whitelist_type("dds_duration_t")
-        .whitelist_type("ddsi_sertype_ops")
-        .whitelist_type("ddsi_serdata_ops")
-        .whitelist_type("ddsi_sertype_init")
-        .whitelist_type("nn_rdata")
-        .whitelist_function("ddsrt_iovec_t")
-        .whitelist_function("ddsrt_md5_state_t")
-        .whitelist_var("DDS_DOMAIN_DEFAULT")
-        .rustified_enum("dds_durability_kind")
-        .rustified_enum("dds_history_kind")
-        .rustified_enum("dds_ownership_kind")
-        .rustified_enum("dds_liveliness_kind")
-        .rustified_enum("dds_reliability_kind")
-        .rustified_enum("dds_destination_order_kind")
-        .rustified_enum("dds_presentation_access_scope_kind")
-        .rustified_enum("dds_ignorelocal_kind")
-        .whitelist_var("BUILTIN_TOPIC_DCPSPARTICIPANT")
-        .whitelist_var("BUILTIN_TOPIC_DCPSTOPIC")
-        .whitelist_var("BUILTIN_TOPIC_DCPSPUBLICATION")
-        .whitelist_var("BUILTIN_TOPIC_DCPSSUBSCRIPTION")
- 	.derive_default(true)
-        .constified_enum("dds_status_id")
+            .derive_default(true)
+            .generate_cstr(false)
+            .prepend_enum_name(false)
+            // basic operations
+            .allowlist_function(r"^dds_(get|read|take|write|forward)(_.+|cdr)?$")
+            // create instances
+            .allowlist_function(r"^dds_create_(domain|participant|publisher|subscriber|writer|read(er|condition)|topic(_sertype)?|waitset)$")
+            // listener operations
+            .allowlist_function(r"^dds_((.+)_listener|lset_.+|waitset_.+|triggered)$")
+            // memory allocation functions
+            .allowlist_function(r"^dds_((re)?alloc|free)(.+)?")
+            // QoS operation and types
+            .allowlist_function(r"^dds_((.+)_qos|qos_equal|q[sg]et_.+)$")
+            // DDS QoS policies
+            .rustified_enum(r"^dds_.+_kind$")
+            // sertype,serdata operations
+            .allowlist_function(r"^ddsi_ser(type|data).+$")
+            // serdata hash functions
+            .allowlist_function(r"^ddsrt_md5_.+$")
+            // for shm feature
+            .allowlist_function(r"^dds_((loan).+|.+_loan)$")
+            // handling iceoryx chunks
+            .allowlist_function("iceoryx_header_from_chunk")
+            .allowlist_function("free_iox_chunk")
+            // handling builtin topics
+            .allowlist_type(r"^dds_builtintopic_.+")
+            .allowlist_type(r"^dds_stream_.+")
+            // UDP transport
+            .allowlist_type("nn_rdata")
+            // constants
+            .allowlist_var(r"^DDS_(BUILTIN_TOPIC|TOPIC|OP)_.+$")
+            .allowlist_var(r"^DDS_.+_(SAMPLE|VIEW|INSTANCE)_STATE$")
+            .allowlist_var(r"^BUILTIN_TOPIC_DCPS.+")
+            // instance status
+            .allowlist_type("dds_status_id")
+            .constified_enum("dds_status_id")
+            // for debug
+            .allowlist_function("dds_delete")
+            .allowlist_function("dds_set_status_mask")
     }
 
     pub fn generate(include_paths: &std::vec::Vec<String>, maybe_sysroot: Option<&String>) {
         let mut bindings = bindgen::Builder::default().header("wrapper.h");
+
+        #[cfg(feature = "shm")]
+        {
+            bindings = bindings.clang_arg("-DCYCLONEDDS_RS_SHM");
+        }
 
         for path in include_paths {
             bindings = bindings.clang_arg(format!("-I{}", path));
@@ -616,16 +388,16 @@ mod build {
             bindings = bindings.clang_arg(format!("--sysroot={}", sysroot));
         }
 
-        let gen = add_whitelist(bindings)
+        let bg = add_whitelist(bindings)
             .generate()
             .expect("Unable to generate bindings");
 
         if let Ok(path) = env::var("OUT_DIR") {
             let out_path = PathBuf::from(path);
             let bindings_path = out_path.join("generated.rs");
-            gen.write_to_file(bindings_path.clone())
+            bg.write_to_file(bindings_path.clone())
                 .expect("Couldn't write bindings");
-            fs::copy(PathBuf::from(bindings_path), PathBuf::from("src/generated.rs")).unwrap();
+            fs::copy(bindings_path, PathBuf::from("src/generated.rs")).unwrap();
         } else {
             println!("OUT_DIR not set, not generating bindings");
         }
@@ -635,24 +407,32 @@ mod build {
         for (key, value) in env::vars() {
             println!("{}: {}", key, value);
         }
+        #[allow(unused_mut)]
         let mut headerloc = find_cyclonedds().unwrap();
 
-        if let Some(iceoryx_headers) = find_iceoryx("v2.0.2") {
-            headerloc.add_paths(iceoryx_headers.get_paths());
-        } else if let Some(iceoryx_headers) = find_iceoryx("v2.0.0") {
-            headerloc.add_paths(iceoryx_headers.get_paths());
+        #[cfg(feature = "shm")]
+        {
+            if let Some(iceoryx_headers) = find_iceoryx("v2.0.2") {
+                headerloc.add_paths(iceoryx_headers.get_paths());
+            } else if let Some(iceoryx_headers) = find_iceoryx("v2.0.0") {
+                headerloc.add_paths(iceoryx_headers.get_paths());
+            }
         }
 
         match &headerloc {
-            HeaderLocation::FromCMakeEnvironment(paths, sysroot) => generate(&paths, Some(sysroot)),
-            HeaderLocation::FromEnvironment(paths) | HeaderLocation::FromLocalBuild(paths)  => generate(&paths, None),
-            HeaderLocation::FromYoctoSDKBuild(paths, sysroot) => generate(&paths, Some(sysroot)),
+            HeaderLocation::FromCMakeEnvironment(paths, sysroot) => generate(paths, Some(sysroot)),
+            HeaderLocation::FromEnvironment(paths) | HeaderLocation::FromLocalBuild(paths) => {
+                generate(paths, None)
+            }
         }
 
         match &headerloc {
-            HeaderLocation::FromCMakeEnvironment(paths, sysroot) => compile_inlines(&paths, Some(sysroot)),
-            HeaderLocation::FromEnvironment(paths) | HeaderLocation::FromLocalBuild(paths)  => compile_inlines(&paths, None),
-            HeaderLocation::FromYoctoSDKBuild(paths, sysroot) => compile_inlines(&paths, Some(sysroot)),
+            HeaderLocation::FromCMakeEnvironment(paths, sysroot) => {
+                compile_inlines(paths, Some(sysroot))
+            }
+            HeaderLocation::FromEnvironment(paths) | HeaderLocation::FromLocalBuild(paths) => {
+                compile_inlines(paths, None)
+            }
         }
     }
 
@@ -665,11 +445,5 @@ mod build {
             cc.include(dir);
         }
         cc.compile("libinline_functions.a");
-
-        //if let Some(sysroot) = maybe_sysroot {
-        //    cc.s
-        //}
-
-
     }
 }

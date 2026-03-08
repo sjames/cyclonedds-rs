@@ -1,4 +1,3 @@
-
 /*
     Copyright 2020 Sojan James
 
@@ -16,8 +15,8 @@
 */
 
 //! Safe Rust bindings to cyclonedds
-//! 
-//! 
+//!
+//!
 
 pub mod alloc;
 mod common;
@@ -38,16 +37,16 @@ pub mod topic_type_methods;
 
 pub use common::{DdsReadable, DdsWritable, Entity};
 pub use dds_api::*;
-pub use dds_listener::{DdsListener,DdsListenerBuilder};
+pub use dds_listener::{DdsListener, DdsListenerBuilder};
 pub use dds_participant::{DdsParticipant, ParticipantBuilder};
-pub use dds_publisher::{DdsPublisher,PublisherBuilder};
+pub use dds_publisher::{DdsPublisher, PublisherBuilder};
 pub use dds_qos::*;
 pub use dds_reader::{DdsReadCondition, DdsReader, ReaderBuilder};
-pub use dds_subscriber::{DdsSubscriber,SubscriberBuilder};
-pub use dds_topic::{DdsTopic,TopicBuilder};
+pub use dds_subscriber::{DdsSubscriber, SubscriberBuilder};
+pub use dds_topic::{DdsTopic, TopicBuilder};
 pub use dds_waitset::DdsWaitset;
-pub use dds_writer::{DdsWriter,WriterBuilder};
-pub use serdes::{TopicType, SampleBuffer, Sample};
+pub use dds_writer::{DdsWriter, WriterBuilder};
+pub use serdes::{Sample, SampleBuffer, TopicType};
 
 pub use cdr;
 pub use cyclonedds_sys::dds_error::DDSError;

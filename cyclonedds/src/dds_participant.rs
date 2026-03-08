@@ -14,11 +14,11 @@
     limitations under the License.
 */
 
-use std::convert::From;
+use crate::{dds_listener::DdsListener, dds_qos::DdsQos, DdsReadable, DdsWritable, Entity};
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
-use crate::{DdsReadable, DdsWritable, Entity, dds_listener::DdsListener, dds_qos::DdsQos};
+use std::convert::From;
 
-/// Builder struct for a Participant. 
+/// Builder struct for a Participant.
 /// #Example
 /// ```
 /// use cyclonedds_rs::{DdsListener, ParticipantBuilder};
@@ -28,7 +28,7 @@ use crate::{DdsReadable, DdsWritable, Entity, dds_listener::DdsListener, dds_qos
 /// }).on_publication_matched(|a,b|{
 ///     println!("Publication matched");
 /// }).
-/// hook(); 
+/// hook();
 /// let participant = ParticipantBuilder::new()
 ///         .with_listener(listener)
 ///         .create()
@@ -37,13 +37,12 @@ use crate::{DdsReadable, DdsWritable, Entity, dds_listener::DdsListener, dds_qos
 ///```
 ///
 pub struct ParticipantBuilder {
-    maybe_domain : Option<DdsDomainId>,
-    maybe_qos : Option<DdsQos>,
-    maybe_listener : Option<DdsListener>,
+    maybe_domain: Option<DdsDomainId>,
+    maybe_qos: Option<DdsQos>,
+    maybe_listener: Option<DdsListener>,
 }
 
 impl ParticipantBuilder {
-
     pub fn new() -> Self {
         ParticipantBuilder {
             maybe_domain: None,
@@ -57,7 +56,7 @@ impl ParticipantBuilder {
         self
     }
 
-    pub fn with_qos(mut self, qos : DdsQos) -> Self {
+    pub fn with_qos(mut self, qos: DdsQos) -> Self {
         self.maybe_qos = Some(qos);
         self
     }
@@ -72,7 +71,6 @@ impl ParticipantBuilder {
     }
 }
 
-
 pub struct DdsParticipant(DdsEntity, Option<DdsListener>);
 
 impl DdsParticipant {
@@ -81,12 +79,13 @@ impl DdsParticipant {
         maybe_qos: Option<DdsQos>,
         maybe_listener: Option<DdsListener>,
     ) -> Result<Self, DDSError> {
-
         unsafe {
             let p = cyclonedds_sys::dds_create_participant(
                 maybe_domain.unwrap_or(0xFFFF_FFFF),
                 maybe_qos.map_or(std::ptr::null(), |d| d.into()),
-                maybe_listener.as_ref().map_or(std::ptr::null(), |l| l.into()),
+                maybe_listener
+                    .as_ref()
+                    .map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
                 Ok(DdsParticipant(DdsEntity::new(p), maybe_listener))
@@ -97,7 +96,7 @@ impl DdsParticipant {
     }
 }
 
-/* 
+/*
 impl Drop for DdsParticipant {
     fn drop(&mut self) {
         unsafe {

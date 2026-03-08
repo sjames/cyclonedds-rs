@@ -14,7 +14,6 @@
     limitations under the License.
 */
 
-
 use cyclonedds_sys::{dds_error::DDSError, DdsDomainId, DdsEntity};
 use std::convert::From;
 use std::ffi::CString;
@@ -68,14 +67,11 @@ impl Drop for DdsDomain {
 
 #[cfg(test)]
 mod dds_domain_tests {
-    use cyclonedds_sys::{DDSError};
     use crate::dds_domain::DdsDomain;
+    use cyclonedds_sys::DDSError;
 
     #[test]
     fn test_create_domain_with_bad_config() {
         assert!(Err(DDSError::DdsOk) != DdsDomain::create(0, Some("blah")));
     }
-    
-    
-    
 }

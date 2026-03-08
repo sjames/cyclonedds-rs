@@ -16,7 +16,7 @@
 
 use crate::{DdsListener, DdsParticipant, DdsQos, DdsReadable};
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
-use std::{convert::From};
+use std::convert::From;
 
 pub struct SubscriberBuilder {
     maybe_qos: Option<DdsQos>,
@@ -31,21 +31,20 @@ impl SubscriberBuilder {
         }
     }
 
-    pub fn with_qos(mut self, qos : DdsQos) -> Self {
+    pub fn with_qos(mut self, qos: DdsQos) -> Self {
         self.maybe_qos = Some(qos);
         self
     }
 
-    pub fn with_listener(mut self, listener : DdsListener) -> Self {
+    pub fn with_listener(mut self, listener: DdsListener) -> Self {
         self.maybe_listener = Some(listener);
         self
     }
 
-    pub fn create(self,participant: &DdsParticipant) -> Result<DdsSubscriber, DDSError> {
+    pub fn create(self, participant: &DdsParticipant) -> Result<DdsSubscriber, DDSError> {
         DdsSubscriber::create(participant, self.maybe_qos, self.maybe_listener)
     }
 }
-
 
 #[derive(Clone)]
 pub struct DdsSubscriber(DdsEntity, Option<DdsListener>);
@@ -60,17 +59,18 @@ impl<'a> DdsSubscriber {
             let p = cyclonedds_sys::dds_create_subscriber(
                 participant.entity().entity(),
                 maybe_qos.map_or(std::ptr::null(), |d| d.into()),
-                maybe_listener.as_ref().map_or(std::ptr::null(), |l| l.into()),
+                maybe_listener
+                    .as_ref()
+                    .map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
-                Ok(DdsSubscriber(DdsEntity::new(p),maybe_listener))
+                Ok(DdsSubscriber(DdsEntity::new(p), maybe_listener))
             } else {
                 Err(DDSError::from(p))
             }
         }
     }
 }
-
 
 impl<'a> DdsReadable for DdsSubscriber {
     fn entity(&self) -> &DdsEntity {

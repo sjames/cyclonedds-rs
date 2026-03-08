@@ -17,7 +17,9 @@
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
-
+#![allow(clippy::useless_transmute)]
+#![allow(clippy::missing_safety_doc)]
+#![allow(unexpected_cfgs)]
 use bitmask::bitmask;
 
 include!("generated.rs");
@@ -25,13 +27,12 @@ include!("generated.rs");
 pub mod dds_error;
 pub use dds_error::DDSError;
 
-//// some macros we need to use in Rust
-pub const DDS_FREE_KEY_BIT: u32 =  0x01;
-pub const DDS_FREE_CONTENTS_BIT:u32 =  0x02;
-pub const DDS_FREE_ALL_BIT:u32 =  0x04;
+/// some macros we need to use in Rust
+pub const DDS_FREE_KEY_BIT: u32 = 0x01;
+pub const DDS_FREE_CONTENTS_BIT: u32 = 0x02;
+pub const DDS_FREE_ALL_BIT: u32 = 0x04;
 
-
-#[derive(Clone,PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct DdsEntity(dds_entity_t);
 
 impl DdsEntity {
@@ -45,10 +46,13 @@ impl DdsEntity {
 
 pub mod builtin_entity {
     use crate::DdsEntity;
-    pub const BUILTIN_TOPIC_DCPSPARTICIPANT_ENTITY : DdsEntity = DdsEntity(crate::BUILTIN_TOPIC_DCPSPARTICIPANT);
-    pub const BUILTIN_TOPIC_DCPSTOPIC_ENTITY : DdsEntity = DdsEntity(crate::BUILTIN_TOPIC_DCPSTOPIC);
-    pub const BUILTIN_TOPIC_DCPSPUBLICATION_ENTITY : DdsEntity = DdsEntity(crate::BUILTIN_TOPIC_DCPSPUBLICATION);
-    pub const BUILTIN_TOPIC_DCPSSUBSCRIPTION : DdsEntity = DdsEntity(crate::BUILTIN_TOPIC_DCPSSUBSCRIPTION);
+    pub const BUILTIN_TOPIC_DCPSPARTICIPANT_ENTITY: DdsEntity =
+        DdsEntity(crate::BUILTIN_TOPIC_DCPSPARTICIPANT);
+    pub const BUILTIN_TOPIC_DCPSTOPIC_ENTITY: DdsEntity = DdsEntity(crate::BUILTIN_TOPIC_DCPSTOPIC);
+    pub const BUILTIN_TOPIC_DCPSPUBLICATION_ENTITY: DdsEntity =
+        DdsEntity(crate::BUILTIN_TOPIC_DCPSPUBLICATION);
+    pub const BUILTIN_TOPIC_DCPSSUBSCRIPTION: DdsEntity =
+        DdsEntity(crate::BUILTIN_TOPIC_DCPSSUBSCRIPTION);
 }
 
 pub type DdsDomainId = dds_domainid_t;
@@ -66,6 +70,6 @@ bitmask! {
         DdsNotAliveDisposedInstanceState = 32,
         DdsNotAliveNoWritersInstanceState = 64,
         DdsAnyInstanceState = 16 | 32 | 64,
-        DdsAnyState =  1 | 2  | 4 | 8 | 16 | 32 | 64,
+        DdsAnyState =  1 | 2 | 4 | 8 | 16 | 32 | 64,
     }
 }

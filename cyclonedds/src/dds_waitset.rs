@@ -15,7 +15,6 @@
 */
 
 use crate::{DdsParticipant, Entity};
-use cyclonedds_sys::size_t;
 pub use cyclonedds_sys::{DDSError, DdsDomainId, DdsEntity};
 use std::convert::From;
 use std::marker::PhantomData;
@@ -78,7 +77,7 @@ impl<'a, T> DdsWaitset<T> {
             let p = cyclonedds_sys::dds_waitset_wait(
                 self.0.entity(),
                 xs.as_mut_ptr() as *mut isize,
-                capacity as size_t,
+                capacity,
                 timeout_us,
             );
             if p == 0 {

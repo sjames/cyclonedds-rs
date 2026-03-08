@@ -21,25 +21,25 @@ pub use cyclonedds_sys::dds_error::DDSError;
 use cyclonedds_sys::DdsEntity;
 
 //use crate::dds_writer::DdsWriter;
+pub use cyclonedds_sys::dds_status_id;
 pub use cyclonedds_sys::{dds_attach_t, dds_duration_t};
-pub use cyclonedds_sys::{dds_status_id};
 
 // re-export constants
-pub use cyclonedds_sys::dds_status_id_DDS_DATA_AVAILABLE_STATUS_ID as DDS_DATA_AVAILABLE_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_DATA_ON_READERS_STATUS_ID as DDS_DATA_ON_READERS_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_INCONSISTENT_TOPIC_STATUS_ID as DDS_INCONSISTENT_TOPIC_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_LIVELINESS_CHANGED_STATUS_ID as DDS_LIVELINESS_CHANGED_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_LIVELINESS_LOST_STATUS_ID as DDS_LIVELINESS_LOST_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_OFFERED_DEADLINE_MISSED_STATUS_ID as DDS_OFFERED_DEADLINE_MISSED_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_OFFERED_INCOMPATIBLE_QOS_STATUS_ID as DDS_OFFERED_INCOMPATIBLE_QOS_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_PUBLICATION_MATCHED_STATUS_ID as DDS_PUBLICATION_MATCHED_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_REQUESTED_DEADLINE_MISSED_STATUS_ID as DDS_REQUESTED_DEADLINE_MISSED_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_REQUESTED_INCOMPATIBLE_QOS_STATUS_ID as DDS_REQUESTED_INCOMPATIBLE_QOS_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_SAMPLE_LOST_STATUS_ID as DDS_SAMPLE_LOST_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_SAMPLE_REJECTED_STATUS_ID as DDS_SAMPLE_REJECTED_STATUS_ID;
-pub use cyclonedds_sys::dds_status_id_DDS_SUBSCRIPTION_MATCHED_STATUS_ID as DDS_SUBSCRIPTION_MATCHED_STATUS_ID;
 pub use cyclonedds_sys::State;
 pub use cyclonedds_sys::StateMask;
+pub use cyclonedds_sys::DDS_DATA_AVAILABLE_STATUS_ID;
+pub use cyclonedds_sys::DDS_DATA_ON_READERS_STATUS_ID;
+pub use cyclonedds_sys::DDS_INCONSISTENT_TOPIC_STATUS_ID;
+pub use cyclonedds_sys::DDS_LIVELINESS_CHANGED_STATUS_ID;
+pub use cyclonedds_sys::DDS_LIVELINESS_LOST_STATUS_ID;
+pub use cyclonedds_sys::DDS_OFFERED_DEADLINE_MISSED_STATUS_ID;
+pub use cyclonedds_sys::DDS_OFFERED_INCOMPATIBLE_QOS_STATUS_ID;
+pub use cyclonedds_sys::DDS_PUBLICATION_MATCHED_STATUS_ID;
+pub use cyclonedds_sys::DDS_REQUESTED_DEADLINE_MISSED_STATUS_ID;
+pub use cyclonedds_sys::DDS_REQUESTED_INCOMPATIBLE_QOS_STATUS_ID;
+pub use cyclonedds_sys::DDS_SAMPLE_LOST_STATUS_ID;
+pub use cyclonedds_sys::DDS_SAMPLE_REJECTED_STATUS_ID;
+pub use cyclonedds_sys::DDS_SUBSCRIPTION_MATCHED_STATUS_ID;
 
 #[derive(Default)]
 pub struct DdsStatus(u32);
@@ -56,8 +56,6 @@ impl DdsStatus {
         mask & self.0 != 0
     }
 }
-
-
 
 impl From<DdsStatus> for u32 {
     fn from(status: DdsStatus) -> Self {

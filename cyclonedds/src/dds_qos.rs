@@ -24,10 +24,10 @@ pub use cyclonedds_sys::{
     dds_presentation_access_scope_kind, dds_reliability_kind,
 };
 
-/// Safety Check: 
+/// Safety Check:
 /// The dds_qos_t pointer is not accesible externally. I'm assuming the Qos structure created
 /// by Cyclone is Sendable here.
-unsafe impl Send for DdsQos{}
+unsafe impl Send for DdsQos {}
 
 #[derive(Debug)]
 pub struct DdsQos(*mut dds_qos_t);
@@ -50,7 +50,7 @@ impl DdsQos {
         }
     }
 
-    pub fn set_durability( &mut self, durability: dds_durability_kind) -> &mut Self {
+    pub fn set_durability(&mut self, durability: dds_durability_kind) -> &mut Self {
         unsafe {
             dds_qset_durability(self.0, durability);
         }
@@ -102,7 +102,7 @@ impl DdsQos {
         self
     }
 
-    pub fn set_latency_budget( &mut self, duration: dds_duration_t) -> &mut Self {
+    pub fn set_latency_budget(&mut self, duration: dds_duration_t) -> &mut Self {
         unsafe {
             dds_qset_latency_budget(self.0, duration);
         }
@@ -123,14 +123,18 @@ impl DdsQos {
         self
     }
 
-    pub fn set_liveliness( &mut self, kind: dds_liveliness_kind, lease_duration: dds_duration_t) -> &mut Self {
+    pub fn set_liveliness(
+        &mut self,
+        kind: dds_liveliness_kind,
+        lease_duration: dds_duration_t,
+    ) -> &mut Self {
         unsafe {
             dds_qset_liveliness(self.0, kind, lease_duration);
         }
         self
     }
 
-    pub fn set_time_based_filter( &mut self, minimum_separation: dds_duration_t) -> &mut Self {
+    pub fn set_time_based_filter(&mut self, minimum_separation: dds_duration_t) -> &mut Self {
         unsafe {
             dds_qset_time_based_filter(self.0, minimum_separation);
         }
@@ -155,7 +159,7 @@ impl DdsQos {
         self
     }
 
-    pub fn set_destination_order( &mut self, kind: dds_destination_order_kind) -> &mut Self {
+    pub fn set_destination_order(&mut self, kind: dds_destination_order_kind) -> &mut Self {
         unsafe {
             dds_qset_destination_order(self.0, kind);
         }
@@ -214,7 +218,7 @@ impl DdsQos {
         self
     }
 
-    pub fn set_partition( &mut self, name: &std::ffi::CStr) -> &mut Self {
+    pub fn set_partition(&mut self, name: &std::ffi::CStr) -> &mut Self {
         unsafe { dds_qset_partition1(self.0, name.as_ptr()) }
         self
     }
@@ -230,7 +234,7 @@ impl Default for DdsQos {
 impl Drop for DdsQos {
     fn drop(&mut self) {
         if !self.0.is_null() {
-        unsafe { dds_delete_qos(self.0) }
+            unsafe { dds_delete_qos(self.0) }
         }
     }
 }
@@ -269,7 +273,7 @@ impl From<DdsQos> for *const dds_qos_t {
         q
     }
 }
-/* 
+/*
 impl From<&mut DdsQos> for *const dds_qos_t {
     fn from(qos: &mut DdsQos) -> Self {
         let q = qos.0;
@@ -314,30 +318,34 @@ mod dds_qos_tests {
     #[test]
     fn test_set() {
         if let Ok(mut qos) = DdsQos::create() {
-            let _qos = qos.set_durability(dds_durability_kind::DDS_DURABILITY_VOLATILE)
-            .set_history(dds_history_kind::DDS_HISTORY_KEEP_LAST, 3)
-            .set_resource_limits(10, 1, 10)
-            .set_presentation(
-                dds_presentation_access_scope_kind::DDS_PRESENTATION_INSTANCE,
-                false,
-                false,
-            )
-            .set_lifespan(std::time::Duration::from_nanos(100))
-            .set_deadline(std::time::Duration::from_nanos(100))
-            .set_latency_budget(1000)
-            .set_ownership(dds_ownership_kind::DDS_OWNERSHIP_EXCLUSIVE)
-            .set_ownership_strength(1000)
-            .set_liveliness(dds_liveliness_kind::DDS_LIVELINESS_AUTOMATIC, 10000)
-            .set_time_based_filter(1000)
-            .set_reliability(dds_reliability_kind::DDS_RELIABILITY_RELIABLE, std::time::Duration::from_nanos(100))
-            .set_transport_priority(1000)
-            .set_destination_order(
-                dds_destination_order_kind::DDS_DESTINATIONORDER_BY_RECEPTION_TIMESTAMP,
-            )
-            .set_writer_data_lifecycle(true)
-            .set_reader_data_lifecycle(100, 100)
-            .set_durability_service(0, dds_history_kind::DDS_HISTORY_KEEP_LAST, 3, 3, 3, 3)
-            .set_partition(&std::ffi::CString::new("partition1").unwrap());
+            let _qos = qos
+                .set_durability(dds_durability_kind::DDS_DURABILITY_VOLATILE)
+                .set_history(dds_history_kind::DDS_HISTORY_KEEP_LAST, 3)
+                .set_resource_limits(10, 1, 10)
+                .set_presentation(
+                    dds_presentation_access_scope_kind::DDS_PRESENTATION_INSTANCE,
+                    false,
+                    false,
+                )
+                .set_lifespan(std::time::Duration::from_nanos(100))
+                .set_deadline(std::time::Duration::from_nanos(100))
+                .set_latency_budget(1000)
+                .set_ownership(dds_ownership_kind::DDS_OWNERSHIP_EXCLUSIVE)
+                .set_ownership_strength(1000)
+                .set_liveliness(dds_liveliness_kind::DDS_LIVELINESS_AUTOMATIC, 10000)
+                .set_time_based_filter(1000)
+                .set_reliability(
+                    dds_reliability_kind::DDS_RELIABILITY_RELIABLE,
+                    std::time::Duration::from_nanos(100),
+                )
+                .set_transport_priority(1000)
+                .set_destination_order(
+                    dds_destination_order_kind::DDS_DESTINATIONORDER_BY_RECEPTION_TIMESTAMP,
+                )
+                .set_writer_data_lifecycle(true)
+                .set_reader_data_lifecycle(100, 100)
+                .set_durability_service(0, dds_history_kind::DDS_HISTORY_KEEP_LAST, 3, 3, 3, 3)
+                .set_partition(&std::ffi::CString::new("partition1").unwrap());
         } else {
             assert!(false);
         }

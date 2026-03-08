@@ -14,7 +14,7 @@
     limitations under the License.
 */
 
-use cyclonedds_sys::{DdsEntity};
+use cyclonedds_sys::DdsEntity;
 
 /// An entity on which you can attach a DdsWriter
 pub trait DdsWritable {
@@ -29,4 +29,3 @@ pub trait DdsReadable {
 pub trait Entity {
     fn entity(&self) -> &DdsEntity;
 }
-

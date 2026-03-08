@@ -19,7 +19,6 @@
 
 use cdr::{Bounded, CdrBe, Infinite};
 
-
 use serde::{de::DeserializeOwned, Serialize};
 use std::io::prelude::*;
 
@@ -46,7 +45,7 @@ pub struct SerType<T> {
 pub trait TopicType: Serialize + DeserializeOwned {
     // generate a non-cryptographic hash of the key values to be used internally
     // in cyclonedds
-    fn hash(&self, basehash : u32) -> u32 {
+    fn hash(&self, basehash: u32) -> u32 {
         let cdr = self.key_cdr();
         let mut cursor = Cursor::new(cdr.as_slice());
         murmur3_32(&mut cursor, 0).unwrap() ^ basehash
@@ -63,7 +62,6 @@ pub trait TopicType: Serialize + DeserializeOwned {
             .collect::<Vec<_>>()
             .join("::");
 
-        
         //println!("Typename:{:?}", &typename);
         std::ffi::CString::new(ty_name_parts).expect("Unable to create CString for type name")
     }
@@ -168,72 +166,65 @@ impl<T> Deref for SampleStorage<T> {
 impl<T> Drop for SampleStorage<T> {
     fn drop(&mut self) {
         match self {
-            SampleStorage::Loaned(_t) => {
-            }
-            _ => {
-
-            }
+            SampleStorage::Loaned(_t) => {}
+            _ => {}
         }
     }
 }
 
-
 pub struct Sample<T> {
-    //Serdata is used for incoming samples. We hold a reference to the ddsi_serdata which contains 
+    //Serdata is used for incoming samples. We hold a reference to the ddsi_serdata which contains
     // the sample
     serdata: Option<*mut ddsi_serdata>,
     // sample is used for outgoing samples.
     sample: Option<SampleStorage<T>>,
 }
 
-impl<'a,T> Sample<T>
+impl<'a, T> Sample<T>
 where
-    T: TopicType
+    T: TopicType,
 {
-    pub fn try_deref<>(&self) -> Option<&T> {       
-            if let Some(serdata) = self.serdata {
-                let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
-                match &serdata.sample {
-                    SampleData::Uninitialized => None,
-                    SampleData::SDKKey => None,
-                    SampleData::SDKData(it) => Some(it.as_ref()),
-                    SampleData::SHMData(it) => unsafe { Some(it.as_ref())},
-                }
-            } else {
-                None
+    pub fn try_deref(&self) -> Option<&T> {
+        if let Some(serdata) = self.serdata {
+            let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
+            match &serdata.sample {
+                SampleData::Uninitialized => None,
+                SampleData::SDKKey => None,
+                SampleData::SDKData(it) => Some(it.as_ref()),
+                SampleData::SHMData(it) => unsafe { Some(it.as_ref()) },
             }
-  
+        } else {
+            None
+        }
     }
 
     pub fn get_sample(&self) -> Option<SampleStorage<T>> {
         //if let Ok(t) = self.sample.write() {
-            match self.sample.as_ref() {
-                Some(s) => match s {
-                    SampleStorage::Owned(s) => Some(SampleStorage::Owned(s.clone())),
-                    SampleStorage::Loaned(s) => Some(SampleStorage::Loaned(s.clone())),
-                },
-                None => None,
-            }
+        match self.sample.as_ref() {
+            Some(s) => match s {
+                SampleStorage::Owned(s) => Some(SampleStorage::Owned(s.clone())),
+                SampleStorage::Loaned(s) => Some(SampleStorage::Loaned(s.clone())),
+            },
+            None => None,
+        }
     }
 
     // Deprecated as this function can panic
     #[deprecated]
-    pub (crate)fn get(&self) -> Option<Arc<T>> {
+    pub(crate) fn get(&self) -> Option<Arc<T>> {
         //let t = self.sample;
         match &self.sample {
             Some(SampleStorage::Owned(t)) => Some(t.clone()),
-            Some(SampleStorage::Loaned(_t)) => {
-                None
-            }
-            None => {
-                None
-            }
+            Some(SampleStorage::Loaned(_t)) => None,
+            None => None,
         }
     }
 
-    pub(crate) fn set_serdata(&mut self,serdata:*mut ddsi_serdata) {
+    pub(crate) fn set_serdata(&mut self, serdata: *mut ddsi_serdata) {
         // Increment the reference count
-        unsafe {ddsi_serdata_addref(serdata);}
+        unsafe {
+            ddsi_serdata_addref(serdata);
+        }
         self.serdata = Some(serdata)
     }
 
@@ -260,7 +251,7 @@ where
 
     pub fn from(it: Arc<T>) -> Self {
         Self {
-            serdata : None,
+            serdata: None,
             sample: Some(SampleStorage::Owned(it)),
         }
     }
@@ -269,7 +260,7 @@ where
 impl<T> Default for Sample<T> {
     fn default() -> Self {
         Self {
-            serdata : None,
+            serdata: None,
             sample: None,
         }
     }
@@ -278,13 +269,10 @@ impl<T> Default for Sample<T> {
 impl<T> Drop for Sample<T> {
     fn drop(&mut self) {
         if let Some(serdata) = self.serdata {
-            unsafe {ddsi_serdata_removeref(serdata)};
+            unsafe { ddsi_serdata_removeref(serdata) };
         }
     }
 }
-
-
-
 
 ///
 /// TODO: UNSAFE WARNING Review needed. Forcing SampleBuffer<T> to be Send
@@ -305,7 +293,7 @@ pub struct SampleBuffer<T> {
     pub(crate) sample_info: Vec<cyclonedds_sys::dds_sample_info>,
 }
 
-impl<'a, T:TopicType> SampleBuffer<T> {
+impl<'a, T: TopicType> SampleBuffer<T> {
     pub fn new(len: usize) -> Self {
         let mut buf = Self {
             buffer: Vec::new(),
@@ -329,11 +317,10 @@ impl<'a, T:TopicType> SampleBuffer<T> {
         self.buffer.len()
     }
 
-    pub fn iter(&'a self) -> impl Iterator<Item = &T> {
+    pub fn iter(&'a self) -> impl Iterator<Item = &'a T> + 'a {
         let p = self.buffer.iter().filter_map(|p| {
             let sample = unsafe { &*(*p) };
             sample.try_deref()
-            
         });
         p
     }
@@ -374,7 +361,7 @@ impl <'a,T>Index<usize> for SampleBuffer<T> {
 unsafe extern "C" fn zero_samples<T>(
     _sertype: *const ddsi_sertype,
     _ptr: *mut std::ffi::c_void,
-    _len: size_t,
+    _len: usize,
 ) {
 } // empty implementation
 
@@ -383,8 +370,8 @@ extern "C" fn realloc_samples<T>(
     ptrs: *mut *mut std::ffi::c_void,
     _sertype: *const ddsi_sertype,
     old: *mut std::ffi::c_void,
-    old_count: size_t,
-    new_count: size_t,
+    old_count: usize,
+    new_count: usize,
 ) {
     //println!("realloc");
     let old = unsafe {
@@ -424,7 +411,7 @@ extern "C" fn realloc_samples<T>(
 extern "C" fn free_samples<T>(
     _sertype: *const ddsi_sertype,
     ptrs: *mut *mut std::ffi::c_void,
-    len: size_t,
+    len: usize,
     op: dds_free_op_t,
 ) where
     T: TopicType,
@@ -468,7 +455,7 @@ unsafe extern "C" fn serdata_from_fragchain<T>(
     sertype: *const ddsi_sertype,
     kind: u32,
     mut fragchain: *const nn_rdata,
-    size: size_t,
+    size: usize,
 ) -> *mut ddsi_serdata
 where
     T: DeserializeOwned + TopicType,
@@ -571,7 +558,7 @@ where
         // this means keyhas fits in 16 bytes
         std::ptr::null_mut()
     } else {
-        let mut serdata = SerData::<T>::new(sertype, ddsi_serdata_kind_SDK_KEY);
+        let mut serdata = SerData::<T>::new(sertype, SDK_KEY);
         serdata.sample = SampleData::SDKKey;
 
         let mut key_hash_buffer = [0u8; 20];
@@ -606,12 +593,12 @@ where
 
     match kind {
         #[allow(non_upper_case_globals)]
-        ddsi_serdata_kind_SDK_DATA => {
+        SDK_DATA => {
             let sample = sample.get().unwrap();
             serdata.serdata.hash = sample.hash((*sertype).serdata_basehash);
             serdata.sample = SampleData::SDKData(sample);
         }
-        ddsi_serdata_kind_SDK_KEY => {
+        SDK_KEY => {
             panic!("Don't know how to create serdata from sample for SDK_KEY");
         }
         _ => panic!("Unexpected kind"),
@@ -626,9 +613,9 @@ where
 unsafe extern "C" fn serdata_from_iov<T>(
     sertype: *const ddsi_sertype,
     kind: u32,
-    niov: size_t,
+    niov: usize,
     iov: *const iovec,
-    size: size_t,
+    size: usize,
 ) -> *mut ddsi_serdata
 where
     T: DeserializeOwned + TopicType,
@@ -707,8 +694,7 @@ where
         SampleData::SDKKey => serdata.key_hash.key_length() as u32,
         // This function asks for the serialized size so we do this even for SHM Data
         SampleData::SDKData(sample) => {
-            serdata.serialized_size =
-                Some((cdr::calc_serialized_size::<T>(sample.deref())) as u32);
+            serdata.serialized_size = Some((cdr::calc_serialized_size::<T>(sample.deref())) as u32);
             *serdata.serialized_size.as_ref().unwrap()
         }
         SampleData::SHMData(_sample) => {
@@ -736,8 +722,8 @@ unsafe extern "C" fn eqkey<T>(
 #[allow(dead_code)]
 unsafe extern "C" fn serdata_to_ser<T>(
     serdata: *const ddsi_serdata,
-    size: size_t,
-    offset: size_t,
+    size: usize,
+    offset: usize,
     buf: *mut c_void,
 ) where
     T: Serialize + TopicType,
@@ -766,7 +752,7 @@ unsafe extern "C" fn serdata_to_ser<T>(
             if let Err(e) = cdr::serialize_into::<_, T, _, CdrBe>(
                 buf_slice,
                 serdata.deref(),
-                Bounded(size),
+                Bounded(size as u64),
             ) {
                 panic!("Unable to serialize type {:?} due to {}", T::typename(), e);
             }
@@ -776,7 +762,7 @@ unsafe extern "C" fn serdata_to_ser<T>(
             if let Err(e) = cdr::serialize_into::<_, T, _, CdrBe>(
                 buf_slice,
                 serdata.as_ref(),
-                Bounded(size),
+                Bounded(size as u64),
             ) {
                 panic!("Unable to serialize type {:?} due to {}", T::typename(), e);
             }
@@ -787,8 +773,8 @@ unsafe extern "C" fn serdata_to_ser<T>(
 #[allow(dead_code)]
 unsafe extern "C" fn serdata_to_ser_ref<T>(
     serdata: *const ddsi_serdata,
-    offset: size_t,
-    size: size_t,
+    offset: usize,
+    size: usize,
     iov: *mut iovec,
 ) -> *mut ddsi_serdata
 where
@@ -808,7 +794,7 @@ where
             };
 
             iov.iov_base = p as *mut c_void;
-            iov.iov_len = len as size_t;
+            iov.iov_len = len as usize;
         }
         SampleData::SDKData(sample) => {
             if serdata.cdr.is_none() {
@@ -824,7 +810,7 @@ where
                 // cdds rounds up the length into multiple of 4. We mirror that by allocating extra in the
                 // ``serialize_type`` function.
                 iov.iov_base = cdr.as_ptr() as *mut c_void;
-                iov.iov_len = size; //cdr.len() as size_t;
+                iov.iov_len = size; //cdr.len() as usize;
             } else {
                 println!("Serialization error!");
                 return std::ptr::null_mut();
@@ -840,7 +826,7 @@ where
                 let last = offset + size as usize;
                 let cdr = &cdr[offset..last];
                 iov.iov_base = cdr.as_ptr() as *mut c_void;
-                iov.iov_len = cdr.len() as size_t;
+                iov.iov_len = cdr.len() as usize;
             } else {
                 println!("Serialization error (SHM)!");
                 return std::ptr::null_mut();
@@ -874,11 +860,14 @@ unsafe extern "C" fn serdata_to_ser_unref<T>(serdata: *mut ddsi_serdata, _iov: *
     ddsi_serdata_removeref(&mut serdata.serdata)
 }
 
-fn deserialize_type<T>(data:&[u8]) -> Result<Arc<T>,()> 
-    where
-    T: DeserializeOwned {
-        cdr::deserialize::<Box<T>>(data).map(Arc::from).map_err(|_e|())
-    }
+fn deserialize_type<T>(data: &[u8]) -> Result<Arc<T>, ()>
+where
+    T: DeserializeOwned,
+{
+    cdr::deserialize::<Box<T>>(data)
+        .map(Arc::from)
+        .map_err(|_e| ())
+}
 
 #[allow(dead_code)]
 unsafe extern "C" fn serdata_to_sample<T>(
@@ -902,13 +891,13 @@ where
     let ret = if !serdata.serdata.iox_chunk.is_null() {
         // We got data from Iceoryx, deal with it
         let hdr = iceoryx_header_from_chunk(serdata.serdata.iox_chunk);
-        if (*hdr).shm_data_state == iox_shm_data_state_t_IOX_CHUNK_CONTAINS_SERIALIZED_DATA {
+        if (*hdr).shm_data_state == IOX_CHUNK_CONTAINS_SERIALIZED_DATA {
             // we have to deserialize the data now
             let reader = std::slice::from_raw_parts(
                 serdata.serdata.iox_chunk as *const u8,
                 (*hdr).data_size as usize,
             );
-            if serdata.serdata.kind == ddsi_serdata_kind_SDK_KEY {
+            if serdata.serdata.kind == SDK_KEY {
                 compute_key_hash(reader, serdata);
                 serdata.sample = SampleData::SDKKey;
                 Ok(())
@@ -978,7 +967,7 @@ unsafe extern "C" fn serdata_to_untyped<T>(serdata: *const ddsi_serdata) -> *mut
     let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
 
     //if let SampleData::<T>::SDKData(_d) = &serdata.sample {
-    let mut untyped_serdata = SerData::<T>::new(serdata.serdata.type_, ddsi_serdata_kind_SDK_KEY);
+    let mut untyped_serdata = SerData::<T>::new(serdata.serdata.type_, SDK_KEY);
     // untype it
     untyped_serdata.serdata.type_ = std::ptr::null_mut();
     untyped_serdata.sample = SampleData::SDKKey;
@@ -1047,8 +1036,8 @@ unsafe extern "C" fn print<T>(
     _sertype: *const ddsi_sertype,
     _serdata: *const ddsi_serdata,
     _buf: *mut std::os::raw::c_char,
-    _bufsize: size_t,
-) -> size_t {
+    _bufsize: usize,
+) -> usize {
     0
 }
 
@@ -1116,7 +1105,7 @@ unsafe extern "C" fn from_iox_buffer<T>(
 
 fn create_serdata_ops<T>() -> Box<ddsi_serdata_ops>
 where
-    T: DeserializeOwned + TopicType + Serialize ,
+    T: DeserializeOwned + TopicType + Serialize,
 {
     Box::new(ddsi_serdata_ops {
         eqkey: Some(eqkey::<T>),
@@ -1147,7 +1136,7 @@ where
 // just returns 0
 // Update! : Now I understand this after debugging crashes when stress testing
 // with a large number of types being published. This hash is used as the hash
-// lookup in hopscotch.c. 
+// lookup in hopscotch.c.
 // /*
 //  * The hopscotch hash table is dependent on a proper functioning hash.
 //  * If the hash function generates a lot of hash collisions, then it will
@@ -1158,21 +1147,18 @@ where
 //  * When proper distributed hash values are generated, then hopscotch
 //  * works nice and quickly.
 //  */
-
-unsafe extern "C" fn hash<T: TopicType>(tp: *const ddsi_sertype) -> u32  
-{
+unsafe extern "C" fn hash<T: TopicType>(tp: *const ddsi_sertype) -> u32 {
     if let Some(ser_type) = SerType::<T>::try_from_sertype(tp) {
-        let type_name =  CStr::from_ptr(ser_type.sertype.type_name);
+        let type_name = CStr::from_ptr(ser_type.sertype.type_name);
         let type_name_bytes = type_name.to_bytes();
         let type_size = core::mem::size_of::<T>().to_ne_bytes();
-        let sg_list = [type_name_bytes,&type_size];
+        let sg_list = [type_name_bytes, &type_size];
         let mut sg_buffer = SGReader::new(&sg_list);
 
         let hash = murmur3_32(&mut sg_buffer, 0);
-        
+
         let _intentional_leak = SerType::<T>::into_sertype(ser_type);
         hash.unwrap_or(0)
-
     } else {
         0
     }
@@ -1197,7 +1183,6 @@ impl<T> Default for SampleData<T> {
         Self::Uninitialized
     }
 }
-
 
 #[derive(PartialEq, Clone)]
 enum KeyHash {
@@ -1231,7 +1216,7 @@ impl KeyHash {
 
 /// A representation for the serialized data.
 #[repr(C)]
-pub (crate)struct SerData<T> {
+pub(crate) struct SerData<T> {
     serdata: ddsi_serdata,
     sample: SampleData<T>,
     //data in CDR format. This is put into an option as we only create
@@ -1273,23 +1258,26 @@ impl<'a, T> SerData<T> {
     }
 }
 
-impl <T>Clone for SerData<T> {
+impl<T> Clone for SerData<T> {
     fn clone(&self) -> Self {
-        Self { 
-                serdata: {
-                    let mut newdata = self.serdata;
-                    unsafe {ddsi_serdata_addref(&mut newdata)};
-                    newdata
-                }, sample:  match &self.sample {
-                        SampleData::Uninitialized => SampleData::Uninitialized,
-                        SampleData::SDKKey => SampleData::SDKKey,
-                        SampleData::SDKData(d) => SampleData::SDKData(d.clone()),
-                        SampleData::SHMData(d) => SampleData::SHMData(*d),
-                    }, cdr: self.cdr.clone(), key_hash: self.key_hash.clone(), serialized_size: self.serialized_size }
+        Self {
+            serdata: {
+                let mut newdata = self.serdata;
+                unsafe { ddsi_serdata_addref(&mut newdata) };
+                newdata
+            },
+            sample: match &self.sample {
+                SampleData::Uninitialized => SampleData::Uninitialized,
+                SampleData::SDKKey => SampleData::SDKKey,
+                SampleData::SDKData(d) => SampleData::SDKData(d.clone()),
+                SampleData::SHMData(d) => SampleData::SHMData(*d),
+            },
+            cdr: self.cdr.clone(),
+            key_hash: self.key_hash.clone(),
+            serialized_size: self.serialized_size,
+        }
     }
-} 
-
-
+}
 
 /*  These functions are created from the macros in
     https://github.com/eclipse-cyclonedds/cyclonedds/blob/f879dc0ef56eb00857c0cbb66ee87c577ff527e8/src/core/ddsi/include/dds/ddsi/q_radmin.h#L108
@@ -1310,7 +1298,7 @@ fn nn_rmsg_payload_offset(rmsg: *const nn_rmsg, offset: usize) -> *const u8 {
 
 /// A reader for a list of scatter gather buffers
 struct SGReader<'a> {
-    sc_list: Option<  &'a[&'a [u8]]>,
+    sc_list: Option<&'a [&'a [u8]]>,
     //the current slice that is used
     slice_cursor: usize,
     //the current offset within the slice
@@ -1318,7 +1306,7 @@ struct SGReader<'a> {
 }
 
 impl<'a> SGReader<'a> {
-    pub fn new(sc_list: &'a[&'a [u8]]) -> Self {
+    pub fn new(sc_list: &'a [&'a [u8]]) -> Self {
         SGReader {
             sc_list: Some(sc_list),
             slice_cursor: 0,
