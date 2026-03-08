@@ -5,3 +5,6 @@ fmt:
 check-fmt:
 	cargo fmt --all -- --check
 	cargo clippy --all -- -D warnings
+
+test:
+	cargo test --all -- --test-threads=1

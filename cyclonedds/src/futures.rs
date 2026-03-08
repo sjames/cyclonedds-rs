@@ -52,7 +52,7 @@ where
 
 /// DataReader用のListenerとWakerの組み合わせを作成する
 ///
-/// データ到達時はOK、Deadline超えとalive count変化時はReaderが判断できるようにエラーをセットする
+/// データ到達時はOK、Deadline超えはReaderが判断できるようにエラーをセットする
 pub(crate) fn data_reader_listener() -> (DdsListener, ReaderType) {
     let waker = Arc::new((AtomicWaker::new(), Mutex::new(None)));
 
@@ -69,14 +69,6 @@ pub(crate) fn data_reader_listener() -> (DdsListener, ReaderType) {
             move |_entity, _status| {
                 // deadlineを守れなかった場合に起こす
                 *waker.1.lock().unwrap() = Some(ReaderError::RequestedDeadLineMissed);
-                waker.0.wake();
-            }
-        })
-        .on_liveliness_changed({
-            let waker = waker.clone();
-            move |_entity, status| {
-                // publisherのlivelinessが変化したら起こす
-                *waker.1.lock().unwrap() = Some(ReaderError::ChangeAliveCount(status.alive_count));
                 waker.0.wake();
             }
         })

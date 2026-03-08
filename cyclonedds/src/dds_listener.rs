@@ -14,34 +14,45 @@
     limitations under the License.
 */
 
-//! A Listner can be attached to different types of entities. The callbacks that
-//! are supported depends on the type of entity. There is no checking for whether
-//! an entity supports the callback.
+//! DdsListenerはDDSのイベントを受け取るための構造体です。
+//! DdsListenerBuilderを使用して、必要なイベントのコールバックを登録し、build()メソッドでDdsListenerを生成します。
+//!
 //! # Example
-//! ```
-//! use cyclonedds_rs::DdsListener;
-//! let listener = DdsListener::new()
-//!   .on_subscription_matched(|a,b| {
-//!     println!("Subscription matched!");
-//! }).on_publication_matched(|a,b|{
-//!     println!("Publication matched");
-//! }).
-//! hook(); // The hook call will finalize the listener. No more callbacks can be attached after this.
+//! ```no_run
+//! use cyclonedds_rs::DdsListenerBuilder;
+//! use cyclonedds_rs::error::ReaderError;
+//! use futures_util::task::AtomicWaker;
+//! use std::sync::{Arc, Mutex};
+//!
+//! let waker = Arc::new((AtomicWaker::new(), Mutex::new(None::<ReaderError>)));
+//!
+//! let listener = DdsListenerBuilder::new()
+//!     .on_data_available({
+//!         let waker = waker.clone();
+//!         move |_entity| {
+//!             waker.0.wake();
+//!         }
+//!     })
+//!     .on_requested_deadline_missed({
+//!         let waker = waker.clone();
+//!         move |_entity, _status| {
+//!             *waker.1.lock().unwrap() = Some(ReaderError::RequestedDeadLineMissed);
+//!             waker.0.wake();
+//!         }
+//!     })
+//!     .build();
+//!
+//! let _ = listener;
 //! ```
 
 use cyclonedds_sys::dds_listener_t;
 use cyclonedds_sys::*;
 use std::convert::From;
 
-/*
- Each listener has its own set of callbacks.
-*/
-
-/// The callbacks are in a different structure that is always
-/// heap allocated.
+// コールバックは常にヒープ上に確保した別構造体で保持する。
 #[derive(Default)]
 struct Callbacks {
-    // Callbacks for readers
+    // Reader 向けコールバック
     on_sample_lost: Option<Box<dyn FnMut(DdsEntity, dds_sample_lost_status_t) + 'static>>,
     on_data_available: Option<Box<dyn FnMut(DdsEntity) + 'static>>,
     on_sample_rejected: Option<Box<dyn FnMut(DdsEntity, dds_sample_rejected_status_t) + 'static>>,
@@ -54,7 +65,7 @@ struct Callbacks {
     on_subscription_matched:
         Option<Box<dyn FnMut(DdsEntity, dds_subscription_matched_status_t) + 'static>>,
 
-    //callbacks for writers
+    // Writer 向けコールバック
     on_liveliness_lost: Option<Box<dyn FnMut(DdsEntity, dds_liveliness_lost_status_t) + 'static>>,
     on_offered_deadline_missed:
         Option<Box<dyn FnMut(DdsEntity, dds_offered_deadline_missed_status_t) + 'static>>,
@@ -68,90 +79,76 @@ struct Callbacks {
     on_data_on_readers: Option<Box<dyn FnMut(DdsEntity) + 'static>>,
 }
 
+// [DdsListener]を別スレッドに渡すためにマーカートレイトを付与している
+//
+// # Safety
+//
+// 実用上Innerは作成時にHeap上に確保されて変更されないので、SendとSyncを実装しても安全
 unsafe impl Send for Inner {}
+unsafe impl Sync for Inner {}
+
+// DdsListenerの内部構造体
+// dds_listenerインスタンスとそれに対応するコールバック構造体を保持する
 struct Inner {
-    listener: Option<*mut dds_listener_t>,
-    callbacks: Option<Box<Callbacks>>,
-    raw_ptr: Option<*mut Callbacks>,
+    listener: *mut dds_listener_t,
+    raw_ptr: *mut Callbacks,
 }
 
-#[derive(Clone)]
-pub struct DdsListener {
-    inner: std::sync::Arc<std::sync::Mutex<Inner>>,
+impl Inner {
+    fn new(listener: *mut dds_listener_t, raw_ptr: *mut Callbacks) -> Self {
+        Self { listener, raw_ptr }
+    }
 }
 
-impl DdsListener {
-    pub fn new() -> Self {
-        Self {
-            inner: std::sync::Arc::new(std::sync::Mutex::new(Inner {
-                listener: None,
-                callbacks: Some(Box::default()),
-                raw_ptr: None,
-            })),
+impl Drop for Inner {
+    fn drop(&mut self) {
+        unsafe {
+            dds_reset_listener(self.listener);
+            dds_delete_listener(self.listener);
+        }
+        unsafe {
+            let _ = Box::from_raw(self.raw_ptr);
         }
     }
 }
 
-impl Default for DdsListener {
-    fn default() -> Self {
-        DdsListener::new()
+/// DDSのイベントを受け取るための構造体
+#[derive(Clone)]
+pub struct DdsListener {
+    inner: std::sync::Arc<Inner>,
+}
+
+impl DdsListener {
+    fn new(callbacks: Callbacks) -> Self {
+        // heapに移動
+        let callbacks = Box::new(callbacks);
+
+        let inner = unsafe {
+            let callbacks_ptr = Box::into_raw(callbacks);
+            let l = dds_create_listener(callbacks_ptr as *mut std::ffi::c_void);
+            if l.is_null() {
+                panic!("Error creating listener");
+            }
+            Self::register_callbacks(l, &*callbacks_ptr);
+            Inner::new(l, callbacks_ptr)
+        };
+
+        DdsListener {
+            inner: std::sync::Arc::new(inner),
+        }
     }
 }
 
 impl From<&DdsListener> for *const dds_listener_t {
     fn from(listener: &DdsListener) -> Self {
-        if let Some(listener) = listener.inner.lock().unwrap().listener {
-            listener
-        } else {
-            panic!("Attempt to convert from unitialized &listener");
-        }
+        listener.inner.listener
     }
 }
 
 impl DdsListener {
-    // take ownership as we're going to do some bad stuff here.
-    pub fn hook(self) -> Self {
-        // we're going to grab the Boxed callbacks and keep them separately as
-        // we will send a pointer to the callback array into C. We convert the
-        // pointer back to a box in the Drop function.
-
-        // free the previous pointer if present
-        if let Some(raw) = self.inner.lock().unwrap().raw_ptr.take() {
-            unsafe {
-                // take ownership and free when out of scope
-                let _ = Box::from_raw(raw);
-            }
-        }
-
-        let inner = &self.inner;
-
-        {
-            let mut inner = inner.lock().unwrap();
-            if let Some(b) = inner.callbacks.take() {
-                let raw = Box::into_raw(b);
-                unsafe {
-                    let l = dds_create_listener(raw as *mut std::ffi::c_void);
-                    if !l.is_null() {
-                        let callbacks_ptr = raw as *mut Callbacks;
-                        let callbacks = &*callbacks_ptr;
-                        self.register_callbacks(l, callbacks);
-                        inner.raw_ptr = Some(raw);
-                        inner.listener = Some(l);
-                    } else {
-                        panic!("Error creating listener");
-                    }
-                }
-            } else {
-                println!("No callbacks to take");
-            }
-        }
-        self
-    }
-
-    /// register the callbacks for the closures that have been set.DdsListener
-    unsafe fn register_callbacks(&self, listener: *mut dds_listener_t, callbacks: &Callbacks) {
+    /// 設定済みクロージャに対応するコールバックを C Listener に登録する。
+    unsafe fn register_callbacks(listener: *mut dds_listener_t, callbacks: &Callbacks) {
         if callbacks.on_data_available.is_some() {
-            //println!("Listener hooked for data available");
             dds_lset_data_available(listener, Some(Self::call_data_available_closure));
         }
         if callbacks.on_sample_lost.is_some() {
@@ -172,14 +169,12 @@ impl DdsListener {
                 Some(Self::call_requested_deadline_missed_closure),
             );
         }
-
         if callbacks.on_requested_incompatible_qos.is_some() {
             dds_lset_requested_incompatible_qos(
                 listener,
                 Some(Self::call_requested_incompatible_qos_closure),
             );
         }
-
         if callbacks.on_subscription_matched.is_some() {
             dds_lset_subscription_matched(listener, Some(Self::call_subscription_matched_closure));
         }
@@ -210,44 +205,16 @@ impl DdsListener {
     }
 }
 
-//////
 impl DdsListener {
-    #[deprecated]
-    pub fn on_data_available<F>(self, callback: F) -> Self
-    where
-        F: FnMut(DdsEntity) + 'static,
-    {
-        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
-            callbacks.on_data_available = Some(Box::new(callback));
-        }
-
-        self
-    }
-
     unsafe extern "C" fn call_data_available_closure(
         reader: dds_entity_t,
         data: *mut std::ffi::c_void,
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        //        println!("C Callback!");
         if let Some(avail) = &mut callbacks.on_data_available {
             avail(DdsEntity::new(reader));
         }
-    }
-}
-
-impl DdsListener {
-    /////
-    #[deprecated]
-    pub fn on_sample_lost<F>(self, callback: F) -> Self
-    where
-        F: FnMut(DdsEntity, dds_sample_lost_status_t) + 'static,
-    {
-        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
-            callbacks.on_sample_lost = Some(Box::new(callback));
-        }
-        self
     }
 
     unsafe extern "C" fn call_sample_lost_closure(
@@ -257,24 +224,9 @@ impl DdsListener {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        //println!("C Callback - sample lost");
         if let Some(lost) = &mut callbacks.on_sample_lost {
             lost(DdsEntity::new(reader), status);
         }
-    }
-}
-
-impl DdsListener {
-    //////
-    #[deprecated]
-    pub fn on_sample_rejected<F>(self, callback: F) -> Self
-    where
-        F: FnMut(DdsEntity, dds_sample_rejected_status_t) + 'static,
-    {
-        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
-            callbacks.on_sample_rejected = Some(Box::new(callback));
-        }
-        self
     }
 
     unsafe extern "C" fn call_sample_rejected_closure(
@@ -284,24 +236,9 @@ impl DdsListener {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        //println!("C Callback - sample rejected");
         if let Some(rejected) = &mut callbacks.on_sample_rejected {
             rejected(DdsEntity::new(reader), status);
         }
-    }
-}
-
-// Liveliness changed
-impl DdsListener {
-    #[deprecated]
-    pub fn on_liveliness_changed<F>(self, callback: F) -> Self
-    where
-        F: FnMut(DdsEntity, dds_liveliness_changed_status_t) + 'static,
-    {
-        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
-            callbacks.on_liveliness_changed = Some(Box::new(callback));
-        }
-        self
     }
 
     unsafe extern "C" fn call_liveliness_changed_closure(
@@ -311,23 +248,9 @@ impl DdsListener {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        //println!("C Callback - Liveliness changed");
         if let Some(changed) = &mut callbacks.on_liveliness_changed {
             changed(DdsEntity::new(entity), status);
         }
-    }
-}
-
-impl DdsListener {
-    #[deprecated]
-    pub fn on_requested_deadline_missed<F>(self, callback: F) -> Self
-    where
-        F: FnMut(DdsEntity, dds_requested_deadline_missed_status_t) + 'static,
-    {
-        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
-            callbacks.on_requested_deadline_missed = Some(Box::new(callback));
-        }
-        self
     }
 
     unsafe extern "C" fn call_requested_deadline_missed_closure(
@@ -337,23 +260,9 @@ impl DdsListener {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        //println!("C Callback - requested deadline missed");
         if let Some(missed) = &mut callbacks.on_requested_deadline_missed {
             missed(DdsEntity::new(entity), status);
         }
-    }
-}
-
-impl DdsListener {
-    #[deprecated]
-    pub fn on_requested_incompatible_qos<F>(self, callback: F) -> Self
-    where
-        F: FnMut(DdsEntity, dds_requested_incompatible_qos_status_t) + 'static,
-    {
-        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
-            callbacks.on_requested_incompatible_qos = Some(Box::new(callback));
-        }
-        self
     }
 
     unsafe extern "C" fn call_requested_incompatible_qos_closure(
@@ -363,23 +272,9 @@ impl DdsListener {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        //println!("C Callback - requested incompatible QOS");
         if let Some(incompatible_qos) = &mut callbacks.on_requested_incompatible_qos {
             incompatible_qos(DdsEntity::new(entity), status);
         }
-    }
-}
-
-impl DdsListener {
-    #[deprecated]
-    pub fn on_subscription_matched<F>(self, callback: F) -> Self
-    where
-        F: FnMut(DdsEntity, dds_subscription_matched_status_t) + 'static,
-    {
-        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
-            callbacks.on_subscription_matched = Some(Box::new(callback));
-        }
-        self
     }
 
     unsafe extern "C" fn call_subscription_matched_closure(
@@ -389,23 +284,9 @@ impl DdsListener {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        //println!("C Callback - subscription matched");
         if let Some(matched) = &mut callbacks.on_subscription_matched {
             matched(DdsEntity::new(entity), status);
         }
-    }
-}
-
-impl DdsListener {
-    #[deprecated]
-    pub fn on_liveliness_lost<F>(self, callback: F) -> Self
-    where
-        F: FnMut(DdsEntity, dds_liveliness_lost_status_t) + 'static,
-    {
-        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
-            callbacks.on_liveliness_lost = Some(Box::new(callback));
-        }
-        self
     }
 
     unsafe extern "C" fn call_liveliness_lost_closure(
@@ -415,23 +296,9 @@ impl DdsListener {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        //println!("C Callback - liveliness lost");
         if let Some(lost) = &mut callbacks.on_liveliness_lost {
             lost(DdsEntity::new(entity), status);
         }
-    }
-}
-
-impl DdsListener {
-    #[deprecated]
-    pub fn on_offered_deadline_missed<F>(self, callback: F) -> Self
-    where
-        F: FnMut(DdsEntity, dds_offered_deadline_missed_status_t) + 'static,
-    {
-        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
-            callbacks.on_offered_deadline_missed = Some(Box::new(callback));
-        }
-        self
     }
 
     unsafe extern "C" fn call_offered_deadline_missed_closure(
@@ -441,23 +308,9 @@ impl DdsListener {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        //println!("C Callback - offered deadline missed");
         if let Some(missed) = &mut callbacks.on_offered_deadline_missed {
             missed(DdsEntity::new(entity), status);
         }
-    }
-}
-
-impl DdsListener {
-    #[deprecated]
-    pub fn on_offered_incompatible_qos<F>(self, callback: F) -> Self
-    where
-        F: FnMut(DdsEntity, dds_offered_incompatible_qos_status_t) + 'static,
-    {
-        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
-            callbacks.on_offered_incompatible_qos = Some(Box::new(callback));
-        }
-        self
     }
 
     unsafe extern "C" fn call_offered_incompatible_qos_closure(
@@ -467,23 +320,9 @@ impl DdsListener {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        //println!("C Callback - offered incompatible QOS");
         if let Some(incompatible) = &mut callbacks.on_offered_incompatible_qos {
             incompatible(DdsEntity::new(entity), status);
         }
-    }
-}
-
-impl DdsListener {
-    #[deprecated]
-    pub fn on_publication_matched<F>(self, callback: F) -> Self
-    where
-        F: FnMut(DdsEntity, dds_publication_matched_status_t) + 'static,
-    {
-        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
-            callbacks.on_publication_matched = Some(Box::new(callback));
-        }
-        self
     }
 
     unsafe extern "C" fn call_publication_matched_closure(
@@ -493,23 +332,9 @@ impl DdsListener {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        //println!("C Callback - publication matched");
         if let Some(matched) = &mut callbacks.on_publication_matched {
             matched(DdsEntity::new(entity), status);
         }
-    }
-}
-
-impl DdsListener {
-    #[deprecated]
-    pub fn on_inconsistent_topic<F>(self, callback: F) -> Self
-    where
-        F: FnMut(DdsEntity, dds_inconsistent_topic_status_t) + 'static,
-    {
-        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
-            callbacks.on_inconsistent_topic = Some(Box::new(callback));
-        }
-        self
     }
 
     unsafe extern "C" fn call_inconsistent_topic_closure(
@@ -519,23 +344,9 @@ impl DdsListener {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        //println!("C Callback - inconsistent topic");
         if let Some(inconsistant) = &mut callbacks.on_inconsistent_topic {
             inconsistant(DdsEntity::new(entity), status);
         }
-    }
-}
-
-impl DdsListener {
-    #[deprecated]
-    pub fn on_data_on_readers<F>(self, callback: F) -> Self
-    where
-        F: FnMut(DdsEntity) + 'static,
-    {
-        if let Some(callbacks) = &mut self.inner.lock().unwrap().callbacks {
-            callbacks.on_data_on_readers = Some(Box::new(callback));
-        }
-        self
     }
 
     unsafe extern "C" fn call_data_on_readers_closure(
@@ -544,284 +355,159 @@ impl DdsListener {
     ) {
         let callbacks_ptr = data as *mut Callbacks;
         let callbacks = &mut *callbacks_ptr;
-        //println!("C Callback - data on readers");
         if let Some(data) = &mut callbacks.on_data_on_readers {
             data(DdsEntity::new(entity));
         }
     }
 }
 
-impl Drop for DdsListener {
-    fn drop(&mut self) {
-        // delete the listener so we are sure of not
-        // getting any callbacks
-        if let Some(listener) = &self.inner.lock().unwrap().listener {
-            unsafe {
-                dds_reset_listener(*listener);
-                dds_delete_listener(*listener);
-            }
-        }
-        // gain back control of the Callback structure
-        if let Some(raw) = self.inner.lock().unwrap().raw_ptr.take() {
-            unsafe {
-                // take ownership and free when out of scope
-                let _ = Box::from_raw(raw);
-            }
-        }
-    }
-}
-
+/// DdsListener を構築するためのビルダー
 #[derive(Default)]
 pub struct DdsListenerBuilder {
-    listener: Option<DdsListener>,
+    callbacks: Callbacks,
 }
 
 impl DdsListenerBuilder {
     pub fn new() -> Self {
         Self {
-            listener: Some(DdsListener::new()),
+            callbacks: Callbacks::default(),
         }
     }
 
-    pub fn build(&mut self) -> DdsListener {
-        self.listener.take().unwrap().hook()
+    /// 設定済みのコールバックをフックして `DdsListener` を生成する。
+    ///
+    /// `self` を消費して `DdsListener` を返すため、
+    /// 型システム上、同じビルダーで複数回 `build()` を呼ぶことはできない。
+    #[must_use]
+    pub fn build(self) -> DdsListener {
+        DdsListener::new(self.callbacks)
     }
 
-    pub fn on_data_available<F>(&mut self, callback: F) -> &mut Self
+    /// Reader の `data_available` コールバックを登録する。
+    ///
+    /// データ到着時に `callback(entity)` が呼び出される。
+    pub fn on_data_available<F>(mut self, callback: F) -> Self
     where
         F: FnMut(DdsEntity) + 'static,
     {
-        if let Some(callbacks) = &mut self
-            .listener
-            .as_ref()
-            .unwrap()
-            .inner
-            .lock()
-            .unwrap()
-            .callbacks
-        {
-            callbacks.on_data_available = Some(Box::new(callback));
-        }
-
+        self.callbacks.on_data_available = Some(Box::new(callback));
         self
     }
 
-    /////
-    pub fn on_sample_lost<F>(&mut self, callback: F) -> &mut Self
+    /// Reader の `sample_lost` コールバックを登録する。
+    pub fn on_sample_lost<F>(mut self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_sample_lost_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self
-            .listener
-            .as_ref()
-            .unwrap()
-            .inner
-            .lock()
-            .unwrap()
-            .callbacks
-        {
-            callbacks.on_sample_lost = Some(Box::new(callback));
-        }
+        self.callbacks.on_sample_lost = Some(Box::new(callback));
         self
     }
 
-    //////
-    pub fn on_sample_rejected<F>(&mut self, callback: F) -> &mut Self
+    /// Reader の `sample_rejected` コールバックを登録する。
+    pub fn on_sample_rejected<F>(mut self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_sample_rejected_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self
-            .listener
-            .as_ref()
-            .unwrap()
-            .inner
-            .lock()
-            .unwrap()
-            .callbacks
-        {
-            callbacks.on_sample_rejected = Some(Box::new(callback));
-        }
+        self.callbacks.on_sample_rejected = Some(Box::new(callback));
         self
     }
 
-    // Liveliness changed
-    pub fn on_liveliness_changed<F>(&mut self, callback: F) -> &mut Self
+    /// Reader の `liveliness_changed` コールバックを登録する。
+    ///
+    /// participantの参加、離脱で呼び出される
+    pub fn on_liveliness_changed<F>(mut self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_liveliness_changed_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self
-            .listener
-            .as_ref()
-            .unwrap()
-            .inner
-            .lock()
-            .unwrap()
-            .callbacks
-        {
-            callbacks.on_liveliness_changed = Some(Box::new(callback));
-        }
+        self.callbacks.on_liveliness_changed = Some(Box::new(callback));
         self
     }
 
-    pub fn on_requested_deadline_missed<F>(&mut self, callback: F) -> &mut Self
+    /// Reader の `requested_deadline_missed` コールバックを登録する。
+    pub fn on_requested_deadline_missed<F>(mut self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_requested_deadline_missed_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self
-            .listener
-            .as_ref()
-            .unwrap()
-            .inner
-            .lock()
-            .unwrap()
-            .callbacks
-        {
-            callbacks.on_requested_deadline_missed = Some(Box::new(callback));
-        }
+        self.callbacks.on_requested_deadline_missed = Some(Box::new(callback));
         self
     }
 
-    pub fn on_requested_incompatible_qos<F>(&mut self, callback: F) -> &mut Self
+    /// Reader の `requested_incompatible_qos` コールバックを登録する。
+    pub fn on_requested_incompatible_qos<F>(mut self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_requested_incompatible_qos_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self
-            .listener
-            .as_ref()
-            .unwrap()
-            .inner
-            .lock()
-            .unwrap()
-            .callbacks
-        {
-            callbacks.on_requested_incompatible_qos = Some(Box::new(callback));
-        }
+        self.callbacks.on_requested_incompatible_qos = Some(Box::new(callback));
         self
     }
 
-    pub fn on_subscription_matched<F>(&mut self, callback: F) -> &mut Self
+    /// Reader の `subscription_matched` コールバックを登録する。
+    pub fn on_subscription_matched<F>(mut self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_subscription_matched_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self
-            .listener
-            .as_ref()
-            .unwrap()
-            .inner
-            .lock()
-            .unwrap()
-            .callbacks
-        {
-            callbacks.on_subscription_matched = Some(Box::new(callback));
-        }
+        self.callbacks.on_subscription_matched = Some(Box::new(callback));
+
         self
     }
 
-    pub fn on_liveliness_lost<F>(&mut self, callback: F) -> &mut Self
+    /// Writer の `liveliness_lost` コールバックを登録する。
+    pub fn on_liveliness_lost<F>(mut self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_liveliness_lost_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self
-            .listener
-            .as_ref()
-            .unwrap()
-            .inner
-            .lock()
-            .unwrap()
-            .callbacks
-        {
-            callbacks.on_liveliness_lost = Some(Box::new(callback));
-        }
+        self.callbacks.on_liveliness_lost = Some(Box::new(callback));
+
         self
     }
 
-    pub fn on_offered_deadline_missed<F>(&mut self, callback: F) -> &mut Self
+    /// Writer の `offered_deadline_missed` コールバックを登録する。
+    pub fn on_offered_deadline_missed<F>(mut self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_offered_deadline_missed_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self
-            .listener
-            .as_ref()
-            .unwrap()
-            .inner
-            .lock()
-            .unwrap()
-            .callbacks
-        {
-            callbacks.on_offered_deadline_missed = Some(Box::new(callback));
-        }
+        self.callbacks.on_offered_deadline_missed = Some(Box::new(callback));
+
         self
     }
 
-    pub fn on_offered_incompatible_qos<F>(&mut self, callback: F) -> &mut Self
+    /// Writer の `offered_incompatible_qos` コールバックを登録する。
+    pub fn on_offered_incompatible_qos<F>(mut self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_offered_incompatible_qos_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self
-            .listener
-            .as_ref()
-            .unwrap()
-            .inner
-            .lock()
-            .unwrap()
-            .callbacks
-        {
-            callbacks.on_offered_incompatible_qos = Some(Box::new(callback));
-        }
+        self.callbacks.on_offered_incompatible_qos = Some(Box::new(callback));
+
         self
     }
 
-    pub fn on_publication_matched<F>(&mut self, callback: F) -> &mut Self
+    /// Writer の `publication_matched` コールバックを登録する。
+    pub fn on_publication_matched<F>(mut self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_publication_matched_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self
-            .listener
-            .as_ref()
-            .unwrap()
-            .inner
-            .lock()
-            .unwrap()
-            .callbacks
-        {
-            callbacks.on_publication_matched = Some(Box::new(callback));
-        }
+        self.callbacks.on_publication_matched = Some(Box::new(callback));
+
         self
     }
 
-    pub fn on_inconsistent_topic<F>(&mut self, callback: F) -> &mut Self
+    /// Topic の `inconsistent_topic` コールバックを登録する。
+    pub fn on_inconsistent_topic<F>(mut self, callback: F) -> Self
     where
         F: FnMut(DdsEntity, dds_inconsistent_topic_status_t) + 'static,
     {
-        if let Some(callbacks) = &mut self
-            .listener
-            .as_ref()
-            .unwrap()
-            .inner
-            .lock()
-            .unwrap()
-            .callbacks
-        {
-            callbacks.on_inconsistent_topic = Some(Box::new(callback));
-        }
+        self.callbacks.on_inconsistent_topic = Some(Box::new(callback));
+
         self
     }
 
-    pub fn on_data_on_readers<F>(&mut self, callback: F) -> &mut Self
+    /// Subscriber の `data_on_readers` コールバックを登録する。
+    pub fn on_data_on_readers<F>(mut self, callback: F) -> Self
     where
         F: FnMut(DdsEntity) + 'static,
     {
-        if let Some(callbacks) = &mut self
-            .listener
-            .as_ref()
-            .unwrap()
-            .inner
-            .lock()
-            .unwrap()
-            .callbacks
-        {
-            callbacks.on_data_on_readers = Some(Box::new(callback));
-        }
+        self.callbacks.on_data_on_readers = Some(Box::new(callback));
+
         self
     }
 }
