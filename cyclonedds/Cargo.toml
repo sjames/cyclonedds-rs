@@ -1,0 +1,24 @@
+[package]
+name = "cyclonedds-rs"
+version = "0.6.4"
+description = "Safe Rust bindings for cyclonedds"
+edition.workspace = true
+license-file.workspace = true
+homepage.workspace = true
+
+[dependencies]
+cyclonedds-sys.workspace = true
+cdr = "0.2.4"
+serde = "1"
+serde_derive = "1"
+murmur3 = "0.5.1"
+
+thiserror = "1"
+rc-box = "1.2"
+
+[features]
+shm = ["cyclonedds-sys/shm"]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+cyclonedds-derive.workspace = true
