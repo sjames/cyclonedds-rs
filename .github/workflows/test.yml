@@ -1,0 +1,57 @@
+name: Build for Tests
+
+on:
+  workflow_call:
+
+jobs:
+  build-cyclonedds:
+    strategy:
+      matrix:
+        include:
+          # - os: ubuntu-22.04
+          #   arch: amd64
+          - os: ubuntu-24.04
+            arch: amd64
+          # - os: ubuntu-22.04-arm
+          #   arch: arm64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      # キャッシュの復元
+      - name: Cache debian packages
+        id: cache-deb
+        uses: actions/cache@v4
+        with:
+          path: ./deb/*.deb
+          # OSバージョン、アーキテクチャ、ビルドスクリプトのハッシュをキーにする
+          key: deb-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('vendor/Makefile', 'vendor/debian/Makefile', 'vendor/debian/Cargo-template.toml') }}
+
+      # キャッシュがなければビルドを実行
+      - uses: taiki-e/install-action@v2
+        if: steps.cache-deb.outputs.cache-hit != 'true'
+        with:
+          tool: cargo-deb
+      - name: Build deb package
+        if: steps.cache-deb.outputs.cache-hit != 'true'
+        run: |
+          # Setup and build
+          make -C vendor/ setup
+          make -C vendor/debian deb
+
+      # 常にインストールを実行
+      - name: Install dependencies
+        run: sudo dpkg -i ./deb/*.deb
+
+      - name: run fmt
+        run: make check-fmt
+
+      - name: run tests
+        run: make test

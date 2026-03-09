@@ -1,0 +1,31 @@
+name: Changes
+
+on:
+  workflow_call:
+    outputs:
+      cyclonedds-rs:
+        value: ${{ jobs.changes.outputs.cyclonedds-rs }}
+      cyclonedds-sys:
+        value: ${{ jobs.changes.outputs.cyclonedds-sys }}
+      lib:
+        value: ${{ jobs.changes.outputs.lib }}
+
+jobs:
+  changes:
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      cyclonedds-rs: ${{ steps.filter.outputs.cyclonedds-rs }}
+      cyclonedds-sys: ${{ steps.filter.outputs.cyclonedds-sys }}
+      lib: ${{ steps.filter.outputs.lib }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            cyclonedds-rs: [cyclonedds-rs/**, cyclonedds-derive/**]
+            cyclonedds-sys: [cyclonedds-sys/**]
+            lib: [vendor/cyclonedds, vendor/iceoryx]
