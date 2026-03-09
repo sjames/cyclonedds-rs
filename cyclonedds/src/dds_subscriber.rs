@@ -53,7 +53,19 @@ impl SubscriberBuilder {
 }
 
 #[derive(Clone)]
-pub struct DdsSubscriber(DdsEntity, Option<DdsListener>);
+pub struct DdsSubscriber {
+    p: DdsEntity,
+    _maybe_listener: Option<DdsListener>,
+}
+
+impl DdsSubscriber {
+    fn new(entity: DdsEntity, maybe_listener: Option<DdsListener>) -> Self {
+        Self {
+            p: entity,
+            _maybe_listener: maybe_listener,
+        }
+    }
+}
 
 impl DdsSubscriber {
     pub fn create(
@@ -70,7 +82,7 @@ impl DdsSubscriber {
                     .map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
-                Ok(DdsSubscriber(DdsEntity::new(p), maybe_listener))
+                Ok(DdsSubscriber::new(DdsEntity::new(p), maybe_listener))
             } else {
                 Err(DDSError::from(p))
             }
@@ -80,6 +92,6 @@ impl DdsSubscriber {
 
 impl DdsReadable for DdsSubscriber {
     fn entity(&self) -> &DdsEntity {
-        &self.0
+        &self.p
     }
 }

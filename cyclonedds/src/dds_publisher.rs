@@ -53,7 +53,19 @@ impl PublisherBuilder {
 }
 
 #[derive(Clone)]
-pub struct DdsPublisher(DdsEntity, Option<DdsListener>);
+pub struct DdsPublisher {
+    p: DdsEntity,
+    _maybe_listener: Option<DdsListener>,
+}
+
+impl DdsPublisher {
+    fn new(entity: DdsEntity, maybe_listener: Option<DdsListener>) -> Self {
+        Self {
+            p: entity,
+            _maybe_listener: maybe_listener,
+        }
+    }
+}
 
 impl DdsPublisher {
     pub fn create(
@@ -70,7 +82,7 @@ impl DdsPublisher {
                     .map_or(std::ptr::null(), |l| l.into()),
             );
             if p > 0 {
-                Ok(DdsPublisher(DdsEntity::new(p), maybe_listener))
+                Ok(DdsPublisher::new(DdsEntity::new(p), maybe_listener))
             } else {
                 Err(DDSError::from(p))
             }
@@ -80,6 +92,6 @@ impl DdsPublisher {
 
 impl DdsWritable for DdsPublisher {
     fn entity(&self) -> &DdsEntity {
-        &self.0
+        &self.p
     }
 }
