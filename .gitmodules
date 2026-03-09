@@ -1,0 +1,6 @@
+[submodule "vendor/cyclonedds"]
+	path = vendor/cyclonedds
+	url = https://github.com/eclipse-cyclonedds/cyclonedds.git
+[submodule "vendor/iceoryx"]
+	path = vendor/iceoryx
+	url = https://github.com/eclipse-iceoryx/iceoryx.git

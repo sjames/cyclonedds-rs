@@ -1,0 +1,69 @@
+[package]
+name = "__CRATE_NAME__"
+version = "__CRATE_VERSION__"
+edition = "2021"
+publish = false
+description = "Debian packaging metadata for CycloneDDS and iceoryx"
+homepage = "__HOMEPAGE__"
+license = "Apache-2.0"
+
+[lib]
+path = "src/lib.rs"
+
+[workspace]
+
+[package.metadata.deb]
+name = "__PACKAGE_NAME__"
+maintainer = "__MAINTAINER__"
+copyright = "__COPYRIGHT__"
+section = "libs"
+priority = "optional"
+depends = []
+assets = [
+    [
+        "../iceoryx/install/bin/*",
+        "usr/bin/",
+        "755",
+    ],
+    [
+        "../cyclonedds/install/bin/*",
+        "usr/bin/",
+        "755",
+    ],
+    [
+        "../cyclonedds/install/lib/*.so*",
+        "usr/lib/",
+        "755",
+    ],
+]
+
+[package.metadata.deb.variants.dev]
+name = "__PACKAGE_DEV_NAME__"
+depends = ["__PACKAGE_NAME__"]
+assets = [
+    [
+        "../iceoryx/install/include/**/*",
+        "usr/include/",
+        "644",
+    ],
+    [
+        "../iceoryx/install/share/**/*",
+        "usr/share/",
+        "644",
+    ],
+    [
+        "../cyclonedds/install/include/**/*",
+        "usr/include/",
+        "755",
+    ],
+    [
+        "../cyclonedds/install/share/**/*",
+        "usr/share/",
+        "755",
+    ],
+]
+
+[package.metadata.deb.variants.config]
+name = "__PACKAGE_CONFIG_NAME__"
+depends = ["__PACKAGE_NAME__"]
+assets = [["../config/cyclonedds.xml", "etc/cyclonedds/", "644"]]

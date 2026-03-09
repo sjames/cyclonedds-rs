@@ -1,0 +1,7 @@
+cyclonedds-rs (Refactored)
+Copyright 2026 uzuna
+
+This repository includes refactored derivative work based on software originally developed by Sojan James.
+Original projects:
+- https://github.com/sjames/cyclonedds-rs
+- https://github.com/sjames/cyclonedds-sys

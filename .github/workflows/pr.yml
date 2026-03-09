@@ -1,0 +1,16 @@
+name: PR Check
+on:
+  pull_request:
+    types: ["opened", "synchronize"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    uses: ./.github/workflows/changes.yml
+  tests:
+    needs: [changes]
+    if: ${{ needs.changes.outputs.cyclonedds-rs == 'true' || needs.changes.outputs.cyclonedds-sys == 'true' || needs.changes.outputs.lib == 'true' }}
+    uses: ./.github/workflows/test.yml
