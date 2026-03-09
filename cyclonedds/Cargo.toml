@@ -1,6 +1,6 @@
 [package]
 name = "cyclonedds-rs"
-version = "0.6.4"
+version = "0.7.0"
 description = "Safe Rust bindings for cyclonedds"
 edition.workspace = true
 license-file.workspace = true
