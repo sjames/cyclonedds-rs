@@ -33,3 +33,13 @@ tracing-subscriber = { version = "0.3.22", features = ["env-filter", "fmt"] }
 [[bin]]
 name = "cdds-cli"
 required-features = ["cli", "shm"]
+
+[package.metadata.deb]
+name = "cdds-cli"
+maintainer = "FUJINAKA Fumiya <uzuna.kf@gmail.com>"
+copyright = "2026, FUJINAKA Fumiya"
+section = "utils"
+priority = "optional"
+depends = ["cyclonedds-custom"]
+features = ["cli", "shm"]
+default-features = false

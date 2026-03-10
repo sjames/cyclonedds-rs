@@ -13,29 +13,6 @@ This repository is organized as a Cargo Workspace:
 - `cyclonedds-sys`: Raw FFI bindings (generated via bindgen).
 - `cyclonedds-derive`: Procedural macros for DdsType.
 
-## CLI (`cdds-cli`)
-
-`cyclonedds-rs` にはDomain内の通信状態を確認するためのCLIバイナリ `cdds-cli` が含まれています。
-
-- `ls`: 現在検出できるTopic一覧とQoSを表示
-- `top`: Topicごとのメッセージ件数/バイト数を継続表示
-
-実行例:
-
-```bash
-cargo run -p cyclonedds-rs --bin cdds-cli -F cli,shm -- ls
-cargo run -p cyclonedds-rs --bin cdds-cli -F cli,shm -- ls --scan-ms 2000
-cargo run -p cyclonedds-rs --bin cdds-cli -F cli,shm -- top --interval-ms 1000
-```
-
-ヘルプ:
-
-```bash
-cargo run -p cyclonedds-rs --bin cdds-cli -F cli,shm -- --help
-cargo run -p cyclonedds-rs --bin cdds-cli -F cli,shm -- ls --help
-cargo run -p cyclonedds-rs --bin cdds-cli -F cli,shm -- top --help
-```
-
 ## Acknowledgment
 This project is based on the initial work by [sjames](https://github.com/sjames). We have refactored the architecture to improve maintainability and developer experience.
 
@@ -70,3 +47,35 @@ The current release only supports the 0.10.X release branch. https://github.com/
 * a C/C++ compiler for cmake to use
 
 vendored 依存ライブラリのビルド手順は [vendor/README.md](vendor/README.md) を参照してください。
+
+## CLI (`cdds-cli`)
+
+`cyclonedds-rs` にはDomain内の通信状態を確認するためのCLIバイナリ `cdds-cli` が含まれています。
+
+- `ls`: 現在検出できるTopic一覧とQoSを表示
+- `top`: Topicごとのメッセージ件数/バイト数を継続表示
+
+実行例:
+
+```bash
+cargo run -p cyclonedds-rs --bin cdds-cli -F cli,shm -- ls
+cargo run -p cyclonedds-rs --bin cdds-cli -F cli,shm -- ls --scan-ms 2000
+cargo run -p cyclonedds-rs --bin cdds-cli -F cli,shm -- top --interval-ms 1000
+```
+
+ヘルプ:
+
+```bash
+cargo run -p cyclonedds-rs --bin cdds-cli -F cli,shm -- --help
+cargo run -p cyclonedds-rs --bin cdds-cli -F cli,shm -- ls --help
+cargo run -p cyclonedds-rs --bin cdds-cli -F cli,shm -- top --help
+```
+
+Debian package (`.deb`) の作成:
+
+```bash
+cargo install cargo-deb
+make deb-cdds-cli
+```
+
+生成物は `target/debian/` と `deb/` に出力されます。
