@@ -7,9 +7,13 @@
 //! - QoS詳細表示
 
 use cyclonedds_rs::dds_builtin::{BuiltinDataReader, BuiltinSamples, Publications, Subscriptions};
-use cyclonedds_rs::{DDSError, DdsParticipant, DdsQos};
+use cyclonedds_rs::untyped::Untyped;
+use cyclonedds_rs::{
+    DDSError, DdsParticipant, DdsQos, DdsReader, DdsSubscriber, DdsTopic, SampleBuffer,
+};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::Display;
+use std::io::{self, Write};
 use std::process;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -18,6 +22,9 @@ use uuid::Uuid;
 const DEFAULT_DOMAIN_ID: u32 = 0;
 const DEFAULT_SCAN_MS: u64 = 1_000;
 const DEFAULT_INTERVAL_MS: u64 = 1_000;
+const TOP_READ_BUFFER_SIZE: usize = 1024;
+const TOP_LOOP_SLEEP_MS: u64 = 50;
+const TOP_STATUS_SKIP_PREFIX: &str = "skip:";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CliConfig {
@@ -97,6 +104,44 @@ struct TopicSummary {
     sub_qos_details: BTreeSet<String>,
 }
 
+struct TopReader {
+    reader: DdsReader<Untyped>,
+    _topic: DdsTopic<Untyped>,
+    buffer: SampleBuffer<Untyped>,
+}
+
+struct TopTopicState {
+    pub_count: usize,
+    sub_count: usize,
+    msg_total: u64,
+    bytes_total: u64,
+    msg_rate: f64,
+    bytes_rate: f64,
+    last_msg_total: u64,
+    last_bytes_total: u64,
+    reader: Option<TopReader>,
+    create_error: Option<String>,
+    read_error: Option<String>,
+}
+
+impl TopTopicState {
+    fn new(pub_count: usize, sub_count: usize) -> Self {
+        Self {
+            pub_count,
+            sub_count,
+            msg_total: 0,
+            bytes_total: 0,
+            msg_rate: 0.0,
+            bytes_rate: 0.0,
+            last_msg_total: 0,
+            last_bytes_total: 0,
+            reader: None,
+            create_error: None,
+            read_error: None,
+        }
+    }
+}
+
 fn main() {
     let args = std::env::args().skip(1);
     let cli = match parse_cli(args) {
@@ -165,17 +210,13 @@ fn scan_endpoint_states(
     domain_id: u32,
     scan_ms: u64,
 ) -> Result<HashMap<Uuid, EndpointState>, String> {
-    let participant = DdsParticipant::create(Some(domain_id), None, None).map_err(|err| {
-        format!(
-            "DomainParticipant作成に失敗しました (domain={}): {}",
-            domain_id, err
-        )
-    })?;
+    let participant = DdsParticipant::create(Some(domain_id), None, None)
+        .map_err(|err| explain_participant_create_error(domain_id, err))?;
 
     let publication_reader = BuiltinDataReader::<Publications>::create(&participant, None)
-        .map_err(|err| format!("Publications reader作成に失敗しました: {err}"))?;
+        .map_err(|err| explain_builtin_reader_create_error("Publications", err))?;
     let subscription_reader = BuiltinDataReader::<Subscriptions>::create(&participant, None)
-        .map_err(|err| format!("Subscriptions reader作成に失敗しました: {err}"))?;
+        .map_err(|err| explain_builtin_reader_create_error("Subscriptions", err))?;
 
     let mut publication_samples = BuiltinSamples::<Publications>::new(256);
     let mut subscription_samples = BuiltinSamples::<Subscriptions>::new(256);
@@ -232,7 +273,7 @@ fn collect_publications(
             Ok(())
         }
         Err(DDSError::NoData) => Ok(()),
-        Err(err) => Err(format!("Publications読み取りに失敗しました: {err}")),
+        Err(err) => Err(explain_builtin_take_error("Publications", err)),
     }
 }
 
@@ -261,7 +302,7 @@ fn collect_subscriptions(
             Ok(())
         }
         Err(DDSError::NoData) => Ok(()),
-        Err(err) => Err(format!("Subscriptions読み取りに失敗しました: {err}")),
+        Err(err) => Err(explain_builtin_take_error("Subscriptions", err)),
     }
 }
 
@@ -400,24 +441,313 @@ fn run_top(domain_id: u32, args: TopArgs) -> Result<(), String> {
         return Err("--interval-ms は1以上を指定してください".to_string());
     }
 
-    println!("[Phase 0] top の骨格実装");
-    println!(
-        "domain={}, scan-ms={}, interval-ms={}, include-internal={}",
-        domain_id, args.scan_ms, args.interval_ms, args.include_internal
-    );
+    let participant = DdsParticipant::create(Some(domain_id), None, None)
+        .map_err(|err| explain_participant_create_error(domain_id, err))?;
+    let subscriber =
+        DdsSubscriber::create(&participant, None, None).map_err(explain_subscriber_create_error)?;
 
-    let headers = ["topic", "pub", "sub", "msgs", "bytes", "msg/s", "bytes/s"];
-    let rows = vec![vec![
-        "(未実装)".to_string(),
-        "0".to_string(),
-        "0".to_string(),
-        "0".to_string(),
-        format_bytes(0),
-        "0.0".to_string(),
-        format_bytes(0),
-    ]];
-    println!("{}", render_table(&headers, &rows));
-    Ok(())
+    let scan_interval = Duration::from_millis(args.scan_ms);
+    let render_interval = Duration::from_millis(args.interval_ms);
+    let mut tracked_topics: BTreeMap<TopicKey, TopTopicState> = BTreeMap::new();
+
+    let mut last_scan = Instant::now()
+        .checked_sub(scan_interval)
+        .unwrap_or_else(Instant::now);
+    let mut last_render = Instant::now()
+        .checked_sub(render_interval)
+        .unwrap_or_else(Instant::now);
+    let mut last_rate_update = Instant::now();
+
+    loop {
+        let now = Instant::now();
+
+        if now.duration_since(last_scan) >= scan_interval {
+            let endpoint_states = scan_endpoint_states(domain_id, args.scan_ms)?;
+            let summaries = summarize_topics(&endpoint_states, args.include_internal);
+            sync_top_topics(&mut tracked_topics, &summaries, &participant, &subscriber);
+            last_scan = now;
+        }
+
+        poll_top_readers(&mut tracked_topics);
+
+        let now = Instant::now();
+        if now.duration_since(last_render) >= render_interval {
+            let elapsed = now.duration_since(last_rate_update);
+            update_top_rates(&mut tracked_topics, elapsed);
+            render_top_table(domain_id, &args, &tracked_topics);
+
+            last_rate_update = now;
+            last_render = now;
+        }
+
+        thread::sleep(Duration::from_millis(TOP_LOOP_SLEEP_MS));
+    }
+}
+
+fn sync_top_topics(
+    tracked_topics: &mut BTreeMap<TopicKey, TopTopicState>,
+    summaries: &BTreeMap<TopicKey, TopicSummary>,
+    participant: &DdsParticipant,
+    subscriber: &DdsSubscriber,
+) {
+    tracked_topics.retain(|topic_key, _| summaries.contains_key(topic_key));
+
+    for (topic_key, summary) in summaries {
+        let state = tracked_topics
+            .entry(topic_key.clone())
+            .or_insert_with(|| TopTopicState::new(summary.pub_count, summary.sub_count));
+
+        state.pub_count = summary.pub_count;
+        state.sub_count = summary.sub_count;
+
+        if state.reader.is_none() && state.create_error.is_none() {
+            if is_internal_topic(&topic_key.topic_name) {
+                state.create_error =
+                    Some("skip: 内部トピックはtopで受信統計を取得できません".to_string());
+                continue;
+            }
+
+            match create_top_reader(participant, subscriber, topic_key) {
+                Ok(reader) => {
+                    state.reader = Some(reader);
+                }
+                Err(err) => {
+                    eprintln!(
+                        "warning: reader作成失敗 topic='{}' type='{}': {}",
+                        topic_key.topic_name, topic_key.type_name, err
+                    );
+                    state.create_error = Some(err);
+                }
+            }
+        }
+    }
+}
+
+fn create_top_reader(
+    participant: &DdsParticipant,
+    subscriber: &DdsSubscriber,
+    topic_key: &TopicKey,
+) -> Result<TopReader, String> {
+    let topic = DdsTopic::<Untyped>::create_untyped(
+        participant,
+        &topic_key.topic_name,
+        &topic_key.type_name,
+        None,
+        None,
+    )
+    .map_err(|err| explain_untyped_topic_error(topic_key, err))?;
+
+    let reader = DdsReader::<Untyped>::create(subscriber, topic.clone(), None, None)
+        .map_err(|err| explain_untyped_reader_error(topic_key, err))?;
+
+    Ok(TopReader {
+        reader,
+        _topic: topic,
+        buffer: SampleBuffer::<Untyped>::new(TOP_READ_BUFFER_SIZE),
+    })
+}
+
+fn poll_top_readers(tracked_topics: &mut BTreeMap<TopicKey, TopTopicState>) {
+    for (topic_key, state) in tracked_topics.iter_mut() {
+        let Some(reader) = state.reader.as_mut() else {
+            continue;
+        };
+
+        match reader.reader.takecdr_now(&mut reader.buffer) {
+            Ok(_) => {
+                let mut msg_delta = 0u64;
+                let mut bytes_delta = 0u64;
+                for sample in reader.buffer.iter_sample() {
+                    msg_delta += 1;
+                    bytes_delta += sample.cdr().map_or(0, |cdr| cdr.len() as u64);
+                }
+                state.msg_total += msg_delta;
+                state.bytes_total += bytes_delta;
+                reader.buffer.clear();
+            }
+            Err(DDSError::NoData) => {}
+            Err(err) => {
+                let err_text = err.to_string();
+                if state.read_error.as_deref() != Some(err_text.as_str()) {
+                    eprintln!(
+                        "warning: 読み取り失敗 topic='{}' type='{}': {}",
+                        topic_key.topic_name, topic_key.type_name, err_text
+                    );
+                }
+                state.read_error = Some(err_text);
+            }
+        }
+    }
+}
+
+fn update_top_rates(tracked_topics: &mut BTreeMap<TopicKey, TopTopicState>, elapsed: Duration) {
+    let seconds = elapsed.as_secs_f64();
+    if seconds <= 0.0 {
+        return;
+    }
+
+    for state in tracked_topics.values_mut() {
+        let msg_delta = state.msg_total.saturating_sub(state.last_msg_total);
+        let bytes_delta = state.bytes_total.saturating_sub(state.last_bytes_total);
+
+        state.msg_rate = msg_delta as f64 / seconds;
+        state.bytes_rate = bytes_delta as f64 / seconds;
+
+        state.last_msg_total = state.msg_total;
+        state.last_bytes_total = state.bytes_total;
+    }
+}
+
+fn render_top_table(
+    domain_id: u32,
+    args: &TopArgs,
+    tracked_topics: &BTreeMap<TopicKey, TopTopicState>,
+) {
+    print!("\x1B[2J\x1B[H");
+    println!(
+        "cdds-cli top domain={} interval={}ms scan={}ms include-internal={}",
+        domain_id, args.interval_ms, args.scan_ms, args.include_internal
+    );
+    println!("Ctrl+C で終了");
+
+    if tracked_topics.is_empty() {
+        println!("\n監視対象Topicはありません。");
+        let _ = io::stdout().flush();
+        return;
+    }
+
+    let headers = [
+        "topic", "type", "pub", "sub", "msgs", "bytes", "msg/s", "bytes/s", "status",
+    ];
+    let mut rows = Vec::with_capacity(tracked_topics.len());
+    for (topic_key, state) in tracked_topics {
+        let status = format_top_status(state);
+
+        rows.push(vec![
+            topic_key.topic_name.clone(),
+            topic_key.type_name.clone(),
+            state.pub_count.to_string(),
+            state.sub_count.to_string(),
+            state.msg_total.to_string(),
+            format_bytes(state.bytes_total),
+            format!("{:.1}", state.msg_rate),
+            format_bytes_rate(state.bytes_rate),
+            status,
+        ]);
+    }
+    println!("\n{}", render_table(&headers, &rows));
+    let _ = io::stdout().flush();
+}
+
+fn format_bytes_rate(bytes_per_sec: f64) -> String {
+    if bytes_per_sec <= 0.0 {
+        return "0 B/s".to_string();
+    }
+    format!("{}/s", format_bytes(bytes_per_sec.round() as u64))
+}
+
+fn truncate_text(text: &str, max_len: usize) -> String {
+    let count = text.chars().count();
+    if count <= max_len {
+        return text.to_string();
+    }
+
+    if max_len <= 3 {
+        return text.chars().take(max_len).collect();
+    }
+    let mut out = text.chars().take(max_len - 3).collect::<String>();
+    out.push_str("...");
+    out
+}
+
+fn format_top_status(state: &TopTopicState) -> String {
+    if let Some(err) = &state.create_error {
+        if let Some(reason) = err.strip_prefix(TOP_STATUS_SKIP_PREFIX) {
+            return format!("skip: {}", truncate_text(reason.trim(), 48));
+        }
+        return format!("reader-ng: {}", truncate_text(err, 48));
+    }
+
+    if let Some(err) = &state.read_error {
+        return format!("read-ng: {}", truncate_text(err, 48));
+    }
+
+    "ok".to_string()
+}
+
+fn explain_participant_create_error(domain_id: u32, err: DDSError) -> String {
+    let hint = match err {
+        DDSError::BadParameter => "domain IDまたはCycloneDDS設定(cyclonedds.xml)を確認してください",
+        DDSError::NotAllowedBySecurity => "Security設定によりDomain参加が拒否されました",
+        DDSError::OutOfResources => "OSリソース不足の可能性があります",
+        _ => "CycloneDDSの起動状態と設定を確認してください",
+    };
+
+    format!(
+        "DomainParticipant作成に失敗しました (domain={}): {} ({})",
+        domain_id, err, hint
+    )
+}
+
+fn explain_subscriber_create_error(err: DDSError) -> String {
+    let hint = match err {
+        DDSError::PreconditionNotMet => "DomainParticipantの初期化状態を確認してください",
+        DDSError::NotAllowedBySecurity => "Security設定によりSubscriber作成が拒否されました",
+        _ => "CycloneDDS設定を確認してください",
+    };
+
+    format!("Subscriber作成に失敗しました: {} ({})", err, hint)
+}
+
+fn explain_builtin_reader_create_error(reader_kind: &str, err: DDSError) -> String {
+    let hint = match err {
+        DDSError::Unsupported => "使用中のCycloneDDSがBuiltin readerをサポートしていません",
+        DDSError::NotAllowedBySecurity => "Security設定によりBuiltin reader作成が拒否されました",
+        _ => "Domain参加直後のタイミングや設定を確認してください",
+    };
+
+    format!(
+        "{} reader作成に失敗しました: {} ({})",
+        reader_kind, err, hint
+    )
+}
+
+fn explain_builtin_take_error(reader_kind: &str, err: DDSError) -> String {
+    let hint = match err {
+        DDSError::IllegalOperation => "reader状態が不正の可能性があります",
+        DDSError::Timeout => "scan-msを大きくして再試行してください",
+        _ => "CycloneDDSの通信状態を確認してください",
+    };
+
+    format!("{} 読み取りに失敗しました: {} ({})", reader_kind, err, hint)
+}
+
+fn explain_untyped_topic_error(topic_key: &TopicKey, err: DDSError) -> String {
+    let hint = match err {
+        DDSError::BadParameter => "型情報が一致しないか、このTopicはtop集計に非対応です",
+        DDSError::Unsupported => "この型はCDR直接購読に対応していません",
+        DDSError::NotAllowedBySecurity => "Security設定によりTopic購読が拒否されました",
+        _ => "Topic/type情報の整合性を確認してください",
+    };
+
+    format!(
+        "untyped topic作成に失敗 (topic='{}', type='{}'): {} ({})",
+        topic_key.topic_name, topic_key.type_name, err, hint
+    )
+}
+
+fn explain_untyped_reader_error(topic_key: &TopicKey, err: DDSError) -> String {
+    let hint = match err {
+        DDSError::PreconditionNotMet => "topicまたはsubscriberの初期化状態を確認してください",
+        DDSError::OutOfResources => "reader数が多すぎる可能性があります",
+        DDSError::NotAllowedBySecurity => "Security設定によりreader作成が拒否されました",
+        _ => "QoS互換性や型情報の整合性を確認してください",
+    };
+
+    format!(
+        "reader作成に失敗 (topic='{}', type='{}'): {} ({})",
+        topic_key.topic_name, topic_key.type_name, err, hint
+    )
 }
 
 fn parse_cli<I, S>(args: I) -> Result<CliConfig, ParseError>
@@ -764,5 +1094,78 @@ mod tests {
         assert!(qos_cell.contains("pub[2]:"));
         assert!(qos_cell.contains("profile#1"));
         assert!(qos_cell.contains("sub:"));
+    }
+
+    #[test]
+    fn format_bytes_rate_works() {
+        assert_eq!(format_bytes_rate(0.0), "0 B/s");
+        assert_eq!(format_bytes_rate(1024.0), "1.0 KiB/s");
+    }
+
+    #[test]
+    fn truncate_text_works() {
+        assert_eq!(truncate_text("abc", 8), "abc");
+        assert_eq!(truncate_text("abcdefghij", 6), "abc...");
+    }
+
+    #[test]
+    fn update_top_rates_uses_delta() {
+        let mut tracked = BTreeMap::new();
+        tracked.insert(
+            TopicKey {
+                topic_name: "/demo/topic".to_string(),
+                type_name: "demo/type".to_string(),
+            },
+            TopTopicState {
+                pub_count: 1,
+                sub_count: 1,
+                msg_total: 140,
+                bytes_total: 2_200,
+                msg_rate: 0.0,
+                bytes_rate: 0.0,
+                last_msg_total: 100,
+                last_bytes_total: 1_000,
+                reader: None,
+                create_error: None,
+                read_error: None,
+            },
+        );
+
+        update_top_rates(&mut tracked, Duration::from_secs(2));
+        let state = tracked
+            .values()
+            .next()
+            .expect("state should exist after update");
+
+        assert!((state.msg_rate - 20.0).abs() < 1e-9);
+        assert!((state.bytes_rate - 600.0).abs() < 1e-9);
+        assert_eq!(state.last_msg_total, 140);
+        assert_eq!(state.last_bytes_total, 2_200);
+    }
+
+    #[test]
+    fn top_status_formats_skip_reason() {
+        let state = TopTopicState {
+            pub_count: 0,
+            sub_count: 0,
+            msg_total: 0,
+            bytes_total: 0,
+            msg_rate: 0.0,
+            bytes_rate: 0.0,
+            last_msg_total: 0,
+            last_bytes_total: 0,
+            reader: None,
+            create_error: Some(format!("{} internal", TOP_STATUS_SKIP_PREFIX)),
+            read_error: None,
+        };
+
+        assert_eq!(format_top_status(&state), "skip: internal");
+    }
+
+    #[test]
+    fn participant_error_message_contains_hint() {
+        let message = explain_participant_create_error(0, DDSError::BadParameter);
+        assert!(message.contains("DomainParticipant作成に失敗"));
+        assert!(message.contains("domain ID"));
     }
 }
