@@ -115,7 +115,7 @@ dependencies = [
 
 [[package]]
 name = "cyclonedds-derive"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "derive-syn-parse",
  "proc-macro2",
@@ -125,7 +125,7 @@ dependencies = [
 
 [[package]]
 name = "cyclonedds-rs"
-version = "0.6.4"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "cdr",

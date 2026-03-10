@@ -20,6 +20,7 @@ uuid = "1.21.0"
 [features]
 shm = ["cyclonedds-sys/shm"]
 default = ["shm"]
+cli = []
 
 [dev-dependencies]
 anyhow = "1.0.102"
@@ -28,3 +29,7 @@ test-log = { version = "0.2.19", default-features = false, features = ["trace"] 
 tokio = { version = "1.50.0", features = ["full"] }
 tokio-util = "0.7.16"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter", "fmt"] }
+
+[[bin]]
+name = "cdds-cli"
+required-features = ["cli", "shm"]
