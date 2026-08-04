@@ -665,7 +665,20 @@ where
             }
         }
         ddsi_serdata_kind_SDK_KEY => {
-            panic!("Don't know how to create serdata from sample for SDK_KEY");
+            // Reached via dds_dispose/dds_writedispose/dds_unregister_instance, which pass a
+            // raw *const T with (at minimum) the key fields populated - there's no safe
+            // DdsWriter wrapper for these that would go through the Sample<T>/loan
+            // conventions the SDK_DATA branch above has to disambiguate between, so there's
+            // only one calling convention to handle here. Mirrors how from_ser/from_ser_iov/
+            // from_psmx derive a key hash from a sample they already have in hand, and how
+            // from_keyhash constructs an SDKKey SerData from a keyhash cyclone already
+            // computed - this is the same shape, one step earlier.
+            let t: &T = &*(sample as *const T);
+            let key_cdr = t.key_cdr();
+            // skip the four byte CDR encapsulation header, matching every other call site
+            // that turns a key_cdr() into a key hash.
+            compute_key_hash(&key_cdr[4..], &mut serdata);
+            serdata.sample = SampleData::SDKKey;
         }
         _ => panic!("Unexpected kind"),
     }
