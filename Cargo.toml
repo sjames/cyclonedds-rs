@@ -26,6 +26,7 @@ default = ["shm"]
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
 cdds_derive = {path = "dds_derive", version = "0.1"}
+cyclonedds-sys = { path = "../cyclonedds-sys", version = "0.2" }
 
 
 
