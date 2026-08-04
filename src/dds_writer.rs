@@ -351,7 +351,17 @@ mod test {
         // Make sure iox-roudi is running
         std::env::set_var("CYCLONEDDS_URI", cyclone_shm_config);
 
-        let participant = DdsParticipant::create(None, None, None).unwrap();
+        // CycloneDDS caches a domain's config the first time it's used in a process, and
+        // DdsParticipant::create(None, ..) requests DDS_DOMAIN_DEFAULT, which joins the
+        // lowest-numbered domain that already exists (falling back to domain 0). Every other
+        // test in this crate creates its participant the same way, so sharing that default
+        // domain would mean this test's CYCLONEDDS_URI/SharedMemory config might never
+        // actually apply if another test happened to stand domain 0 up first in the same
+        // process (e.g. `cargo test -- --include-ignored`). A dedicated domain id guarantees
+        // this test always creates a fresh domain, so its config always takes effect - the
+        // XML's <Domain id="any"> already matches any numeric domain id.
+        const TEST_LOAN_DOMAIN_ID: u32 = 42;
+        let participant = DdsParticipant::create(Some(TEST_LOAN_DOMAIN_ID), None, None).unwrap();
 
         let topic = TestTopic::create_topic(&participant, Some("test_topic"), None, None).unwrap();
         let another_topic = AnotherTopic::create_topic(&participant, None, None, None).unwrap();
