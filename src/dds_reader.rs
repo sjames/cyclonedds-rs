@@ -214,13 +214,19 @@ where
         if ret > 0 {
             // If first sample is value we assume all are
             if buf.is_valid_sample(0) {
-                   Ok(ret as usize) 
+                   Ok(ret as usize)
             } else {
                     Err(DDSError::NoData)
             }
+        } else if ret == 0 {
+            // No data available right now - not an error.
+            Err(DDSError::NoData)
         } else {
-                Err(DDSError::OutOfResources)
-        } 
+            // A real dds_take/dds_read failure; propagate the actual retcode instead of
+            // masking it as OutOfResources (this used to discard, e.g., DDS_RETCODE_ERROR,
+            // making read failures much harder to diagnose than they needed to be).
+            Err(DDSError::from(ret))
+        }
     }
   
     /// Read samples asynchronously. The number of samples actually read is returned.
@@ -360,11 +366,11 @@ impl <'a,T>Future for SampleArrayFuture<'a,T> where T: TopicType {
 
         match DdsReader::<T>::readn_from_entity_now(&entity, self.buffer, is_take) {
             Ok(len) =>  Poll::Ready(Ok(len)),
-            Err(DDSError::NoData) | Err(DDSError::OutOfResources) => {
-                let _ = waker.0.replace(ctx.waker().clone()); 
+            Err(DDSError::NoData) => {
+                let _ = waker.0.replace(ctx.waker().clone());
                 Poll::Pending
             },
-            Err(e) => {    
+            Err(e) => {
                 //println!("Error:{}",e);
                 // Some other error happened
                 Poll::Ready(Err(ReaderError::DdsError(e)))
@@ -470,11 +476,11 @@ mod test {
 
         let rt = Runtime::new().unwrap();
 
-        let _result = rt.block_on(async {
-            
-            let _task = tokio::spawn(async move {
+        rt.block_on(async {
+
+            let task = tokio::spawn(async move {
                 let mut samplebuffer = SampleBuffer::new(1);
-                if let Ok(t) = reader.take(&mut samplebuffer).await {
+                if let Ok(_t) = reader.take(&mut samplebuffer).await {
                     let sample = samplebuffer.iter().take(1).next().unwrap();
                     assert!(*sample == TestTopic::default());
                 } else {
@@ -482,7 +488,7 @@ mod test {
                 }
             });
 
-            let _another_task = tokio::spawn(async move {
+            let another_task = tokio::spawn(async move {
                 let mut samples = AnotherTopic::create_sample_buffer(5);
                 if let Ok(t) = another_reader.read(&mut samples).await {
                     assert_eq!(t,1);
@@ -490,7 +496,7 @@ mod test {
 
                         println!("Got sample {}", s.key);
                     }
-                   
+
                 } else {
                     panic!("reader get failed");
                 }
@@ -503,9 +509,19 @@ mod test {
 
             another_writer.write(Arc::new(AnotherTopic::default())).unwrap();
 
-
-            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-
+            // Await both reader tasks (with a timeout) instead of just sleeping and letting
+            // them run detached: a detached task's panic (or a hang, as this used to be
+            // before the from_sample fix - see stress_test.rs) is otherwise silently
+            // swallowed and this test would report "ok" regardless of whether the reads
+            // actually succeeded.
+            tokio::time::timeout(std::time::Duration::from_secs(5), task)
+                .await
+                .expect("reader task timed out")
+                .expect("reader task panicked");
+            tokio::time::timeout(std::time::Duration::from_secs(5), another_task)
+                .await
+                .expect("another_reader task timed out")
+                .expect("another_reader task panicked");
         });
     }
 /* 
