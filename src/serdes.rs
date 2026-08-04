@@ -122,8 +122,8 @@ impl<'a, T> SerType<T> {
                         !T::has_key(),
                     );
                     let mut sertype = sertype.assume_init();
-                    sertype.set_fixed_size(if T::is_fixed_size() { 1 } else { 0 });
-                    sertype.iox_size = std::mem::size_of::<T>() as u32;
+                    sertype.set_is_memcpy_safe(if T::is_fixed_size() { 1 } else { 0 });
+                    sertype.sizeof_type = std::mem::size_of::<T>() as u32;
                     sertype
                 }
             },
@@ -374,7 +374,7 @@ impl <'a,T>Index<usize> for SampleBuffer<T> {
 unsafe extern "C" fn zero_samples<T>(
     _sertype: *const ddsi_sertype,
     _ptr: *mut std::ffi::c_void,
-    _len: size_t,
+    _len: usize,
 ) {
 } // empty implementation
 
@@ -383,8 +383,8 @@ extern "C" fn realloc_samples<T>(
     ptrs: *mut *mut std::ffi::c_void,
     _sertype: *const ddsi_sertype,
     old: *mut std::ffi::c_void,
-    old_count: size_t,
-    new_count: size_t,
+    old_count: usize,
+    new_count: usize,
 ) {
     //println!("realloc");
     let old = unsafe {
@@ -424,7 +424,7 @@ extern "C" fn realloc_samples<T>(
 extern "C" fn free_samples<T>(
     _sertype: *const ddsi_sertype,
     ptrs: *mut *mut std::ffi::c_void,
-    len: size_t,
+    len: usize,
     op: dds_free_op_t,
 ) where
     T: TopicType,
@@ -467,8 +467,8 @@ unsafe extern "C" fn free_sertype<T>(sertype: *mut cyclonedds_sys::ddsi_sertype)
 unsafe extern "C" fn serdata_from_fragchain<T>(
     sertype: *const ddsi_sertype,
     kind: u32,
-    mut fragchain: *const nn_rdata,
-    size: size_t,
+    mut fragchain: *const ddsi_rdata,
+    size: usize,
 ) -> *mut ddsi_serdata
 where
     T: DeserializeOwned + TopicType,
@@ -524,14 +524,6 @@ where
     let ptr = Box::into_raw(serdata);
     // only we know this ddsi_serdata is really of type SerData
     ptr as *mut ddsi_serdata
-}
-
-fn copy_raw_key_hash<T>(key: &[u8], serdata: &mut Box<SerData<T>>) {
-    let mut raw_key = [0u8; 16];
-    for (i, data) in key.iter().enumerate() {
-        raw_key[i] = *data;
-    }
-    serdata.key_hash = KeyHash::RawKey(raw_key)
 }
 
 fn compute_key_hash<T>(key_cdr: &[u8], serdata: &mut SerData<T>)
@@ -626,9 +618,9 @@ where
 unsafe extern "C" fn serdata_from_iov<T>(
     sertype: *const ddsi_sertype,
     kind: u32,
-    niov: size_t,
+    niov: usize,
     iov: *const iovec,
-    size: size_t,
+    size: usize,
 ) -> *mut ddsi_serdata
 where
     T: DeserializeOwned + TopicType,
@@ -684,12 +676,10 @@ unsafe extern "C" fn free_serdata<T>(serdata: *mut ddsi_serdata) {
 
     let serdata = &mut *ptr;
 
-    if !serdata.serdata.iox_subscriber.is_null() {
-        let iox_subscriber: *mut iox_sub_t = serdata.serdata.iox_subscriber as *mut iox_sub_t;
-        let chunk = &mut serdata.serdata.iox_chunk;
-        let chunk = chunk as *mut *mut c_void;
-        //println!("Free iox chunk");
-        free_iox_chunk(iox_subscriber, chunk);
+    if !serdata.serdata.loan.is_null() {
+        // Release our reference to the loaned sample. The PSMX plugin (or the heap,
+        // for a locally-loaned sample) frees it once the refcount reaches zero.
+        dds_loaned_sample_unref(serdata.serdata.loan);
     }
 
     let _data = Box::from_raw(ptr);
@@ -736,8 +726,8 @@ unsafe extern "C" fn eqkey<T>(
 #[allow(dead_code)]
 unsafe extern "C" fn serdata_to_ser<T>(
     serdata: *const ddsi_serdata,
-    size: size_t,
-    offset: size_t,
+    size: usize,
+    offset: usize,
     buf: *mut c_void,
 ) where
     T: Serialize + TopicType,
@@ -766,7 +756,7 @@ unsafe extern "C" fn serdata_to_ser<T>(
             if let Err(e) = cdr::serialize_into::<_, T, _, CdrBe>(
                 buf_slice,
                 serdata.deref(),
-                Bounded(size),
+                Bounded(size as u64),
             ) {
                 panic!("Unable to serialize type {:?} due to {}", T::typename(), e);
             }
@@ -776,7 +766,7 @@ unsafe extern "C" fn serdata_to_ser<T>(
             if let Err(e) = cdr::serialize_into::<_, T, _, CdrBe>(
                 buf_slice,
                 serdata.as_ref(),
-                Bounded(size),
+                Bounded(size as u64),
             ) {
                 panic!("Unable to serialize type {:?} due to {}", T::typename(), e);
             }
@@ -787,8 +777,8 @@ unsafe extern "C" fn serdata_to_ser<T>(
 #[allow(dead_code)]
 unsafe extern "C" fn serdata_to_ser_ref<T>(
     serdata: *const ddsi_serdata,
-    offset: size_t,
-    size: size_t,
+    offset: usize,
+    size: usize,
     iov: *mut iovec,
 ) -> *mut ddsi_serdata
 where
@@ -808,7 +798,7 @@ where
             };
 
             iov.iov_base = p as *mut c_void;
-            iov.iov_len = len as size_t;
+            iov.iov_len = len as usize;
         }
         SampleData::SDKData(sample) => {
             if serdata.cdr.is_none() {
@@ -824,7 +814,7 @@ where
                 // cdds rounds up the length into multiple of 4. We mirror that by allocating extra in the
                 // ``serialize_type`` function.
                 iov.iov_base = cdr.as_ptr() as *mut c_void;
-                iov.iov_len = size; //cdr.len() as size_t;
+                iov.iov_len = size; //cdr.len() as usize;
             } else {
                 println!("Serialization error!");
                 return std::ptr::null_mut();
@@ -840,7 +830,7 @@ where
                 let last = offset + size as usize;
                 let cdr = &cdr[offset..last];
                 iov.iov_base = cdr.as_ptr() as *mut c_void;
-                iov.iov_len = cdr.len() as size_t;
+                iov.iov_len = cdr.len() as usize;
             } else {
                 println!("Serialization error (SHM)!");
                 return std::ptr::null_mut();
@@ -894,77 +884,25 @@ where
     //    "serdata to sample serdata:{:?} sample:{:?} bufptr:{:?} buflim:{:?}",
     //    serdata, sample, _bufptr, _buflim
     //);
-    let mut serdata = SerData::<T>::mut_ref_from_serdata(serdata_ptr);
+    let serdata = SerData::<T>::mut_ref_from_serdata(serdata_ptr);
     let mut s = Box::<Sample<T>>::from_raw(sample as *mut Sample<T>);
     assert!(!sample.is_null());
 
-    //#[cfg(shm)]
-    let ret = if !serdata.serdata.iox_chunk.is_null() {
-        // We got data from Iceoryx, deal with it
-        let hdr = iceoryx_header_from_chunk(serdata.serdata.iox_chunk);
-        if (*hdr).shm_data_state == iox_shm_data_state_t_IOX_CHUNK_CONTAINS_SERIALIZED_DATA {
-            // we have to deserialize the data now
-            let reader = std::slice::from_raw_parts(
-                serdata.serdata.iox_chunk as *const u8,
-                (*hdr).data_size as usize,
-            );
-            if serdata.serdata.kind == ddsi_serdata_kind_SDK_KEY {
-                compute_key_hash(reader, serdata);
-                serdata.sample = SampleData::SDKKey;
-                Ok(())
-            } else if let Ok(decoded) = deserialize_type::<T>(reader) {
-                if T::has_key() {
-                    // compute the 16byte key hash
-                    let key_cdr = decoded.key_cdr();
-                    // skip the four byte header
-                    let key_cdr = &key_cdr[4..];
-                    compute_key_hash(key_cdr, serdata);
-                }
-                //let sample = std::sync::Arc::new(decoded);
-                //store the deserialized sample in the serdata. We don't need to deserialize again
-                s.set(decoded.clone());
-                serdata.sample = SampleData::SDKData(decoded);
-
-                Ok(())
-            } else {
-                println!("Deserialization error!");
-                Err(())
-            }
-        } else {
-            // Not serialized data, we make a sample out of the data and store it in our sample
-            assert_eq!((*hdr).data_size as usize, std::mem::size_of::<T>());
-            if std::mem::size_of::<T>() == (*hdr).data_size as usize {
-                // Pay Attention here
-                //
-                //
-                let p: *mut T = serdata.serdata.iox_chunk as *mut T;
-                serdata.sample = SampleData::SHMData(NonNull::new_unchecked(p));
-                Ok(())
-            } else {
-                Err(())
-            }
+    // Every from_* constructor (from_ser, from_ser_iov, from_sample, from_loaned_sample,
+    // from_psmx, ...) populates serdata.sample synchronously, so by the time we get here
+    // there is nothing left to decode - just wire it up to the caller's Sample<T>.
+    let ret = match &serdata.sample {
+        SampleData::Uninitialized => true,
+        SampleData::SDKKey => true,
+        SampleData::SDKData(_data) => {
+            s.set_serdata(serdata_ptr as *mut ddsi_serdata);
+            //s.set(data.clone());
+            false
         }
-    } else {
-        Ok(())
-    };
-
-    let ret = if let Ok(()) = ret {
-        match &serdata.sample {
-            SampleData::Uninitialized => true,
-            SampleData::SDKKey => true,
-            SampleData::SDKData(_data) => {
-                s.set_serdata(serdata_ptr as *mut ddsi_serdata);
-                //s.set(data.clone());
-                false
-            }
-            SampleData::SHMData(_data) => {
-                s.set_serdata(serdata_ptr as *mut ddsi_serdata);
-                //s.set_loaned(data.clone());
-                false
-            }
+        SampleData::SHMData(_data) => {
+            s.set_serdata(serdata_ptr as *mut ddsi_serdata);
+            false
         }
-    } else {
-        true
     };
 
     // leak the sample intentionally so it doesn't get deallocated here
@@ -1047,8 +985,8 @@ unsafe extern "C" fn print<T>(
     _sertype: *const ddsi_sertype,
     _serdata: *const ddsi_serdata,
     _buf: *mut std::os::raw::c_char,
-    _bufsize: size_t,
-) -> size_t {
+    _bufsize: usize,
+) -> usize {
     0
 }
 
@@ -1069,45 +1007,111 @@ where
     })
 }
 
-#[cfg(feature = "shm")]
-#[allow(dead_code)]
-unsafe extern "C" fn get_sample_size(serdata: *const ddsi_serdata) -> u32 {
-    let serdata = *serdata;
-    (*serdata.type_).iox_size
-}
+// CycloneDDS 11 replaced the old iceoryx-specific get_sample_size/from_iox_buffer
+// serdata_ops callbacks with a generic, PSMX-plugin-agnostic loan model. The fixed
+// sample size that get_sample_size used to report is now just a plain field
+// (ddsi_sertype::sizeof_type, set in SerType::new) that the middleware reads
+// directly, so there's no longer a callback for it at all.
+//
+// from_iox_buffer's two cases (sub null: our own writer-side loan; sub non-null:
+// data received from an iceoryx subscriber) are now two separate callbacks:
+// from_loaned_sample (writer side) and from_psmx (reader side, any PSMX plugin).
 
 #[cfg(feature = "shm")]
 #[allow(dead_code)]
-unsafe extern "C" fn from_iox_buffer<T>(
+unsafe extern "C" fn from_loaned_sample<T>(
     sertype: *const ddsi_sertype,
     kind: ddsi_serdata_kind,
-    /*_deserialize_hint : bool,*/
-    sub: *mut ::std::os::raw::c_void,
-    buffer: *mut ::std::os::raw::c_void,
-) -> *mut ddsi_serdata {
-    //println!("from_iox_buffer");
-
-    if sertype.is_null() {
-        return std::ptr::null::<ddsi_serdata>() as *mut ddsi_serdata;
+    _sample: *const std::os::raw::c_char,
+    loaned_sample: *mut dds_loaned_sample,
+    _will_require_cdr: bool,
+) -> *mut ddsi_serdata
+where
+    T: TopicType,
+{
+    if sertype.is_null() || loaned_sample.is_null() {
+        return std::ptr::null_mut();
     }
 
     let mut d = SerData::<T>::new(sertype, kind);
 
-    // from loaned sample, just take the pointer
-    if sub.is_null() {
-        d.serdata.iox_chunk = buffer;
-    } else {
-        //println!("from_iox_buffer: take pointer {:?}from iox", buffer);
-        // from iox buffer
-        d.serdata.iox_chunk = buffer;
-        d.serdata.iox_subscriber = sub;
-        let hdr = iceoryx_header_from_chunk(buffer);
-        // Copy the key hash (TODO: Check this)
-        copy_raw_key_hash(&(*hdr).keyhash.value, &mut d);
+    dds_loaned_sample_ref(loaned_sample);
+    d.serdata.loan = loaned_sample;
+
+    // This is our own outgoing (writer-loaned) sample: the buffer already holds a
+    // plain T that the application populated directly, no (de)serialization needed.
+    let buffer = (*loaned_sample).sample_ptr;
+    d.sample = SampleData::SHMData(NonNull::new_unchecked(buffer as *mut T));
+
+    let ptr = Box::into_raw(d);
+    // only we know this ddsi_serdata is really of type SerData
+    ptr as *mut ddsi_serdata
+}
+
+#[cfg(feature = "shm")]
+#[allow(dead_code)]
+unsafe extern "C" fn from_psmx<T>(
+    sertype: *const ddsi_sertype,
+    loaned_sample: *mut dds_loaned_sample,
+) -> *mut ddsi_serdata
+where
+    T: DeserializeOwned + TopicType,
+{
+    //println!("from_psmx");
+
+    if sertype.is_null() || loaned_sample.is_null() {
+        return std::ptr::null::<ddsi_serdata>() as *mut ddsi_serdata;
     }
 
-    // we don't deserialize right away
-    d.sample = SampleData::SHMData(NonNull::new_unchecked(buffer as *mut T));
+    let metadata = &*(*loaned_sample).metadata;
+    let buffer = (*loaned_sample).sample_ptr;
+
+    let kind = match metadata.sample_state {
+        dds_loaned_sample_state_DDS_LOANED_SAMPLE_STATE_RAW_KEY
+        | dds_loaned_sample_state_DDS_LOANED_SAMPLE_STATE_SERIALIZED_KEY => {
+            ddsi_serdata_kind_SDK_KEY
+        }
+        _ => ddsi_serdata_kind_SDK_DATA,
+    };
+
+    let mut d = SerData::<T>::new(sertype, kind);
+
+    dds_loaned_sample_ref(loaned_sample);
+    d.serdata.loan = loaned_sample;
+
+    // Unlike the old iceoryx_header, dds_psmx_metadata carries no precomputed key
+    // hash, so we compute it ourselves here, same as the from_ser/from_ser_iov paths.
+    match metadata.sample_state {
+        dds_loaned_sample_state_DDS_LOANED_SAMPLE_STATE_SERIALIZED_KEY
+        | dds_loaned_sample_state_DDS_LOANED_SAMPLE_STATE_SERIALIZED_DATA => {
+            let reader =
+                std::slice::from_raw_parts(buffer as *const u8, metadata.sample_size as usize);
+            if kind == ddsi_serdata_kind_SDK_KEY {
+                compute_key_hash(reader, &mut d);
+                d.sample = SampleData::SDKKey;
+            } else if let Ok(decoded) = deserialize_type::<T>(reader) {
+                if T::has_key() {
+                    // compute the 16byte key hash, skipping the four byte CDR header
+                    let key_cdr = decoded.key_cdr();
+                    let key_cdr = &key_cdr[4..];
+                    compute_key_hash(key_cdr, &mut d);
+                }
+                d.sample = SampleData::SDKData(decoded);
+            } else {
+                println!("Deserialization error!");
+                return std::ptr::null_mut();
+            }
+        }
+        _ => {
+            // Raw (unserialized) data: the loan's memory already holds a plain T.
+            if T::has_key() {
+                let key_cdr = (&*(buffer as *const T)).key_cdr();
+                let key_cdr = &key_cdr[4..];
+                compute_key_hash(key_cdr, &mut d);
+            }
+            d.sample = SampleData::SHMData(NonNull::new_unchecked(buffer as *mut T));
+        }
+    }
 
     let ptr = Box::into_raw(d);
     // only we know this ddsi_serdata is really of type SerData
@@ -1135,9 +1139,9 @@ where
         print: Some(print::<T>),
         get_keyhash: Some(get_keyhash::<T>),
         #[cfg(feature = "shm")]
-        get_sample_size: Some(get_sample_size),
+        from_loaned_sample: Some(from_loaned_sample::<T>),
         #[cfg(feature = "shm")]
-        from_iox_buffer: Some(from_iox_buffer::<T>),
+        from_psmx: Some(from_psmx::<T>),
         ..Default::default()
     })
 }
@@ -1296,15 +1300,15 @@ impl <T>Clone for SerData<T> {
     Bad things will happen if these macros change.
     Some discussions here: https://github.com/eclipse-cyclonedds/cyclonedds/issues/830
 */
-fn nn_rdata_payload_offset(rdata: *const nn_rdata) -> usize {
+fn nn_rdata_payload_offset(rdata: *const ddsi_rdata) -> usize {
     unsafe { (*rdata).payload_zoff as usize }
 }
 
-fn nn_rmsg_payload(rmsg: *const nn_rmsg) -> *const u8 {
+fn nn_rmsg_payload(rmsg: *const ddsi_rmsg) -> *const u8 {
     unsafe { rmsg.add(1) as *const u8 }
 }
 
-fn nn_rmsg_payload_offset(rmsg: *const nn_rmsg, offset: usize) -> *const u8 {
+fn nn_rmsg_payload_offset(rmsg: *const ddsi_rmsg, offset: usize) -> *const u8 {
     unsafe { nn_rmsg_payload(rmsg).add(offset) }
 }
 

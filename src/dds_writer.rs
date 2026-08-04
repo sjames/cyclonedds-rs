@@ -174,7 +174,7 @@ where
         let voidpp:*mut *mut T= &mut p_sample;
         let voidpp = voidpp as *mut *mut c_void;
         let res = unsafe {
-            dds_loan_sample(self.0.entity(), voidpp)
+            dds_request_loan(self.0.entity(), voidpp)
         };
         if res == 0 {
             Ok(Loaned { inner: LoanedInner::Uninitialized( NonNull::new(p_sample).unwrap(),  self.entity().clone()) })   
@@ -263,10 +263,11 @@ mod test {
                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                 xsi:schemaLocation="https://cdds.io/config https://raw.githubusercontent.com/eclipse-cyclonedds/cyclonedds/iceoryx/etc/cyclonedds.xsd">
         <Domain id="any">
-            <SharedMemory>
-                <Enable>true</Enable>
-                <LogLevel>info</LogLevel>
-            </SharedMemory>
+            <General>
+                <Interfaces>
+                    <PubSubMessageExchange type="iox" config="LOG_LEVEL=INFO;"/>
+                </Interfaces>
+            </General>
         </Domain>
     </CycloneDDS>"###;
 
@@ -332,6 +333,16 @@ mod test {
     }
     }
 
+   // Disabled: needs iox-roudi running, and currently segfaults. Root cause (found while
+   // porting to CycloneDDS 11): cyclone's dds_write_impl_psmxloan_serdata still calls the
+   // sertype's from_sample callback with a raw *const T for the "regular serdata" it builds
+   // alongside a PSMX loan (see dds_write.c's DDS_LOAN_ORIGIN_KIND_PSMX case, which always
+   // passes heap_loan=NULL through to ddsi_serdata_from_sample). Our serdata_from_sample<T>
+   // unconditionally casts its `sample` argument to *const Sample<T>, which is only correct
+   // for the DdsWriter::write() path (which wraps data in Sample<T> itself) - not for this
+   // loan-driven call, where the pointer is a bare T. Fixing this needs a real design
+   // decision (e.g. have DdsWriter::write() and the loan path agree on one raw-pointer
+   // convention) rather than a mechanical port; out of scope here.
    //#[test]
     fn test_loan() {
         // Make sure iox-roudi is running
