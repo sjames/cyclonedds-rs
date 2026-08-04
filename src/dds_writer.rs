@@ -24,7 +24,7 @@ use std::marker::PhantomData;
 use crate::SampleBuffer;
 
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsWritable, Entity};
-use crate::serdes::{Sample, TopicType};
+use crate::serdes::{mark_loaned, unmark_loaned, Sample, TopicType};
 
 pub struct WriterBuilder<T: TopicType> {
     maybe_qos: Option<DdsQos>,
@@ -32,7 +32,7 @@ pub struct WriterBuilder<T: TopicType> {
     phantom : PhantomData<T>,
 }
 
-impl <T>WriterBuilder<T> where T: TopicType {
+impl <T>WriterBuilder<T> where T: TopicType + 'static {
     pub fn new() -> Self {
         Self {
             maybe_qos: None,
@@ -58,18 +58,18 @@ impl <T>WriterBuilder<T> where T: TopicType {
         }
 }
 
-pub enum LoanedInner<T: Sized + TopicType> {
+pub enum LoanedInner<T: Sized + TopicType + 'static> {
     Uninitialized(NonNull<T>, DdsEntity),
     Initialized(NonNull<T>, DdsEntity),
     Empty,
 }
 
-pub struct Loaned<T: Sized + TopicType> {
+pub struct Loaned<T: Sized + TopicType + 'static> {
     inner : LoanedInner<T>
 }
 
-impl <T> Loaned<T> 
-where T: Sized + TopicType {
+impl <T> Loaned<T>
+where T: Sized + TopicType + 'static {
     pub fn as_mut_ptr(&mut self) -> Option<*mut T> {
         match self.inner {
             LoanedInner::Uninitialized(p, _) => Some(p.as_ptr()),
@@ -78,29 +78,38 @@ where T: Sized + TopicType {
         }
     }
 
+    // Must mutate `self` in place rather than building a new Loaned and returning it: the
+    // latter drops the original `self` at the end of this function, and Drop unconditionally
+    // calls dds_return_loan - which would return the loan to cyclone before the caller ever
+    // gets to write() it.
     pub fn assume_init(mut self) -> Self {
-        match &mut self.inner {
-            LoanedInner::Uninitialized(p, e) => Self{inner : LoanedInner::Initialized(*p, e.clone())},
-            LoanedInner::Initialized(p, e) => Self{inner : LoanedInner::Initialized(*p, e.clone())},
-            LoanedInner::Empty => Self{inner : LoanedInner::Empty},
+        if let LoanedInner::Uninitialized(p, e) = &self.inner {
+            let p = *p;
+            let e = e.clone();
+            self.inner = LoanedInner::Initialized(p, e);
         }
+        self
     }
 }
 
-impl<T> Drop for Loaned<T> 
-where T : Sized + TopicType {
+impl<T> Drop for Loaned<T>
+where T : Sized + TopicType + 'static {
     fn drop(&mut self) {
         let (mut p_sample, entity) = match &mut self.inner {
             LoanedInner::Uninitialized(p, entity) => (p.as_ptr(),Some(entity)),
             LoanedInner::Initialized(p, entity) => (p.as_ptr(),Some(entity)),
             LoanedInner::Empty => (std::ptr::null_mut(), None),
         };
-    
+
         if let Some(entity) = entity {
+            // Must happen after the matching dds_write() (inside return_loan()) has run, since
+            // that's when from_sample checks this - which it does. Drop always runs strictly
+            // after return_loan()'s body (and hence its dds_write() call) has returned.
+            unmark_loaned::<T>(p_sample as usize);
             let voidpp:*mut *mut T= &mut p_sample;
             let voidpp = voidpp as *mut *mut c_void;
             unsafe {dds_return_loan(entity.entity(),voidpp,1)};
-        }       
+        }
     }
 }
 
@@ -113,7 +122,7 @@ pub struct DdsWriter<T: Sized + TopicType>(
 
 impl<'a, T> DdsWriter<T>
 where
-    T: Sized + TopicType,
+    T: Sized + TopicType + 'static,
 {
     pub fn create(
         entity: &dyn DdsWritable,
@@ -177,7 +186,8 @@ where
             dds_request_loan(self.0.entity(), voidpp)
         };
         if res == 0 {
-            Ok(Loaned { inner: LoanedInner::Uninitialized( NonNull::new(p_sample).unwrap(),  self.entity().clone()) })   
+            mark_loaned::<T>(p_sample as usize);
+            Ok(Loaned { inner: LoanedInner::Uninitialized( NonNull::new(p_sample).unwrap(),  self.entity().clone()) })
         } else {
             Err(DDSError::from(res))
         } 
@@ -333,17 +343,10 @@ mod test {
     }
     }
 
-   // Disabled: needs iox-roudi running, and currently segfaults. Root cause (found while
-   // porting to CycloneDDS 11): cyclone's dds_write_impl_psmxloan_serdata still calls the
-   // sertype's from_sample callback with a raw *const T for the "regular serdata" it builds
-   // alongside a PSMX loan (see dds_write.c's DDS_LOAN_ORIGIN_KIND_PSMX case, which always
-   // passes heap_loan=NULL through to ddsi_serdata_from_sample). Our serdata_from_sample<T>
-   // unconditionally casts its `sample` argument to *const Sample<T>, which is only correct
-   // for the DdsWriter::write() path (which wraps data in Sample<T> itself) - not for this
-   // loan-driven call, where the pointer is a bare T. Fixing this needs a real design
-   // decision (e.g. have DdsWriter::write() and the loan path agree on one raw-pointer
-   // convention) rather than a mechanical port; out of scope here.
-   //#[test]
+    // Requires a running iox-roudi (Iceoryx's shared-memory broker). Not something `cargo
+    // test` can bring up on its own, so this stays opt-in: `cargo test -- --ignored test_loan`.
+    #[test]
+    #[ignore = "requires iox-roudi running"]
     fn test_loan() {
         // Make sure iox-roudi is running
         std::env::set_var("CYCLONEDDS_URI", cyclone_shm_config);

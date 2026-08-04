@@ -32,7 +32,7 @@ pub struct TopicBuilder<T: TopicType> {
 
 impl<T> TopicBuilder<T>
 where
-    T: TopicType,
+    T: TopicType + 'static,
 {
     pub fn new() -> Self {
         Self {
@@ -78,7 +78,7 @@ pub struct DdsTopic<T: Sized + TopicType>(DdsEntity, PhantomData<T>, Option<DdsL
 
 impl<T> DdsTopic<T>
 where
-    T: std::marker::Sized + TopicType,
+    T: std::marker::Sized + TopicType + 'static,
 {
     pub fn create(
         participant: &DdsParticipant,

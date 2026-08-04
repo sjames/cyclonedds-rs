@@ -37,6 +37,57 @@ use cyclonedds_sys::*;
 use murmur3::murmur3_32;
 use std::io::Cursor;
 
+// CycloneDDS's from_sample callback is invoked with two structurally different pointers,
+// with no way to tell which one it got:
+//
+//  - DdsWriter::write() wraps the application's data in a Sample<T> before calling
+//    dds_write(), so cyclone hands the *same* Sample<T> pointer back to from_sample. This is
+//    what lets a local, in-process reader share the writer's Arc<T> with zero copying.
+//  - DdsWriter::loan()/return_loan() hand cyclone a raw `*mut T` (from dds_request_loan) that
+//    the application fills in directly. Cyclone's dds_write_impl_psmxloan_serdata sometimes
+//    calls from_sample with that exact raw pointer too - specifically to build a "regular"
+//    (non-PSMX) serdata for consumers not on the zero-copy SHM path. The genuine SHM
+//    zero-copy delivery to PSMX-matched readers never goes through from_sample at all, so
+//    this branch being non-zero-copy costs nothing we actually wanted to keep.
+//
+// This registry closes that gap: DdsWriter::loan() marks the address it hands out, Loaned<T>
+// (on drop, which happens after the matching dds_write() call inside return_loan() has
+// already run) unmarks it, and from_sample checks membership to decide which shape it got.
+mod loan_registry {
+    use std::any::TypeId;
+    use std::collections::{HashMap, HashSet};
+    use std::sync::{Mutex, OnceLock};
+
+    fn registry() -> &'static Mutex<HashMap<TypeId, HashSet<usize>>> {
+        static REGISTRY: OnceLock<Mutex<HashMap<TypeId, HashSet<usize>>>> = OnceLock::new();
+        REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
+    }
+
+    pub(crate) fn mark_loaned<T: 'static>(addr: usize) {
+        registry()
+            .lock()
+            .unwrap()
+            .entry(TypeId::of::<T>())
+            .or_default()
+            .insert(addr);
+    }
+
+    pub(crate) fn unmark_loaned<T: 'static>(addr: usize) {
+        if let Some(set) = registry().lock().unwrap().get_mut(&TypeId::of::<T>()) {
+            set.remove(&addr);
+        }
+    }
+
+    pub(crate) fn is_loaned<T: 'static>(addr: usize) -> bool {
+        registry()
+            .lock()
+            .unwrap()
+            .get(&TypeId::of::<T>())
+            .is_some_and(|set| set.contains(&addr))
+    }
+}
+pub(crate) use loan_registry::{is_loaned, mark_loaned, unmark_loaned};
+
 #[repr(C)]
 pub struct SerType<T> {
     sertype: ddsi_sertype,
@@ -107,7 +158,7 @@ pub trait TopicType: Serialize + DeserializeOwned {
 impl<'a, T> SerType<T> {
     pub fn new() -> Box<SerType<T>>
     where
-        T: DeserializeOwned + Serialize + TopicType,
+        T: DeserializeOwned + Serialize + TopicType + 'static,
     {
         Box::<SerType<T>>::new(SerType {
             sertype: {
@@ -589,19 +640,29 @@ unsafe extern "C" fn serdata_from_sample<T>(
     sample: *const c_void,
 ) -> *mut ddsi_serdata
 where
-    T: TopicType,
+    T: TopicType + 'static,
 {
     //println!("Serdata from sample {:?}", sample);
     let mut serdata = SerData::<T>::new(sertype, kind);
-    let sample = sample as *const Sample<T>;
-    let sample = &*sample;
 
     match kind {
         #[allow(non_upper_case_globals)]
         ddsi_serdata_kind_SDK_DATA => {
-            let sample = sample.get().unwrap();
-            serdata.serdata.hash = sample.hash((*sertype).serdata_basehash);
-            serdata.sample = SampleData::SDKData(sample);
+            if is_loaned::<T>(sample as usize) {
+                // `sample` is the raw *const T that DdsWriter::loan() handed to the
+                // application, not a Sample<T> - see the loan_registry module comment.
+                // DdsWriter::loan() only ever loans fixed-size (memcpy-safe) types, so a
+                // bitwise copy out of the loan's memory is sound here.
+                let owned = Arc::new(std::ptr::read(sample as *const T));
+                serdata.serdata.hash = owned.hash((*sertype).serdata_basehash);
+                serdata.sample = SampleData::SDKData(owned);
+            } else {
+                let sample = sample as *const Sample<T>;
+                let sample = &*sample;
+                let sample = sample.get().unwrap();
+                serdata.serdata.hash = sample.hash((*sertype).serdata_basehash);
+                serdata.sample = SampleData::SDKData(sample);
+            }
         }
         ddsi_serdata_kind_SDK_KEY => {
             panic!("Don't know how to create serdata from sample for SDK_KEY");
@@ -1120,7 +1181,7 @@ where
 
 fn create_serdata_ops<T>() -> Box<ddsi_serdata_ops>
 where
-    T: DeserializeOwned + TopicType + Serialize ,
+    T: DeserializeOwned + TopicType + Serialize + 'static,
 {
     Box::new(ddsi_serdata_ops {
         eqkey: Some(eqkey::<T>),
@@ -1374,6 +1435,49 @@ mod test {
     use cdds_derive::Topic;
     use serde_derive::{Deserialize, Serialize};
     use std::ffi::CString;
+
+    #[test]
+    fn loan_registry_tracks_mark_and_unmark() {
+        struct MarkerA;
+
+        let addr = 0x1000usize;
+        assert!(!is_loaned::<MarkerA>(addr));
+
+        mark_loaned::<MarkerA>(addr);
+        assert!(is_loaned::<MarkerA>(addr));
+
+        unmark_loaned::<MarkerA>(addr);
+        assert!(!is_loaned::<MarkerA>(addr));
+    }
+
+    #[test]
+    fn loan_registry_is_isolated_per_type() {
+        struct MarkerB;
+        struct MarkerC;
+
+        // The same numeric address means nothing on its own - the registry is keyed by
+        // TypeId, matching how it's actually used (from_sample only knows T, not which
+        // writer/loan pool an address came from).
+        let addr = 0x2000usize;
+
+        mark_loaned::<MarkerB>(addr);
+        assert!(is_loaned::<MarkerB>(addr));
+        assert!(!is_loaned::<MarkerC>(addr));
+
+        unmark_loaned::<MarkerB>(addr);
+        assert!(!is_loaned::<MarkerB>(addr));
+    }
+
+    #[test]
+    fn loan_registry_unmark_of_unmarked_address_is_a_no_op() {
+        struct MarkerD;
+
+        // Must not panic - Loaned<T>::drop() always calls unmark_loaned, including for
+        // loans that were returned uninitialized (never handed to dds_write) or for a
+        // type that never had anything marked at all.
+        unmark_loaned::<MarkerD>(0x3000usize);
+        assert!(!is_loaned::<MarkerD>(0x3000usize));
+    }
 
     #[test]
     fn scatter_gather() {
