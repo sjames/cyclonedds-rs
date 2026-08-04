@@ -758,9 +758,15 @@ where
         SampleData::SDKKey => serdata.key_hash.key_length() as u32,
         // This function asks for the serialized size so we do this even for SHM Data
         SampleData::SDKData(sample) => {
-            serdata.serialized_size =
-                Some((cdr::calc_serialized_size::<T>(sample.deref())) as u32);
-            *serdata.serialized_size.as_ref().unwrap()
+            // cdr::calc_serialized_size() computes the size before CDR's trailing padding
+            // (aligning to a 4-byte boundary), same as serialize_type() below has to correct
+            // for. This value becomes the buffer size cyclone allocates for us elsewhere
+            // (e.g. before calling serdata_to_ser), so under-reporting it here means later
+            // writes overflow that buffer instead of merely miscounting a size hint.
+            let unpadded = cdr::calc_serialized_size::<T>(sample.deref()) as u32;
+            let padded = (unpadded + 3) & !3u32;
+            serdata.serialized_size = Some(padded);
+            padded
         }
         SampleData::SHMData(_sample) => {
             // we refuse to serialize SHM data so return 0
@@ -794,13 +800,28 @@ unsafe extern "C" fn serdata_to_ser<T>(
     T: Serialize + TopicType,
 {
     //println!("serdata_to_ser");
-    let serdata = SerData::<T>::const_ref_from_serdata(serdata);
-    let buf = buf as *mut u8;
-    let buf = buf.add(offset as usize);
+    // cyclone may call this multiple times with different (offset, size) pairs to pull
+    // successive chunks out of the same serialized sample (e.g. when fragmenting a large
+    // sample for the network). So the CDR encoding has to be produced once and cached, then
+    // sliced - mirroring serdata_to_ser_ref below - rather than bounding the *serializer*
+    // itself to `size`: the serializer has no notion of "skip the first `offset` bytes", so
+    // on any call after the first it would try to fit the *whole* encoding into a buffer
+    // sized for only the remaining chunk and fail (this used to panic here under load: a
+    // stress test sending many samples reliably triggers the fragmented/chunked path that a
+    // single small sample in earlier tests never exercised).
+    let serdata = SerData::<T>::mut_ref_from_serdata(serdata);
+    let dst = buf as *mut u8;
 
     if size == 0 {
         return;
     }
+
+    let copy_chunk = |src: &[u8], dst: *mut u8| {
+        let start = offset.min(src.len());
+        let end = (offset + size).min(src.len());
+        let chunk = &src[start..end];
+        std::ptr::copy_nonoverlapping(chunk.as_ptr(), dst, chunk.len());
+    };
 
     match &serdata.sample {
         SampleData::Uninitialized => {
@@ -808,28 +829,28 @@ unsafe extern "C" fn serdata_to_ser<T>(
         }
         SampleData::SDKKey => match &serdata.key_hash {
             KeyHash::None => {}
-            KeyHash::CdrKey(k) => std::ptr::copy_nonoverlapping(k.as_ptr(), buf, size as usize),
-            KeyHash::RawKey(k) => std::ptr::copy_nonoverlapping(k.as_ptr(), buf, size as usize),
+            KeyHash::CdrKey(k) => copy_chunk(k, dst),
+            KeyHash::RawKey(k) => copy_chunk(k, dst),
         },
         // We may serialize both SDK data as well as SHM Data
-        SampleData::SDKData(serdata) => {
-            let buf_slice = std::slice::from_raw_parts_mut(buf, size as usize);
-            if let Err(e) = cdr::serialize_into::<_, T, _, CdrBe>(
-                buf_slice,
-                serdata.deref(),
-                Bounded(size as u64),
-            ) {
-                panic!("Unable to serialize type {:?} due to {}", T::typename(), e);
+        SampleData::SDKData(sample) => {
+            if serdata.cdr.is_none() {
+                serdata.cdr = serialize_type::<T>(sample, serdata.serialized_size).ok();
+            }
+            if let Some(cdr) = &serdata.cdr {
+                copy_chunk(cdr, dst);
+            } else {
+                panic!("Unable to serialize type {:?}", T::typename());
             }
         }
-        SampleData::SHMData(serdata) => {
-            let buf_slice = std::slice::from_raw_parts_mut(buf, size as usize);
-            if let Err(e) = cdr::serialize_into::<_, T, _, CdrBe>(
-                buf_slice,
-                serdata.as_ref(),
-                Bounded(size as u64),
-            ) {
-                panic!("Unable to serialize type {:?} due to {}", T::typename(), e);
+        SampleData::SHMData(sample) => {
+            if serdata.cdr.is_none() {
+                serdata.cdr = serialize_type::<T>(sample.as_ref(), serdata.serialized_size).ok();
+            }
+            if let Some(cdr) = &serdata.cdr {
+                copy_chunk(cdr, dst);
+            } else {
+                panic!("Unable to serialize type {:?}", T::typename());
             }
         }
     }
@@ -952,17 +973,23 @@ where
     // Every from_* constructor (from_ser, from_ser_iov, from_sample, from_loaned_sample,
     // from_psmx, ...) populates serdata.sample synchronously, so by the time we get here
     // there is nothing left to decode - just wire it up to the caller's Sample<T>.
+    //
+    // ddsi_serdata_to_sample_t's contract (see ddsi_serdata.h) is "return false on error" -
+    // i.e. true means the sample was materialized successfully. This was inverted here
+    // (false for the successful SDKData/SHMData cases), which made every single successful
+    // read/take report failure back to CycloneDDS - the root cause of dds_take/dds_read
+    // unconditionally returning DDS_RETCODE_ERROR regardless of topic, transport, or timing.
     let ret = match &serdata.sample {
-        SampleData::Uninitialized => true,
+        SampleData::Uninitialized => false,
         SampleData::SDKKey => true,
         SampleData::SDKData(_data) => {
             s.set_serdata(serdata_ptr as *mut ddsi_serdata);
             //s.set(data.clone());
-            false
+            true
         }
         SampleData::SHMData(_data) => {
             s.set_serdata(serdata_ptr as *mut ddsi_serdata);
-            false
+            true
         }
     };
 
