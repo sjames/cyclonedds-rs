@@ -196,7 +196,7 @@ where
      // Return the loaned buffer.  If the buffer was initialized, then write the data to be published
      pub fn return_loan(&mut self, mut buffer: Loaned<T>) -> Result<(),DDSError> {
         let res = match &mut buffer.inner {
-            
+
             LoanedInner::Uninitialized(p,entity) => {
                 let mut p_sample = p.as_ptr();
                 let voidpp:*mut *mut T= &mut p_sample;
@@ -210,12 +210,22 @@ where
             LoanedInner::Empty => 0,
         };
 
+        // dds_write() "takes over the loan" (dds_public_loan_api.h) - dds_return_loan must
+        // NOT be called again on this pointer afterward, or the chunk goes back to the
+        // shared-memory pool while cyclone may still be using it (e.g. RELIABLE retransmit
+        // history), letting a concurrent loan() on another writer recycle and overwrite it
+        // before it's actually delivered. Consume the Initialized case here so Drop - which
+        // unconditionally calls dds_return_loan - sees Empty and does nothing.
         if res == 0 {
-            Ok(())        
+            if let LoanedInner::Initialized(p, _) = &buffer.inner {
+                unmark_loaned::<T>(p.as_ptr() as usize);
+                buffer.inner = LoanedInner::Empty;
+            }
+            Ok(())
         } else {
             Err(DDSError::from(res))
-        } 
-        
+        }
+
     }
 
     pub fn set_listener(&mut self, listener: DdsListener) -> Result<(), DDSError> {
