@@ -302,6 +302,17 @@ impl DdsDynamicType {
         self.field(name).is_some_and(|f| f.is_key)
     }
 
+    /// The in-memory size of one sample of this type, in bytes - as computed by CycloneDDS,
+    /// not predicted independently (see the `layout` module doc).
+    pub fn size(&self) -> u32 {
+        self.0.size
+    }
+
+    /// The required alignment of one sample of this type, in bytes.
+    pub fn align(&self) -> u32 {
+        self.0.align
+    }
+
     fn alloc_layout(&self) -> std::alloc::Layout {
         std::alloc::Layout::from_size_align(self.0.size as usize, self.0.align as usize)
             .expect("CycloneDDS-provided size/align are always valid")
@@ -664,6 +675,15 @@ impl DynamicSample {
 
     pub(crate) fn as_ptr(&self) -> *const std::ffi::c_void {
         self.buf.as_ptr() as *const _
+    }
+
+    /// Raw view of the sample's backing bytes, `dtype.size()` long. Any string field's bytes
+    /// are the raw pointer value (little/big-endian per the host, not the string content) -
+    /// use `get()` for that. Mainly useful for independently verifying field placement (e.g.
+    /// against `std::mem::offset_of!` on an equivalent `#[repr(C)]` struct) or other
+    /// low-level interop.
+    pub fn as_bytes(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self.buf.as_ptr(), self.dtype.0.size as usize) }
     }
 
     /// Deep-copies a sample CycloneDDS returned from dds_take/dds_read - memory owned by
