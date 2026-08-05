@@ -171,6 +171,52 @@ where
 
     }
 
+    // Write msg and dispose the instance in one call. Goes through the same SDK_DATA/
+    // Sample<T> convention as write() (dds_writedispose isn't a key-only operation - it
+    // publishes new data and disposes the instance atomically), unlike dispose() and
+    // unregister_instance() below.
+    pub fn writedispose(&mut self, msg: std::sync::Arc<T>) -> Result<(), DDSError> {
+        unsafe {
+            let sample = Sample::<T>::from(msg);
+            let sample = &sample as *const Sample<T>;
+            let sample = sample as *const ::std::os::raw::c_void;
+            let ret = dds_writedispose(self.0.entity(), sample);
+            if ret >= 0 {
+                Ok(())
+            } else {
+                Err(DDSError::from(ret))
+            }
+        }
+    }
+
+    // Dispose the instance identified by msg's key fields; other fields are ignored. Only
+    // the key is read, synchronously, before this returns (see the SDK_KEY branch of
+    // from_sample in serdes.rs) - no allocation or retained reference is needed, unlike
+    // write()/writedispose().
+    pub fn dispose(&mut self, msg: &T) -> Result<(), DDSError> {
+        unsafe {
+            let ret = dds_dispose(self.0.entity(), msg as *const T as *const c_void);
+            if ret >= 0 {
+                Ok(())
+            } else {
+                Err(DDSError::from(ret))
+            }
+        }
+    }
+
+    // Unregister this writer's ownership of the instance identified by msg's key fields;
+    // other fields are ignored. See dispose() above for why this takes a plain reference.
+    pub fn unregister_instance(&mut self, msg: &T) -> Result<(), DDSError> {
+        unsafe {
+            let ret = dds_unregister_instance(self.0.entity(), msg as *const T as *const c_void);
+            if ret >= 0 {
+                Ok(())
+            } else {
+                Err(DDSError::from(ret))
+            }
+        }
+    }
+
     // Loan memory buffers for zero copy operation. Only supported for fixed size types
     pub fn loan(&mut self) -> Result<Loaned<T>, DDSError> {
 

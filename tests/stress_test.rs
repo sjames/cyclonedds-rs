@@ -618,9 +618,8 @@ fn stress_soak_high_volume() {
     run_dual_topic_stress(48, 20_000, "soak", Duration::from_secs(120));
 }
 
-/// Writes N keyed instances, then dispose()s and unregister()s every one of them. There is no
-/// safe DdsWriter::dispose()/unregister() wrapper today, so this reaches into cyclonedds_sys
-/// directly - the only way anything can currently reach the SDK_KEY path at all.
+/// Writes N keyed instances, then dispose()s and unregister()s every one of them via
+/// DdsWriter::dispose()/unregister_instance() - the only safe way to reach the SDK_KEY path.
 ///
 /// This is the direct regression test for the from_sample SDK_KEY fix: before it,
 /// serdata_from_sample's SDK_KEY branch was an unconditional panic!(), and dispose/
@@ -696,26 +695,12 @@ fn stress_dispose_unregister() {
                 id: i,
                 payload: String::new(),
             };
-            let ret = unsafe {
-                cyclonedds_sys::dds_dispose(
-                    writer.entity().entity(),
-                    &key_sample as *const NormalMsg as *const std::ffi::c_void,
-                )
-            };
-            assert!(ret >= 0, "dispose failed for id {} with retcode {}", i, ret);
-
-            let ret = unsafe {
-                cyclonedds_sys::dds_unregister_instance(
-                    writer.entity().entity(),
-                    &key_sample as *const NormalMsg as *const std::ffi::c_void,
-                )
-            };
-            assert!(
-                ret >= 0,
-                "unregister failed for id {} with retcode {}",
-                i,
-                ret
-            );
+            writer
+                .dispose(&key_sample)
+                .unwrap_or_else(|e| panic!("dispose failed for id {}: {:?}", i, e));
+            writer
+                .unregister_instance(&key_sample)
+                .unwrap_or_else(|e| panic!("unregister failed for id {}: {:?}", i, e));
         }
     });
 }
