@@ -704,3 +704,86 @@ fn stress_dispose_unregister() {
         }
     });
 }
+
+/// Publishes NormalMsg (variable-size, so loan()/return_loan()'s fixed-size raw-struct path
+/// doesn't apply) via DdsWriter::loan_serialized() instead of write(), exercising the raw-loan
+/// path in from_loaned_sample/from_sample end-to-end: request a raw shared-memory loan sized
+/// via padded_cdr_size(), serialize directly into it via serialize_type(), publish, and read
+/// it back through the normal async reader - checking both correctness (content, no
+/// duplicates, no corruption) and that regular write()s and loan_serialized()s interleave
+/// safely on the same writer/topic.
+#[test]
+#[ignore = "requires iox-roudi running"]
+fn stress_loan_serialized() {
+    enable_shm();
+
+    let participant = DdsParticipant::create(Some(50), None, None).expect("create participant");
+    let publisher = DdsPublisher::create(&participant, None, None).expect("create publisher");
+    let subscriber = DdsSubscriber::create(&participant, None, None).expect("create subscriber");
+
+    let topic = NormalMsg::create_topic(&participant, Some("stress_loan_serialized"), None, None)
+        .expect("create topic");
+    let mut writer = DdsWriter::create(&publisher, topic.clone(), Some(reliable_qos()), None)
+        .expect("create writer");
+    let reader = DdsReader::create_async(&subscriber, topic, Some(reliable_qos()))
+        .expect("create reader");
+
+    const SAMPLE_COUNT: u32 = 300;
+
+    fn expected_payload(id: u32) -> String {
+        // Varying length (0..37 'x's) walks across every CDR 4-byte alignment remainder,
+        // same reasoning as stress_large_payloads.
+        format!("loan-serialized-{}-{}", id, "x".repeat((id % 37) as usize))
+    }
+
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(async {
+        let reader_task = tokio::spawn(async move {
+            let mut buf = NormalMsg::create_sample_buffer(32);
+            let mut seen = HashSet::new();
+            while (seen.len() as u32) < SAMPLE_COUNT {
+                if let Ok(n) = reader.take(&mut buf).await {
+                    for i in 0..n {
+                        if buf.is_valid_sample(i) {
+                            let v = buf
+                                .get(i)
+                                .try_deref()
+                                .expect("valid sample must deref")
+                                .clone();
+                            assert_eq!(
+                                v.payload,
+                                expected_payload(v.id),
+                                "corrupted payload for id {}",
+                                v.id
+                            );
+                            assert!(seen.insert(v.id), "duplicate id {}", v.id);
+                        }
+                    }
+                }
+            }
+            seen
+        });
+
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        for i in 0..SAMPLE_COUNT {
+            let msg = NormalMsg {
+                id: i,
+                payload: expected_payload(i),
+            };
+            if i % 5 == 0 {
+                // Interleaved regular write()s: same topic, same writer, both SampleData
+                // variants alive at once.
+                writer.write(Arc::new(msg)).expect("write");
+            } else {
+                writer.loan_serialized(&msg).expect("loan_serialized");
+            }
+        }
+
+        let seen = tokio::time::timeout(Duration::from_secs(30), reader_task)
+            .await
+            .expect("reader task timed out")
+            .expect("reader task panicked");
+        assert_eq!(seen.len() as u32, SAMPLE_COUNT);
+    });
+}

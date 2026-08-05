@@ -24,7 +24,7 @@ use std::marker::PhantomData;
 use crate::SampleBuffer;
 
 use crate::{dds_listener::DdsListener, dds_qos::DdsQos, dds_topic::DdsTopic, DdsWritable, Entity};
-use crate::serdes::{mark_loaned, unmark_loaned, Sample, TopicType};
+use crate::serdes::{mark_loaned, mark_raw_loaned, unmark_loaned, unmark_raw_loaned, Sample, TopicType};
 
 pub struct WriterBuilder<T: TopicType> {
     maybe_qos: Option<DdsQos>,
@@ -109,6 +109,52 @@ where T : Sized + TopicType + 'static {
             let voidpp:*mut *mut T= &mut p_sample;
             let voidpp = voidpp as *mut *mut c_void;
             unsafe {dds_return_loan(entity.entity(),voidpp,1)};
+        }
+    }
+}
+
+// A DdsWriter::loan_of_size()/loan_serialized() loan: a raw, uninitialized shared-memory
+// buffer for building a pre-serialized (CDR) sample, as opposed to Loaned<T>'s typed `*mut T`
+// buffer. Needs its own type rather than reusing Loaned<T> - the buffer isn't a valid T until
+// it's been filled with serialized bytes and published, so there's no in-place `*mut T` to
+// hand out.
+pub enum RawLoanInner<T: Sized + TopicType + 'static> {
+    Filled(NonNull<u8>, u32, DdsEntity, PhantomData<T>),
+    Empty,
+}
+
+pub struct RawLoan<T: Sized + TopicType + 'static> {
+    inner: RawLoanInner<T>,
+}
+
+impl<T> RawLoan<T>
+where
+    T: Sized + TopicType + 'static,
+{
+    /// The raw buffer to fill with serialized bytes before calling
+    /// DdsWriter::return_raw_loan(). None once the loan has been published.
+    pub fn as_mut_slice(&mut self) -> Option<&mut [u8]> {
+        match &mut self.inner {
+            RawLoanInner::Filled(p, len, _, _) => {
+                Some(unsafe { std::slice::from_raw_parts_mut(p.as_ptr(), *len as usize) })
+            }
+            RawLoanInner::Empty => None,
+        }
+    }
+}
+
+impl<T> Drop for RawLoan<T>
+where
+    T: Sized + TopicType + 'static,
+{
+    fn drop(&mut self) {
+        // Same shape as Drop for Loaned<T> above: a loan abandoned without ever being
+        // returned via return_raw_loan() must still be handed back to cyclone here.
+        if let RawLoanInner::Filled(p, _, entity, _) = &self.inner {
+            unmark_raw_loaned::<T>(p.as_ptr() as usize);
+            let mut p_sample = p.as_ptr() as *mut c_void;
+            let voidpp: *mut *mut c_void = &mut p_sample;
+            unsafe { dds_return_loan(entity.entity(), voidpp, 1) };
         }
     }
 }
@@ -272,6 +318,89 @@ where
             Err(DDSError::from(res))
         }
 
+    }
+
+    // Request a raw, uninitialized shared-memory loan of exactly `size` bytes, for filling
+    // with a pre-serialized (CDR) sample and publishing via return_raw_loan(). Unlike loan(),
+    // this doesn't require T::is_fixed_size() - the buffer isn't a `*mut T` at all, it's
+    // meant to hold already-serialized bytes. Still requires shared memory to be available
+    // for this writer, same as dds_request_loan - dds_request_loan_of_size
+    // (dds_public_loan_api.h) has no heap-loan fallback.
+    pub fn loan_of_size(&mut self, size: u32) -> Result<RawLoan<T>, DDSError> {
+        if T::is_fixed_size() {
+            // Mirrors loan()'s opposite restriction (fixed-size only). A matching reader's
+            // from_psmx has no cross-process way to tell a raw-loan buffer of pre-serialized
+            // bytes apart from a regular loan's raw T struct other than by T::is_fixed_size()
+            // itself (see from_psmx in serdes.rs) - mixing both loan kinds for the same T
+            // would break that. Fixed-size types should use loan() instead, which is cheaper
+            // anyway (no serialization).
+            return Err(DDSError::Unsupported);
+        }
+
+        let mut p_sample: *mut c_void = std::ptr::null_mut();
+        let res = unsafe { dds_request_loan_of_size(self.0.entity(), size as usize, &mut p_sample) };
+        if res == 0 {
+            mark_raw_loaned::<T>(p_sample as usize, size);
+            Ok(RawLoan {
+                inner: RawLoanInner::Filled(
+                    NonNull::new(p_sample as *mut u8).unwrap(),
+                    size,
+                    self.entity().clone(),
+                    PhantomData,
+                ),
+            })
+        } else {
+            Err(DDSError::from(res))
+        }
+    }
+
+    // Publish a raw loan filled via loan_of_size()'s as_mut_slice(). Same double-return
+    // hazard and fix as return_loan() above: dds_write() takes over the loan on success, so
+    // the loan is consumed here rather than left for Drop to hand back a second time.
+    pub fn return_raw_loan(&mut self, mut loan: RawLoan<T>) -> Result<(), DDSError> {
+        let res = match &loan.inner {
+            RawLoanInner::Filled(p, _, entity, _) => unsafe {
+                dds_write(entity.entity(), p.as_ptr() as *const c_void)
+            },
+            RawLoanInner::Empty => 0,
+        };
+
+        if res == 0 {
+            if let RawLoanInner::Filled(p, _, _, _) = &loan.inner {
+                unmark_raw_loaned::<T>(p.as_ptr() as usize);
+                loan.inner = RawLoanInner::Empty;
+            }
+            Ok(())
+        } else {
+            Err(DDSError::from(res))
+        }
+    }
+
+    // Serialize msg directly into a shared-memory loan and publish it. When SHM is active
+    // and T isn't memcpy-safe (has heap-owned fields, so loan()/return_loan()'s raw-struct
+    // path isn't available), a plain write() still ends up with cyclone doing get_size() +
+    // allocate a PSMX loan + serialize into it internally - this does the same thing but
+    // serializes straight into the final shared-memory buffer instead of into an
+    // intermediate heap Vec that write()'s path would otherwise produce and then have
+    // memcpy'd into that same PSMX loan. Key hashing/matching behave identically to write():
+    // see raw_loaned_size's use in from_loaned_sample and from_sample in serdes.rs.
+    pub fn loan_serialized(&mut self, msg: &T) -> Result<(), DDSError> {
+        let size = crate::serdes::padded_cdr_size(msg);
+        let mut loan = self.loan_of_size(size)?;
+        let buf = loan
+            .as_mut_slice()
+            .expect("loan_of_size() always returns a Filled loan on success");
+
+        let bytes =
+            crate::serdes::serialize_type(msg, Some(size)).map_err(|_| DDSError::DdsError)?;
+        if bytes.len() > buf.len() {
+            // Shouldn't happen - padded_cdr_size() and serialize_type()'s own rounding use
+            // the same padding - but never write out of the loan's bounds if it does.
+            return Err(DDSError::DdsError);
+        }
+        buf[..bytes.len()].copy_from_slice(&bytes);
+
+        self.return_raw_loan(loan)
     }
 
     pub fn set_listener(&mut self, listener: DdsListener) -> Result<(), DDSError> {

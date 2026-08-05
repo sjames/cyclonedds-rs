@@ -88,6 +88,53 @@ mod loan_registry {
 }
 pub(crate) use loan_registry::{is_loaned, mark_loaned, unmark_loaned};
 
+// A second, independent registry for DdsWriter::loan_of_size()/loan_serialized() loans.
+// Those go through the *same* from_loaned_sample callback as the fixed-size loans above, but
+// the buffer holds pre-serialized CDR bytes rather than a raw T - cyclone's own loan metadata
+// (sample_state, sample_size) doesn't reliably distinguish the two cases (both read back as
+// DDS_LOANED_SAMPLE_STATE_RAW_DATA once dds_write() picks up the loan), so from_loaned_sample
+// needs its own way to tell which convention a given address was filled with. Kept separate
+// from loan_registry above rather than adding a "kind" to it, to avoid touching that
+// already-debugged mechanism.
+mod raw_loan_registry {
+    use std::any::TypeId;
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+
+    // Maps loan address -> requested size. Both from_sample and from_loaned_sample need to
+    // recognize a raw-loan address (see their call sites), but from_sample only ever
+    // receives the bare pointer with no size hint of its own, so the registry has to carry
+    // the size rather than just membership.
+    fn registry() -> &'static Mutex<HashMap<TypeId, HashMap<usize, u32>>> {
+        static REGISTRY: OnceLock<Mutex<HashMap<TypeId, HashMap<usize, u32>>>> = OnceLock::new();
+        REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
+    }
+
+    pub(crate) fn mark_raw_loaned<T: 'static>(addr: usize, size: u32) {
+        registry()
+            .lock()
+            .unwrap()
+            .entry(TypeId::of::<T>())
+            .or_default()
+            .insert(addr, size);
+    }
+
+    pub(crate) fn unmark_raw_loaned<T: 'static>(addr: usize) {
+        if let Some(map) = registry().lock().unwrap().get_mut(&TypeId::of::<T>()) {
+            map.remove(&addr);
+        }
+    }
+
+    pub(crate) fn raw_loaned_size<T: 'static>(addr: usize) -> Option<u32> {
+        registry()
+            .lock()
+            .unwrap()
+            .get(&TypeId::of::<T>())
+            .and_then(|map| map.get(&addr).copied())
+    }
+}
+pub(crate) use raw_loan_registry::{mark_raw_loaned, raw_loaned_size, unmark_raw_loaned};
+
 #[repr(C)]
 pub struct SerType<T> {
     sertype: ddsi_sertype,
@@ -648,7 +695,31 @@ where
     match kind {
         #[allow(non_upper_case_globals)]
         ddsi_serdata_kind_SDK_DATA => {
-            if is_loaned::<T>(sample as usize) {
+            if let Some(size) = raw_loaned_size::<T>(sample as usize) {
+                // `sample` is a raw shared-memory buffer from DdsWriter::loan_of_size()/
+                // loan_serialized(), already holding pre-serialized CDR bytes - not a
+                // Sample<T> and not a raw *const T either. dds_write_impl calls from_sample
+                // for the "normal" (non-PSMX) serdata alongside PSMX delivery even for a raw
+                // loan (and this is the *only* serdata a same-process local reader ever
+                // sees - PSMX/from_loaned_sample is for genuine cross-process delivery), so
+                // this needs the same disambiguation from_loaned_sample's raw-loan branch
+                // does, one level up: decode the bytes back into a T and store it as an
+                // ordinary SDKData sample, caching the bytes we already have rather than
+                // letting to_ser/get_size redundantly re-serialize them.
+                let bytes = std::slice::from_raw_parts(sample as *const u8, size as usize).to_vec();
+                match deserialize_type::<T>(&bytes) {
+                    Ok(decoded) => {
+                        serdata.serdata.hash = decoded.hash((*sertype).serdata_basehash);
+                        serdata.serialized_size = Some(size);
+                        serdata.cdr = Some(bytes);
+                        serdata.sample = SampleData::SDKData(decoded);
+                    }
+                    Err(()) => {
+                        println!("Deserialization error (raw loan)!");
+                        return std::ptr::null_mut();
+                    }
+                }
+            } else if is_loaned::<T>(sample as usize) {
                 // `sample` is the raw *const T that DdsWriter::loan() handed to the
                 // application, not a Sample<T> - see the loan_registry module comment.
                 // DdsWriter::loan() only ever loans fixed-size (memcpy-safe) types, so a
@@ -760,6 +831,16 @@ unsafe extern "C" fn free_serdata<T>(serdata: *mut ddsi_serdata) {
     // _data goes out of scope and frees the SerData. Nothing more to do here.
 }
 
+// cdr::calc_serialized_size() computes the size before CDR's trailing padding (aligning to a
+// 4-byte boundary), same as serialize_type() below has to correct for. This value becomes the
+// buffer size cyclone allocates for us elsewhere (e.g. before calling serdata_to_ser, or the
+// loan size DdsWriter::loan_serialized() requests), so under-reporting it means later writes
+// overflow that buffer instead of merely miscounting a size hint.
+pub(crate) fn padded_cdr_size<T: Serialize + ?Sized>(sample: &T) -> u32 {
+    let unpadded = cdr::calc_serialized_size::<T>(sample) as u32;
+    (unpadded + 3) & !3u32
+}
+
 #[allow(dead_code)]
 unsafe extern "C" fn get_size<T>(serdata: *const ddsi_serdata) -> u32
 where
@@ -771,13 +852,7 @@ where
         SampleData::SDKKey => serdata.key_hash.key_length() as u32,
         // This function asks for the serialized size so we do this even for SHM Data
         SampleData::SDKData(sample) => {
-            // cdr::calc_serialized_size() computes the size before CDR's trailing padding
-            // (aligning to a 4-byte boundary), same as serialize_type() below has to correct
-            // for. This value becomes the buffer size cyclone allocates for us elsewhere
-            // (e.g. before calling serdata_to_ser), so under-reporting it here means later
-            // writes overflow that buffer instead of merely miscounting a size hint.
-            let unpadded = cdr::calc_serialized_size::<T>(sample.deref()) as u32;
-            let padded = (unpadded + 3) & !3u32;
+            let padded = padded_cdr_size(sample.deref());
             serdata.serialized_size = Some(padded);
             padded
         }
@@ -935,7 +1010,7 @@ where
     ddsi_serdata_addref(&serdata.serdata)
 }
 
-fn serialize_type<T: Serialize>(sample: &T, maybe_size: Option<u32>) -> Result<Vec<u8>, ()> {
+pub(crate) fn serialize_type<T: Serialize>(sample: &T, maybe_size: Option<u32>) -> Result<Vec<u8>, ()> {
     if let Some(size) = maybe_size {
         // Round up allocation to multiple of four
         let size = (size + 3) & !3u32;
@@ -1128,7 +1203,7 @@ unsafe extern "C" fn from_loaned_sample<T>(
     _will_require_cdr: bool,
 ) -> *mut ddsi_serdata
 where
-    T: TopicType,
+    T: DeserializeOwned + TopicType + 'static,
 {
     if sertype.is_null() || loaned_sample.is_null() {
         return std::ptr::null_mut();
@@ -1139,10 +1214,41 @@ where
     dds_loaned_sample_ref(loaned_sample);
     d.serdata.loan = loaned_sample;
 
-    // This is our own outgoing (writer-loaned) sample: the buffer already holds a
-    // plain T that the application populated directly, no (de)serialization needed.
     let buffer = (*loaned_sample).sample_ptr;
-    d.sample = SampleData::SHMData(NonNull::new_unchecked(buffer as *mut T));
+
+    if raw_loaned_size::<T>(buffer as usize).is_some() {
+        // DdsWriter::loan_of_size()/loan_serialized(): the buffer already holds
+        // pre-serialized CDR bytes (including the 4-byte encapsulation header), not a live
+        // T. Decode it back into one - same as from_psmx's SERIALIZED_DATA case does - and
+        // store it as an ordinary SampleData::SDKData: a local (same-process) reader can be
+        // handed *this* serdata directly, bypassing from_psmx/PSMX entirely, and every
+        // consumer (try_deref, to_sample, ...) already knows how to deal with SDKData. Cache
+        // the bytes we already have in serdata.cdr/serialized_size too, so get_size/
+        // serdata_to_ser* don't redundantly re-serialize what we just decoded.
+        let metadata = &*(*loaned_sample).metadata;
+        let size = metadata.sample_size as usize;
+        let bytes = std::slice::from_raw_parts(buffer as *const u8, size).to_vec();
+
+        match deserialize_type::<T>(&bytes) {
+            Ok(decoded) => {
+                if T::has_key() {
+                    let key_cdr = decoded.key_cdr();
+                    compute_key_hash(&key_cdr[4..], &mut d);
+                }
+                d.serialized_size = Some(size as u32);
+                d.cdr = Some(bytes);
+                d.sample = SampleData::SDKData(decoded);
+            }
+            Err(()) => {
+                println!("Deserialization error (raw loan)!");
+                return std::ptr::null_mut();
+            }
+        }
+    } else {
+        // This is our own outgoing (writer-loaned) sample: the buffer already holds a
+        // plain T that the application populated directly, no (de)serialization needed.
+        d.sample = SampleData::SHMData(NonNull::new_unchecked(buffer as *mut T));
+    }
 
     let ptr = Box::into_raw(d);
     // only we know this ddsi_serdata is really of type SerData
@@ -1182,36 +1288,50 @@ where
 
     // Unlike the old iceoryx_header, dds_psmx_metadata carries no precomputed key
     // hash, so we compute it ourselves here, same as the from_ser/from_ser_iov paths.
-    match metadata.sample_state {
+    //
+    // metadata.sample_state alone isn't enough to tell a raw struct T from pre-serialized
+    // CDR bytes: cyclone sets it to RAW_KEY/RAW_DATA for *any* outstanding writer loan once
+    // dds_write() picks it up, whether it came from DdsWriter::loan() (regular, raw T) or
+    // loan_of_size()/loan_serialized() (raw bytes) - and unlike from_sample/from_loaned_sample
+    // (writer-side, same process), from_psmx runs in a reader process that has no access to
+    // the writer's loan_registry to disambiguate the same way. T::is_fixed_size() stands in
+    // for it instead, and is safe to rely on here specifically because DdsWriter::loan()
+    // already refuses non-fixed-size T (see loan()), and loan_of_size() mirrors that by
+    // refusing fixed-size T - so for a given T, RAW-state PSMX data can only ever have come
+    // from the loan kind that type is allowed to use.
+    let is_serialized = matches!(
+        metadata.sample_state,
         dds_loaned_sample_state_DDS_LOANED_SAMPLE_STATE_SERIALIZED_KEY
-        | dds_loaned_sample_state_DDS_LOANED_SAMPLE_STATE_SERIALIZED_DATA => {
-            let reader =
-                std::slice::from_raw_parts(buffer as *const u8, metadata.sample_size as usize);
-            if kind == ddsi_serdata_kind_SDK_KEY {
-                compute_key_hash(reader, &mut d);
-                d.sample = SampleData::SDKKey;
-            } else if let Ok(decoded) = deserialize_type::<T>(reader) {
-                if T::has_key() {
-                    // compute the 16byte key hash, skipping the four byte CDR header
-                    let key_cdr = decoded.key_cdr();
-                    let key_cdr = &key_cdr[4..];
-                    compute_key_hash(key_cdr, &mut d);
-                }
-                d.sample = SampleData::SDKData(decoded);
-            } else {
-                println!("Deserialization error!");
-                return std::ptr::null_mut();
-            }
-        }
-        _ => {
-            // Raw (unserialized) data: the loan's memory already holds a plain T.
+            | dds_loaned_sample_state_DDS_LOANED_SAMPLE_STATE_SERIALIZED_DATA
+    ) || !T::is_fixed_size();
+
+    if is_serialized {
+        let reader =
+            std::slice::from_raw_parts(buffer as *const u8, metadata.sample_size as usize);
+        if kind == ddsi_serdata_kind_SDK_KEY {
+            compute_key_hash(reader, &mut d);
+            d.sample = SampleData::SDKKey;
+        } else if let Ok(decoded) = deserialize_type::<T>(reader) {
             if T::has_key() {
-                let key_cdr = (&*(buffer as *const T)).key_cdr();
+                // compute the 16byte key hash, skipping the four byte CDR header
+                let key_cdr = decoded.key_cdr();
                 let key_cdr = &key_cdr[4..];
                 compute_key_hash(key_cdr, &mut d);
             }
-            d.sample = SampleData::SHMData(NonNull::new_unchecked(buffer as *mut T));
+            d.sample = SampleData::SDKData(decoded);
+        } else {
+            println!("Deserialization error!");
+            return std::ptr::null_mut();
         }
+    } else {
+        // Raw (unserialized) data: the loan's memory already holds a plain T. Only
+        // reachable when T::is_fixed_size() - see is_serialized above.
+        if T::has_key() {
+            let key_cdr = (&*(buffer as *const T)).key_cdr();
+            let key_cdr = &key_cdr[4..];
+            compute_key_hash(key_cdr, &mut d);
+        }
+        d.sample = SampleData::SHMData(NonNull::new_unchecked(buffer as *mut T));
     }
 
     let ptr = Box::into_raw(d);
