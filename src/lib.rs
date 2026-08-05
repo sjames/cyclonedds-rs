@@ -23,6 +23,7 @@ pub mod alloc;
 mod common;
 pub mod dds_api;
 pub mod dds_domain;
+pub mod dds_dynamic_type;
 pub mod dds_listener;
 pub mod dds_participant;
 pub mod dds_publisher;
@@ -39,6 +40,10 @@ pub mod topic_type_methods;
 
 pub use common::{DdsReadable, DdsWritable, Entity};
 pub use dds_api::*;
+pub use dds_dynamic_type::{
+    DdsDynamicReader, DdsDynamicType, DdsDynamicTopic, DdsDynamicWriter, DynamicKind,
+    DynamicSample, DynamicTypeBuilder, DynamicValue,
+};
 pub use dds_listener::{DdsListener,DdsListenerBuilder};
 pub use dds_participant::{DdsParticipant, ParticipantBuilder};
 pub use dds_publisher::{DdsPublisher,PublisherBuilder};
