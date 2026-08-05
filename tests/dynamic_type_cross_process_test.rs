@@ -26,10 +26,15 @@ fn example_path(name: &str) -> std::path::PathBuf {
 }
 
 fn build_examples() {
+    // Deliberately does not set LD_LIBRARY_PATH itself: it inherits whatever the parent test
+    // process's own environment already is, which - since the parent is running at all - is
+    // demonstrably already correct for finding libddsc.so on this machine, wherever that
+    // actually is (a hardcoded path here previously assumed /usr/local/lib, which is only
+    // where this happens to live on a machine with a manual system-wide install; CI's actual
+    // library location is elsewhere, and hardcoding it broke there).
     let status = Command::new("cargo")
         .args(["build", "--examples"])
         .current_dir(workspace_root())
-        .env("LD_LIBRARY_PATH", "/usr/local/lib")
         .status()
         .expect("failed to run cargo build --examples");
     assert!(status.success(), "cargo build --examples failed");
@@ -65,7 +70,6 @@ fn dynamic_type_cross_process_round_trip() {
             COUNT.to_string(),
             READER_TIMEOUT_SECS.to_string(),
         ])
-        .env("LD_LIBRARY_PATH", "/usr/local/lib")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -75,7 +79,6 @@ fn dynamic_type_cross_process_round_trip() {
 
     let writer_output = Command::new(example_path("dynamic_cross_writer"))
         .args([DOMAIN_ID.to_string(), COUNT.to_string()])
-        .env("LD_LIBRARY_PATH", "/usr/local/lib")
         .output()
         .expect("failed to spawn dynamic_cross_writer");
 
