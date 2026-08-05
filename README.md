@@ -12,29 +12,35 @@ cyclone serialization/deserialization interface for high performance and IDL fre
 
 # Features
 
-1. Qos
-2. Reader and Writer
+1. Qos, including loading QoS profiles from XML at runtime (`DdsQosProvider`)
+2. Reader and Writer, including zero-copy loans (`loan`/`loan_of_size`) and
+   dispose/unregister_instance/writedispose
 3. Listener with closure callbacks
-4. Async reader 
+4. Async reader
 5. multiple and nested keys
-
-# Roadmap Features
-1. Shared memory support using iceoryx
+6. Shared memory support using iceoryx
+7. Dynamic Types: define a topic type's fields at runtime instead of generating a Rust
+   struct at compile time via `cdds_derive` (see `docs/design/dynamic-types.md` and
+   `examples/dynamic_types_demo.rs`). Currently limited to flat, `FINAL`-extensibility
+   structs.
 
 # Examples
 
 1. https://github.com/sjames/demo-vehicle-speed-subscriber  (Vehicle speed subscriber with async reader)
 2. https://github.com/sjames/demo-vehicle-speed-publisher (Vehicle speed publisher)
+3. `examples/dynamic_types_demo.rs` - guided tour of the Dynamic Type API in a single process
+4. `examples/dynamic_cross_writer.rs` / `examples/dynamic_cross_reader.rs` - the same Dynamic
+   Type sample split across two real OS processes talking over the network
 
 # Special Instructions
 
-The current release only supports the 0.10.X release branch. https://github.com/eclipse-cyclonedds/cyclonedds/tree/releases/0.10.x .
+This release targets CycloneDDS 11. https://github.com/eclipse-cyclonedds/cyclonedds/releases/tag/11.0.1 .
 Install this before building this crate or the examples.
 
 # Dependencies
 
-* iceoryx https://github.com/eclipse-iceoryx/iceoryx version 2.0.2. (https://github.com/eclipse-iceoryx/iceoryx/commit/f756b7c99ddf714d05929374492b34c5c69355bb) Do not install any other version.
-* cyclonedds 0.10.x branch (https://github.com/eclipse-cyclonedds/cyclonedds/commit/1be07de395e4ddf969db2b90328cdf4fb73e9a64) . Ensure that you build  and install Cyclone with SHM feature enabled. (cmake -DENABLE_SHM=1 ..)
+* iceoryx (iceoryx_hoofs + iceoryx_posh), only required if building with the `shm` feature (enabled by default). As of CycloneDDS 11, Iceoryx is built as a separate PSMX plugin (`libpsmx_iox`) discovered via CMake's `find_package`, rather than linked directly, so recent iceoryx releases should work - it is no longer pinned to a specific commit.
+* cyclonedds 11.0.1 (https://github.com/eclipse-cyclonedds/cyclonedds/releases/tag/11.0.1). Ensure that you build and install Cyclone with SHM feature enabled. (cmake -DENABLE_SHM=1 ..)
 * git
 * libclang
 * cmake
