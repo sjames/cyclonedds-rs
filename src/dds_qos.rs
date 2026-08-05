@@ -218,6 +218,50 @@ impl DdsQos {
         unsafe { dds_qset_partition1(self.0, name.as_ptr()) }
         self
     }
+
+    /// Store a string property, controlling whether it's propagated over discovery.
+    pub fn set_prop_propagate(
+        &mut self,
+        name: &std::ffi::CStr,
+        value: &std::ffi::CStr,
+        propagate: bool,
+    ) -> &mut Self {
+        unsafe {
+            dds_qset_prop_propagate(self.0, name.as_ptr(), value.as_ptr(), propagate);
+        }
+        self
+    }
+
+    /// Store a binary-data property, controlling whether it's propagated over discovery.
+    pub fn set_bprop_propagate(
+        &mut self,
+        name: &std::ffi::CStr,
+        value: &[u8],
+        propagate: bool,
+    ) -> &mut Self {
+        unsafe {
+            dds_qset_bprop_propagate(
+                self.0,
+                name.as_ptr(),
+                value.as_ptr() as *const std::ffi::c_void,
+                value.len(),
+                propagate,
+            );
+        }
+        self
+    }
+
+    /// Restrict this entity to the given PSMX plugin instance names (e.g. "iox") -
+    /// selecting which configured PubSubMessageExchange interfaces it may use, rather than
+    /// all of them.
+    pub fn set_psmx_instances(&mut self, instances: &[&std::ffi::CStr]) -> &mut Self {
+        let mut ptrs: Vec<*const std::os::raw::c_char> =
+            instances.iter().map(|s| s.as_ptr()).collect();
+        unsafe {
+            dds_qset_psmx_instances(self.0, ptrs.len() as u32, ptrs.as_mut_ptr());
+        }
+        self
+    }
     //TODO:  Not implementing any getters for now
 }
 
@@ -341,5 +385,16 @@ mod dds_qos_tests {
         } else {
             assert!(false);
         }
+    }
+
+    #[test]
+    fn test_set_prop_and_psmx() {
+        let mut qos = DdsQos::create().expect("create qos");
+        let name = std::ffi::CString::new("my_prop").unwrap();
+        let value = std::ffi::CString::new("my_value").unwrap();
+        let iox = std::ffi::CString::new("iox").unwrap();
+        qos.set_prop_propagate(&name, &value, true)
+            .set_bprop_propagate(&name, &[1, 2, 3, 4], false)
+            .set_psmx_instances(&[&iox]);
     }
 }
