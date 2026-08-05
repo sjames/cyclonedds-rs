@@ -44,6 +44,24 @@ impl DdsQos {
         }
     }
 
+    /// Create an owned DdsQos by copying from a borrowed dds_qos_t pointer - e.g. one owned
+    /// by a DdsQosProvider, whose lifetime doesn't extend past the provider itself.
+    pub(crate) fn copy_from(src: *const dds_qos_t) -> Result<Self, DDSError> {
+        unsafe {
+            let q = cyclonedds_sys::dds_create_qos();
+            if q.is_null() {
+                return Err(DDSError::OutOfResources);
+            }
+            let err: DDSError = dds_copy_qos(q, src).into();
+            if let DDSError::DdsOk = err {
+                Ok(DdsQos(q))
+            } else {
+                dds_delete_qos(q);
+                Err(err)
+            }
+        }
+    }
+
     pub fn merge(&mut self, src: &Self) {
         unsafe {
             dds_merge_qos(self.0, src.0);
