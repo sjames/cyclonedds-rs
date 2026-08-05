@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build
-      run: | 
+      run: |
         sudo apt-get install libacl1-dev
         git clone https://github.com/eclipse-iceoryx/iceoryx.git
         cd iceoryx
@@ -28,15 +28,10 @@ jobs:
         cmake ../iceoryx_meta/
         sudo make install
         popd
-        git clone https://github.com/eclipse-cyclonedds/cyclonedds.git
-        cd cyclonedds
-        git checkout releases/0.10.x
-        mkdir build
-        cd build
-        cmake ..
-        sudo make install
+        # cyclonedds-sys's build.rs vendors and builds CycloneDDS itself (see its
+        # GIT_COMMIT pin), so there's no separate CycloneDDS core build/install step here.
         cargo build --verbose
     - name: Run tests
-      run: | 
+      run: |
         export LD_LIBRARY_PATH=/usr/local/lib
         cargo test --verbose
