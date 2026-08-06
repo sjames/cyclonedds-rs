@@ -1,7 +1,7 @@
 # cyclonedds-rs 
 
 Rust bindings for cyclonedds https://github.com/eclipse-cyclonedds/cyclonedds.
-This create no longer depends on a code generator. The Cyclone serialization
+This crate no longer depends on a code generator. The Cyclone serialization
 interface is used to implement the Rust interface. You can annotate a structure
 with the new derive macro and start subscribing and publishing right from Rust.
 
